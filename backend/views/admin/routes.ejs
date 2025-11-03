@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Routes Management - BaseVeXe Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; }
+        header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 1.5rem 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        header h1 { font-size: 1.8rem; }
+        nav { display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        nav a { padding: 0.5rem 1rem; background: white; text-decoration: none; border-radius: 8px; color: #1e3a8a; font-weight: 600; transition: all 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        nav a.active, nav a:hover { background: #1e3a8a; color: white; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #3b82f6; }
+        .stat-card h3 { color: #6b7280; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: #1e3a8a; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        th { background: #f9fafb; padding: 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; }
+        td { padding: 1rem; border-bottom: 1px solid #e5e7eb; }
+        tr:hover { background: #f9fafb; }
+        .badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; display: inline-block; }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fee2e2; color: #991b1b; }
+        .btn { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .stops { color: #6b7280; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📍 Routes Management</h1>
+    </header>
+    
+    <nav>
+        <a href="/admin">📊 Dashboard</a>
+        <a href="/admin/users">👥 Users</a>
+        <a href="/admin/buses">🚌 Buses</a>
+        <a href="/admin/routes" style="background: #1e3a8a; color: white">📍 Routes</a>
+        <a href="/admin/trips">🕐 Trips</a>
+        <a href="/admin/bookings">🎫 Bookings</a>
+        <a href="/admin/statistics">📈 Statistics</a>
+    </nav>
+    
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Tổng số tuyến</h3>
+                <div class="value"><%= stats.total %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Đang hoạt động</h3>
+                <div class="value"><%= stats.active %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Không hoạt động</h3>
+                <div class="value"><%= stats.inactive %></div>
+            </div>
+        </div>
+        
+        <div style="background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+            <h2 style="margin-top: 0; color: #1e3a8a;">Danh sách Tuyến đường</h2>
+            <% if (routes.length === 0) { %>
+                <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                    <h3>Chưa có tuyến đường nào</h3>
+                </div>
+            <% } else { %>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tuyến</th>
+                            <th>Thành phố</th>
+                            <th>Khoảng cách</th>
+                            <th>Thời gian</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% routes.forEach(function(route) { %>
+                            <tr>
+                                <td><%= route.name %></td>
+                                <td><%= route.from_city %> → <%= route.to_city %></td>
+                                <td><%= route.total_distance_km %> km</td>
+                                <td><%= route.estimated_duration_min %> phút</td>
+                                <td>
+                                    <span class="badge <%= route.active ? 'badge-success' : 'badge-warning' %>">
+                                        <%= route.active ? 'Đang hoạt động' : 'Không hoạt động' %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-danger" onclick="deleteRoute('<%= route._id %>')">Xóa</button>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            <% } %>
+        </div>
+    </div>
+    
+    <script>
+        async function deleteRoute(id) {
+            if (!confirm('Bạn có chắc muốn xóa tuyến đường này?')) return;
+            try {
+                const response = await fetch(`/admin/routes/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Đã xóa tuyến đường thành công');
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
+

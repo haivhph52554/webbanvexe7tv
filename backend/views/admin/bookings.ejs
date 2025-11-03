@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookings Management - BaseVeXe Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; }
+        header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 1.5rem 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        header h1 { font-size: 1.8rem; }
+        nav { display: flex; gap: 0.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        nav a { padding: 0.5rem 1rem; background: white; text-decoration: none; border-radius: 8px; color: #1e3a8a; font-weight: 600; transition: all 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        nav a.active, nav a:hover { background: #1e3a8a; color: white; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #3b82f6; }
+        .stat-card h3 { color: #6b7280; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .stat-card .value { font-size: 1.8rem; font-weight: bold; color: #1e3a8a; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        th { background: #f9fafb; padding: 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; }
+        td { padding: 1rem; border-bottom: 1px solid #e5e7eb; }
+        tr:hover { background: #f9fafb; }
+        .badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; display: inline-block; }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fed7aa; color: #c2410c; }
+        .badge-primary { background: #dbeafe; color: #1e40af; }
+        .btn { padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎫 Bookings Management</h1>
+    </header>
+    
+    <nav>
+        <a href="/admin">📊 Dashboard</a>
+        <a href="/admin/users">👥 Users</a>
+        <a href="/admin/buses">🚌 Buses</a>
+        <a href="/admin/routes">📍 Routes</a>
+        <a href="/admin/trips">🕐 Trips</a>
+        <a href="/admin/bookings" style="background: #1e3a8a; color: white">🎫 Bookings</a>
+        <a href="/admin/statistics">📈 Statistics</a>
+    </nav>
+    
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Tổng số đặt chỗ</h3>
+                <div class="value"><%= stats.total %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Đang chờ</h3>
+                <div class="value"><%= stats.pending %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Đã thanh toán</h3>
+                <div class="value"><%= stats.paid %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Hoàn thành</h3>
+                <div class="value"><%= stats.completed %></div>
+            </div>
+            <div class="stat-card">
+                <h3>Doanh thu</h3>
+                <div class="value" style="font-size: 1.2rem;"><%= stats.totalRevenue.toLocaleString('vi-VN') %> ₫</div>
+            </div>
+        </div>
+        
+        <div style="background: white; border-radius: 10px; padding: 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow-x: auto;">
+            <h2 style="margin-top: 0; color: #1e3a8a; margin-bottom: 1rem;">Danh sách Đặt chỗ</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Khách hàng</th>
+                        <th>Ghế</th>
+                        <th>Tổng tiền</th>
+                        <th>Trạng thái</th>
+                        <th>Ngày đặt</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% bookings.forEach(function(booking) { %>
+                        <tr>
+                            <td><%= booking._id.toString().substring(0, 8) %>...</td>
+                            <td><%= booking.user?.full_name || 'N/A' %></td>
+                            <td><%= booking.seat_numbers?.join(', ') || 'N/A' %></td>
+                            <td><%= (booking.total_price || 0).toLocaleString('vi-VN') %> ₫</td>
+                            <td>
+                                    <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
+                                        <%= booking.status === 'pending' ? 'Đang chờ' : booking.status === 'paid' ? 'Đã thanh toán' : booking.status === 'completed' ? 'Hoàn thành' : booking.status === 'cancelled' ? 'Đã hủy' : booking.status %>
+                                    </span>
+                            </td>
+                            <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
+                            <td>
+                                <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">Xóa</button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        async function deleteBooking(id) {
+            if (!confirm('Bạn có chắc muốn xóa đặt chỗ này?')) return;
+            try {
+                const response = await fetch(`/admin/bookings/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Đã xóa đặt chỗ thành công');
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
+
