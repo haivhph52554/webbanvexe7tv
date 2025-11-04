@@ -326,9 +326,9 @@
                         <% bookings.forEach(function(booking) { %>
                             <tr>
                                 <td><%= booking._id.toString().substring(0, 8) %>...</td>
-                                <td><%= booking.user?.full_name || 'N/A' %></td>
+                                <td><%= booking.user?.full_name || booking.passenger?.name || 'N/A' %></td>
                                 <td><%= booking.seat_numbers?.join(', ') || 'N/A' %></td>
-                                <td><%= booking.total_price?.toLocaleString('vi-VN') || '0' %> ₫</td>
+                                <td><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</td>
                                 <td>
                                     <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
                                         <%= booking.status %>

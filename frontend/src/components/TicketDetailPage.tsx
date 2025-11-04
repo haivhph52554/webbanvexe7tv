@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, CreditCard, User, Phone, Mail, FileText } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText } from 'lucide-react';
 
 interface Ticket {
   id: string;
@@ -268,10 +268,7 @@ const TicketDetailPage: React.FC = () => {
                   <span className="text-gray-600">Số ghế:</span>
                   <span className="font-medium">{ticket.seats.length} ghế</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ghế đã chọn:</span>
-                  <span className="font-medium">{ticket.seats.join(', ')}</span>
-                </div>
+                {/* Removed explicit 'Ghế đã chọn' row to avoid duplicate display */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Giá vé/ghế:</span>
                   <span className="font-medium">{ticket.route.price}₫</span>

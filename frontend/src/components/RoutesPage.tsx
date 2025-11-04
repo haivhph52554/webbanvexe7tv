@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Users, Star, Search, Calendar, Filter } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Star, Search, Calendar, Filter } from 'lucide-react';
 
 interface Route {
   id: string;
@@ -17,151 +17,118 @@ interface Route {
   features: string[];
 }
 
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
+
 const RoutesPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'price' | 'duration' | 'rating'>('price');
   const [filterBusType, setFilterBusType] = useState<string>('all');
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Debounced search term to prevent frequent re-renders
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Mock data - trong thực tế sẽ fetch từ API
-  const routes: Route[] = [
-    {
-      id: "hn-hcm",
-      from: "Hà Nội",
-      to: "Hồ Chí Minh",
-      price: "450,000",
-      duration: "24h",
-      departureTime: "08:00",
-      arrivalTime: "08:00+1",
-      busType: "Xe giường nằm VIP",
-      availableSeats: 12,
-      rating: 4.8,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối"]
-    },
-    {
-      id: "hn-dn",
-      from: "Hà Nội",
-      to: "Đà Nẵng",
-      price: "320,000",
-      duration: "16h",
-      departureTime: "20:00",
-      arrivalTime: "12:00+1",
-      busType: "Xe giường nằm",
-      availableSeats: 8,
-      rating: 4.6,
-      company: "Hoàng Long",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-nt",
-      from: "Hồ Chí Minh",
-      to: "Nha Trang",
-      price: "180,000",
-      duration: "8h",
-      departureTime: "22:00",
-      arrivalTime: "06:00+1",
-      busType: "Xe giường nằm",
-      availableSeats: 15,
-      rating: 4.7,
-      company: "Mai Linh",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối"]
-    },
-    {
-      id: "hn-hp",
-      from: "Hà Nội",
-      to: "Hải Phòng",
-      price: "80,000",
-      duration: "2h",
-      departureTime: "06:00",
-      arrivalTime: "08:00",
-      busType: "Xe ngồi",
-      availableSeats: 25,
-      rating: 4.5,
-      company: "Hải Âu",
-      features: ["Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-ct",
-      from: "Hồ Chí Minh",
-      to: "Cần Thơ",
-      price: "120,000",
-      duration: "4h",
-      departureTime: "14:00",
-      arrivalTime: "18:00",
-      busType: "Xe ngồi",
-      availableSeats: 20,
-      rating: 4.4,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    },
-    {
-      id: "dn-hue",
-      from: "Đà Nẵng",
-      to: "Huế",
-      price: "60,000",
-      duration: "2h",
-      departureTime: "07:00",
-      arrivalTime: "09:00",
-      busType: "Xe ngồi",
-      availableSeats: 30,
-      rating: 4.3,
-      company: "Mai Linh",
-      features: ["Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-dalat",
-      from: "Hồ Chí Minh",
-      to: "Đà Lạt",
-      price: "200,000",
-      duration: "6h",
-      departureTime: "23:00",
-      arrivalTime: "05:00+1",
-      busType: "Xe giường nằm VIP",
-      availableSeats: 10,
-      rating: 4.9,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối", "TV"]
-    },
-    {
-      id: "hn-qn",
-      from: "Hà Nội",
-      to: "Quảng Ninh",
-      price: "150,000",
-      duration: "3h",
-      departureTime: "09:00",
-      arrivalTime: "12:00",
-      busType: "Xe ngồi",
-      availableSeats: 18,
-      rating: 4.2,
-      company: "Hải Âu",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    }
-  ];
+  useEffect(() => {
+    let mounted = true;
+    const fetchRoutes = async () => {
+      try {
+        setLoading(true);
+        // Fetch all data in one request instead of multiple
+  const res = await fetch(`${API_BASE}/api/routes/detailed`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
 
-  const filteredRoutes = routes
-    .filter(route => {
-      const matchesSearch = route.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           route.to.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesBusType = filterBusType === 'all' || route.busType.includes(filterBusType);
-      return matchesSearch && matchesBusType;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'price':
-          return parseInt(a.price.replace(',', '')) - parseInt(b.price.replace(',', ''));
-        case 'duration':
-          return parseInt(a.duration.replace('h', '')) - parseInt(b.duration.replace('h', ''));
-        case 'rating':
-          return b.rating - a.rating;
-        default:
-          return 0;
+        if (mounted) {
+          setRoutes(data.map((r: any) => ({
+            id: r._id || r.id,
+            from: r.from_city || r.from || r.name || '—',
+            to: r.to_city || r.to || '—',
+            price: r.base_price ? String(r.base_price) : '',
+            duration: r.estimated_duration_min ? `${Math.round(r.estimated_duration_min/60)}h` : (r.duration || ''),
+            departureTime: r.start_time ? new Date(r.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            arrivalTime: r.end_time ? new Date(r.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            busType: r.bus_type || '',
+            availableSeats: typeof r.availableSeats === 'number' ? r.availableSeats : 0,
+            rating: r.avgRating ? Math.round(r.avgRating * 10) / 10 : 0,
+            company: r.company || '',
+            features: r.features || []
+          })));
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(err.message || 'Lỗi khi tải tuyến');
+          setLoading(false);
+        }
       }
-    });
+    };
 
-  const handleBookingClick = (routeId: string) => {
+    fetchRoutes();
+    return () => { mounted = false; };
+  }, []);
+
+  // Memoize filtered and sorted routes
+  const filteredRoutes = useMemo(() => {
+    return routes
+      .filter(route => {
+        const matchesSearch = route.from.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                           route.to.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+        const matchesBusType = filterBusType === 'all' || route.busType.includes(filterBusType);
+        return matchesSearch && matchesBusType;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'price':
+            return parseInt(a.price.replace(',', '')) - parseInt(b.price.replace(',', ''));
+          case 'duration':
+            return parseInt(a.duration.replace('h', '')) - parseInt(b.duration.replace('h', ''));
+          case 'rating':
+            return b.rating - a.rating;
+          default:
+            return 0;
+        }
+      });
+  }, [routes, debouncedSearchTerm, filterBusType, sortBy]);
+
+  const handleBookingClick = useCallback((routeId: string) => {
     navigate(`/booking/${routeId}`);
-  };
+  }, [navigate]);
+
+  // Memoize stats calculations
+  const stats = useMemo(() => ({
+    totalRoutes: routes.length,
+    totalSeats: routes.reduce((sum, route) => sum + route.availableSeats, 0),
+    averageRating: routes.length ? Math.round((routes.reduce((sum, route) => sum + route.rating, 0) / routes.length) * 10) / 10 : 0,
+    uniqueCompanies: new Set(routes.map(route => route.company)).size
+  }), [routes]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Bus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <div className="text-lg font-medium">Đang tải danh sách tuyến...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center text-red-600">Lỗi: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -342,24 +309,24 @@ const RoutesPage: React.FC = () => {
           <h3 className="text-xl font-bold text-gray-900 mb-4">Thống kê</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{routes.length}</div>
-              <div className="text-sm text-gray-600">Tổng tuyến đường</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalRoutes}</div>
+                <div className="text-sm text-gray-600">Tổng tuyến đường</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {routes.reduce((sum, route) => sum + route.availableSeats, 0)}
-              </div>
+                <div className="text-2xl font-bold text-green-600">
+                  {stats.totalSeats}
+                </div>
               <div className="text-sm text-gray-600">Ghế có sẵn</div>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg">
               <div className="text-2xl font-bold text-yellow-600">
-                {Math.round(routes.reduce((sum, route) => sum + route.rating, 0) / routes.length * 10) / 10}
+                  {stats.averageRating}
               </div>
               <div className="text-sm text-gray-600">Đánh giá trung bình</div>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">
-                {new Set(routes.map(route => route.company)).size}
+                  {stats.uniqueCompanies}
               </div>
               <div className="text-sm text-gray-600">Nhà xe</div>
             </div>

@@ -51,6 +51,28 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa đặt chỗ này?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/bookings/${bookingId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error deleting booking');
+      }
+
+      // Refresh the bookings list
+      fetchBookings();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Có lỗi khi xóa đặt chỗ. Vui lòng thử lại.');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
       {/* Header */}
@@ -135,7 +157,7 @@ const AdminPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {trips.map((trip, index) => (
+              {trips.map((trip) => (
                     <tr key={trip._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '1rem' }}>{trip._id.substring(0, 8)}...</td>
                       <td style={{ padding: '1rem' }}>{trip.route?.name || 'N/A'}</td>
@@ -187,13 +209,14 @@ const AdminPage: React.FC = () => {
                     <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Tổng tiền</th>
                     <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Trạng thái</th>
                     <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Ngày đặt</th>
+                    <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((booking, index) => (
+                  {bookings.map((booking) => (
                     <tr key={booking._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '1rem' }}>{booking._id.substring(0, 8)}...</td>
-                      <td style={{ padding: '1rem' }}>{booking.user?.full_name || 'N/A'}</td>
+                      <td style={{ padding: '1rem' }}>{booking.user?.name || 'N/A'}</td>
                       <td style={{ padding: '1rem' }}>{booking.seats?.join(', ') || 'N/A'}</td>
                       <td style={{ padding: '1rem' }}>
                         {booking.total_price?.toLocaleString('vi-VN')} ₫
@@ -210,6 +233,24 @@ const AdminPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem' }}>
                         {new Date(booking.createdAt).toLocaleString('vi-VN')}
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <button 
+                          onClick={() => handleDeleteBooking(booking._id)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+                        >
+                          Xóa
+                        </button>
                       </td>
                     </tr>
                   ))}

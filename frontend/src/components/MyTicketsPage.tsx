@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Eye, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Eye, Trash2, XCircle } from 'lucide-react';
 
 interface Ticket {
   id: string;

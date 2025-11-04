@@ -147,10 +147,6 @@ const PaymentPage: React.FC = () => {
                   <span className="text-gray-600">Loại xe:</span>
                   <span className="ml-2 font-medium">{st.bus?.busType || '-'}</span>
                 </div>
-                <div>
-                  <span className="text-gray-600">Ghế đã chọn:</span>
-                  <span className="ml-2 font-medium">{(st.seats || []).join(', ')}</span>
-                </div>
               </div>
             </div>
 

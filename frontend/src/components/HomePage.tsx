@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bus, MapPin, Clock, Users, Star, Search, Calendar } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Bus, MapPin, Clock, Users, Star, Search, Calendar, LogOut, User } from 'lucide-react';
+import { useAuth } from '../App';
 
 type RouteDoc = {
   _id: string;
@@ -17,6 +18,7 @@ const API_BASE =
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const auth = useAuth();
 
   const [routes, setRoutes] = useState<RouteDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,10 +77,9 @@ const HomePage: React.FC = () => {
               <button className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
                 Trang chủ
               </button>
-              <button onClick={() => navigate('/routes')}
-                className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+              <Link to="/routes" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
                 Tuyến đường
-              </button>
+              </Link>
               <button onClick={() => navigate('/my-tickets')}
                 className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
                 Vé của tôi
@@ -89,8 +90,39 @@ const HomePage: React.FC = () => {
               </button>
             </nav>
             <div className="flex items-center space-x-4">
-              <button className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">Đăng nhập</button>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">Đăng ký</button>
+              {auth.user ? (
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center text-gray-700">
+                    <User className="h-5 w-5 mr-2" />
+                    <span className="font-medium">{auth.user.name}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      auth.logout();
+                      navigate('/');
+                    }}
+                    className="flex items-center text-gray-700 hover:text-red-600"
+                  >
+                    <LogOut className="h-5 w-5 mr-2" />
+                    Đăng xuất
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => navigate('/login')}
+                    className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Đăng nhập
+                  </button>
+                  <button 
+                    onClick={() => navigate('/register')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
+                  >
+                    Đăng ký
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

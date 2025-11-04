@@ -112,6 +112,7 @@ exports.checkout = async (req, res) => {
             seat_numbers: seatLabels,
             passenger: passenger || null,
             total_amount: computedTotal,
+            total_price: computedTotal,
             status: 'paid',
             route_snapshot: {
               from: trip.route?.from_city || '',

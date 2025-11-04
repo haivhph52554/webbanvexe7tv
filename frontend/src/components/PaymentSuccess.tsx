@@ -1,7 +1,7 @@
 // components/PaymentSuccess.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, Bus, MapPin, Clock, Download, Home, Calendar } from 'lucide-react';
+import { CheckCircle, Bus, MapPin, Clock, Calendar } from 'lucide-react';
 
 type SuccessPayload = {
   bookingId: string;
@@ -34,8 +34,47 @@ const PaymentSuccess: React.FC = () => {
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getPaymentMethodText = (method: string) =>
-    method === 'momo' ? 'Ví MoMo' : method === 'cod' ? 'Thanh toán tại xe' : 'Chuyển khoản ngân hàng';
+  
+
+  // Save the ticket into localStorage so MyTicketsPage (which reads localStorage) shows it
+  useEffect(() => {
+    if (!s) return;
+
+    try {
+      const key = 'vexe7tv_tickets';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+
+      // Build ticket shape compatible with MyTicketsPage
+      const ticket = {
+        id: s.bookingId,
+        bookingId: s.bookingId,
+        route: {
+          from: s.route.from,
+          to: s.route.to,
+          price: (s.pricePerSeat || 0).toString(),
+          duration: s.route.durationMin?.toString() || '',
+          departureTime: s.times.departureTime,
+          arrivalTime: s.times.arrivalTime || '',
+          busType: s.bus.busType || ''
+        },
+        seats: (s.seats || []).map((x: any) => Number(x)),
+        passenger: s.passenger || { name: '', phone: '', email: '', note: '' },
+        totalAmount: s.totalAmount || 0,
+        paymentMethod: s.paymentMethod,
+        bookingDate: new Date().toISOString(),
+        status: 'confirmed'
+      };
+
+      // avoid duplicates
+      const exists = existing.some((t: any) => t.bookingId === ticket.bookingId);
+      if (!exists) {
+        const updated = [ticket, ...existing];
+        localStorage.setItem(key, JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error('Failed to save ticket to localStorage', err);
+    }
+  }, [s]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
