@@ -1,163 +1,202 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Users, Star, Search, Calendar, Filter } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Star, Search, Calendar, Filter } from 'lucide-react';
 
-interface Route {
-  id: string;
-  from: string;
-  to: string;
-  price: string;
-  duration: string;
-  departureTime: string;
-  arrivalTime: string;
-  busType: string;
-  availableSeats: number;
-  rating: number;
-  company: string;
-  features: string[];
-}
+type RouteDoc = {
+  _id: string;
+  from_city?: string;
+  to_city?: string;
+  estimated_duration_min?: number;
+  total_distance_km?: number;
+  active?: boolean;
+};
+
+type TripDoc = {
+  _id: string;
+  route: string | RouteDoc;
+  bus?: { bus_type?: string; seat_count?: number };
+  start_time: string; // ISO
+  end_time?: string;  // ISO
+  base_price?: number;
+};
+
+type TripDetailResponse = {
+  trip: TripDoc;
+  seats: { seat_number: string; status: 'available'|'reserved'|'booked'|'checked_in' }[];
+};
+
+const API_BASE =
+  ((import.meta as any)?.env?.VITE_BACKEND_URL as string) ||
+  'http://localhost:5000';
+
+const fmtTime = (iso?: string) => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+};
+
+const fmtDuration = (mins?: number) => {
+  if (typeof mins !== 'number' || Number.isNaN(mins)) return '-';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+};
 
 const RoutesPage: React.FC = () => {
   const navigate = useNavigate();
+
+  // bộ lọc UI
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'price' | 'duration' | 'rating'>('price');
   const [filterBusType, setFilterBusType] = useState<string>('all');
 
-  // Mock data - trong thực tế sẽ fetch từ API
-  const routes: Route[] = [
-    {
-      id: "hn-hcm",
-      from: "Hà Nội",
-      to: "Hồ Chí Minh",
-      price: "450,000",
-      duration: "24h",
-      departureTime: "08:00",
-      arrivalTime: "08:00+1",
-      busType: "Xe giường nằm VIP",
-      availableSeats: 12,
-      rating: 4.8,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối"]
-    },
-    {
-      id: "hn-dn",
-      from: "Hà Nội",
-      to: "Đà Nẵng",
-      price: "320,000",
-      duration: "16h",
-      departureTime: "20:00",
-      arrivalTime: "12:00+1",
-      busType: "Xe giường nằm",
-      availableSeats: 8,
-      rating: 4.6,
-      company: "Hoàng Long",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-nt",
-      from: "Hồ Chí Minh",
-      to: "Nha Trang",
-      price: "180,000",
-      duration: "8h",
-      departureTime: "22:00",
-      arrivalTime: "06:00+1",
-      busType: "Xe giường nằm",
-      availableSeats: 15,
-      rating: 4.7,
-      company: "Mai Linh",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối"]
-    },
-    {
-      id: "hn-hp",
-      from: "Hà Nội",
-      to: "Hải Phòng",
-      price: "80,000",
-      duration: "2h",
-      departureTime: "06:00",
-      arrivalTime: "08:00",
-      busType: "Xe ngồi",
-      availableSeats: 25,
-      rating: 4.5,
-      company: "Hải Âu",
-      features: ["Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-ct",
-      from: "Hồ Chí Minh",
-      to: "Cần Thơ",
-      price: "120,000",
-      duration: "4h",
-      departureTime: "14:00",
-      arrivalTime: "18:00",
-      busType: "Xe ngồi",
-      availableSeats: 20,
-      rating: 4.4,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    },
-    {
-      id: "dn-hue",
-      from: "Đà Nẵng",
-      to: "Huế",
-      price: "60,000",
-      duration: "2h",
-      departureTime: "07:00",
-      arrivalTime: "09:00",
-      busType: "Xe ngồi",
-      availableSeats: 30,
-      rating: 4.3,
-      company: "Mai Linh",
-      features: ["Điều hòa", "Nước uống"]
-    },
-    {
-      id: "hcm-dalat",
-      from: "Hồ Chí Minh",
-      to: "Đà Lạt",
-      price: "200,000",
-      duration: "6h",
-      departureTime: "23:00",
-      arrivalTime: "05:00+1",
-      busType: "Xe giường nằm VIP",
-      availableSeats: 10,
-      rating: 4.9,
-      company: "Phương Trang",
-      features: ["WiFi", "Điều hòa", "Nước uống", "Chăn gối", "TV"]
-    },
-    {
-      id: "hn-qn",
-      from: "Hà Nội",
-      to: "Quảng Ninh",
-      price: "150,000",
-      duration: "3h",
-      departureTime: "09:00",
-      arrivalTime: "12:00",
-      busType: "Xe ngồi",
-      availableSeats: 18,
-      rating: 4.2,
-      company: "Hải Âu",
-      features: ["WiFi", "Điều hòa", "Nước uống"]
-    }
-  ];
+  // dữ liệu thật
+  const [routes, setRoutes] = useState<RouteDoc[]>([]);
+  const [trips, setTrips] = useState<TripDoc[]>([]);
+  const [availByTrip, setAvailByTrip] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  const filteredRoutes = routes
-    .filter(route => {
-      const matchesSearch = route.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           route.to.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesBusType = filterBusType === 'all' || route.busType.includes(filterBusType);
-      return matchesSearch && matchesBusType;
-    })
-    .sort((a, b) => {
+  // tải routes + trips
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const [r1, r2] = await Promise.all([
+          fetch(`${API_BASE}/api/routes`),
+          fetch(`${API_BASE}/api/trips`)
+        ]);
+        if (!r1.ok) throw new Error(`routes HTTP ${r1.status}`);
+        if (!r2.ok) throw new Error(`trips HTTP ${r2.status}`);
+        const routesData: RouteDoc[] = await r1.json();
+        const tripsData: TripDoc[] = await r2.json();
+
+        if (!mounted) return;
+
+        // chỉ giữ tuyến active
+        const routeActive = (routesData || []).filter(x => x?.active !== false);
+        setRoutes(routeActive);
+
+        // trips chuẩn hóa: route có thể là object hoặc id – ép về id string
+        const normalizedTrips = (tripsData || []).map(t => ({
+          ...t,
+          route: typeof t.route === 'object' && t.route ? (t.route as RouteDoc)._id : (t.route as string)
+        }));
+        setTrips(normalizedTrips as TripDoc[]);
+      } catch (e: any) {
+        if (!mounted) return;
+        setErr(e?.message || 'Lỗi tải dữ liệu');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // với mỗi route, lấy chuyến “gần nhất sắp khởi hành”
+  const cardData = useMemo(() => {
+    const now = Date.now();
+    return routes.map((route) => {
+      const routeTrips = trips.filter(t => String(t.route) === String(route._id));
+      if (routeTrips.length === 0) return { route, trip: null as TripDoc | null };
+
+      // lấy chuyến sớm nhất >= now, nếu không có thì lấy chuyến gần nhất trong quá khứ
+      const future = routeTrips.filter(t => new Date(t.start_time).getTime() >= now);
+      const chosen = (future.length ? future : routeTrips)
+        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
+
+      return { route, trip: chosen };
+    });
+  }, [routes, trips]);
+
+  // tải số ghế trống cho các trip được chọn (song song)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const chosenTrips = cardData.map(c => c.trip?._id).filter(Boolean) as string[];
+      const uniq = Array.from(new Set(chosenTrips));
+      if (uniq.length === 0) return;
+
+      try {
+        const results = await Promise.all(
+          uniq.map(async (id) => {
+            const res = await fetch(`${API_BASE}/api/trips/${id}`);
+            if (!res.ok) throw new Error(`trip ${id} HTTP ${res.status}`);
+            const data: TripDetailResponse = await res.json();
+            const available = (data.seats || []).filter(s => s.status === 'available').length;
+            return { id, available };
+          })
+        );
+        if (!mounted) return;
+        const map: Record<string, number> = {};
+        results.forEach(r => { map[r.id] = r.available; });
+        setAvailByTrip(map);
+      } catch (e) {
+        // im lặng: vẫn render được, chỉ thiếu số ghế trống
+      }
+    })();
+    return () => { mounted = false; };
+  }, [cardData]);
+
+  const filtered = useMemo(() => {
+    const items = cardData
+      .filter(({ route }) => {
+        const kw = searchTerm.trim().toLowerCase();
+        if (!kw) return true;
+        return (
+          (route.from_city || '').toLowerCase().includes(kw) ||
+          (route.to_city || '').toLowerCase().includes(kw)
+        );
+      })
+      .filter(({ trip }) => {
+        if (!trip) return true;
+        if (filterBusType === 'all') return true;
+        const type = trip.bus?.bus_type || '';
+        return type.includes(filterBusType);
+      })
+      .map(({ route, trip }) => {
+        const availableSeats = trip ? (availByTrip[trip._id] ?? 0) : 0;
+        const price = trip?.base_price || 0;
+        return {
+          id: route._id,
+          from: route.from_city || '-',
+          to: route.to_city || '-',
+          durationStr: fmtDuration(route.estimated_duration_min),
+          departureTime: fmtTime(trip?.start_time),
+          arrivalTime: fmtTime(trip?.end_time),
+          busType: trip?.bus?.bus_type || '-',
+          price,
+          availableSeats,
+          rating: 4.5 // TODO: thay bằng field thực nếu có
+        };
+      });
+
+    // sort
+    return items.sort((a, b) => {
       switch (sortBy) {
         case 'price':
-          return parseInt(a.price.replace(',', '')) - parseInt(b.price.replace(',', ''));
-        case 'duration':
-          return parseInt(a.duration.replace('h', '')) - parseInt(b.duration.replace('h', ''));
+          return a.price - b.price;
+        case 'duration': {
+          const parse = (s: string) => {
+            const m = /(?:(\d+)h)?\s*(?:(\d+)m)?/.exec(s || '');
+            const h = m?.[1] ? +m[1] : 0;
+            const mi = m?.[2] ? +m[2] : 0;
+            return h * 60 + mi;
+          };
+          return parse(a.durationStr) - parse(b.durationStr);
+        }
         case 'rating':
           return b.rating - a.rating;
         default:
           return 0;
       }
     });
+  }, [cardData, searchTerm, filterBusType, sortBy, availByTrip]);
 
   const handleBookingClick = (routeId: string) => {
     navigate(`/booking/${routeId}`);
@@ -169,12 +208,8 @@ const RoutesPage: React.FC = () => {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-4">
-            <button 
-              onClick={() => navigate('/')}
-              className="flex items-center text-gray-600 hover:text-blue-600 mr-4"
-            >
-              <ArrowLeft className="h-5 w-5 mr-2" />
-              Quay lại
+            <button onClick={() => navigate('/')} className="flex items-center text-gray-600 hover:text-blue-600 mr-4">
+              <ArrowLeft className="h-5 w-5 mr-2" /> Quay lại
             </button>
             <div className="flex items-center">
               <Bus className="h-8 w-8 text-blue-600" />
@@ -185,13 +220,12 @@ const RoutesPage: React.FC = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Tất cả tuyến đường</h2>
           <p className="text-gray-600">Khám phá các tuyến đường xe khách có sẵn</p>
         </div>
 
-        {/* Search and Filter */}
+        {/* Search & filters */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
@@ -204,7 +238,6 @@ const RoutesPage: React.FC = () => {
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
             <div className="relative">
               <Filter className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <select
@@ -218,12 +251,11 @@ const RoutesPage: React.FC = () => {
                 <option value="VIP">Xe VIP</option>
               </select>
             </div>
-            
             <div className="relative">
               <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'price' | 'duration' | 'rating')}
+                onChange={(e) => setSortBy(e.target.value as any)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
               >
                 <option value="price">Sắp xếp theo giá</option>
@@ -234,137 +266,115 @@ const RoutesPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Routes Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRoutes.map((route) => (
-            <div key={route.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-              {/* Route Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center">
-                  <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-                  <span className="font-medium text-gray-900">{route.from}</span>
-                </div>
-                <div className="flex-1 mx-4">
-                  <div className="border-t border-dashed border-gray-300"></div>
-                </div>
-                <div className="flex items-center">
-                  <MapPin className="h-5 w-5 text-green-600 mr-2" />
-                  <span className="font-medium text-gray-900">{route.to}</span>
-                </div>
-              </div>
-
-              {/* Route Info */}
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Clock className="h-4 w-4 mr-1" />
-                    {route.duration}
-                  </div>
-                  <div className="text-lg font-bold text-blue-600">
-                    {route.price}₫
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Giờ khởi hành:</span>
-                  <span className="font-medium">{route.departureTime}</span>
-                </div>
-                
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Loại xe:</span>
-                  <span className="font-medium">{route.busType}</span>
-                </div>
-                
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Nhà xe:</span>
-                  <span className="font-medium">{route.company}</span>
-                </div>
-                
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Ghế trống:</span>
-                  <span className="font-medium text-green-600">{route.availableSeats} ghế</span>
-                </div>
-              </div>
-
-              {/* Rating */}
-              <div className="flex items-center mb-4">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < Math.floor(route.rating)
-                          ? 'text-yellow-400 fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="ml-2 text-sm text-gray-600">{route.rating}/5</span>
-              </div>
-
-              {/* Features */}
-              <div className="mb-4">
-                <div className="flex flex-wrap gap-2">
-                  {route.features.map((feature, index) => (
-                    <span
-                      key={index}
-                      className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                    >
-                      {feature}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Book Button */}
-              <button
-                onClick={() => handleBookingClick(route.id)}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                Đặt vé ngay
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* No Results */}
-        {filteredRoutes.length === 0 && (
+        {/* Grid */}
+        {loading ? (
+          <div className="text-center text-gray-500">Đang tải dữ liệu…</div>
+        ) : err ? (
+          <div className="text-center text-red-600">Lỗi: {err}</div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-12">
             <Bus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Không tìm thấy tuyến đường</h3>
-            <p className="text-gray-600">Vui lòng thử lại với từ khóa khác hoặc bộ lọc khác</p>
+            <p className="text-gray-600">Vui lòng thử lại với từ khóa hoặc bộ lọc khác</p>
           </div>
-        )}
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filtered.map((item) => (
+                <div key={item.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <MapPin className="h-5 w-5 text-blue-600 mr-2" />
+                      <span className="font-medium text-gray-900">{item.from}</span>
+                    </div>
+                    <div className="flex-1 mx-4">
+                      <div className="border-t border-dashed border-gray-300"></div>
+                    </div>
+                    <div className="flex items-center">
+                      <MapPin className="h-5 w-5 text-green-600 mr-2" />
+                      <span className="font-medium text-gray-900">{item.to}</span>
+                    </div>
+                  </div>
 
-        {/* Stats */}
-        <div className="mt-12 bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Thống kê</h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{routes.length}</div>
-              <div className="text-sm text-gray-600">Tổng tuyến đường</div>
+                  <div className="space-y-3 mb-4">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="h-4 w-4 mr-1" />
+                        {item.durationStr}
+                      </div>
+                      <div className="text-lg font-bold text-blue-600">
+                        {item.price.toLocaleString()}₫
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Giờ khởi hành:</span>
+                      <span className="font-medium">{item.departureTime}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Giờ đến:</span>
+                      <span className="font-medium">{item.arrivalTime}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Loại xe:</span>
+                      <span className="font-medium">{item.busType}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Ghế trống:</span>
+                      <span className="font-medium text-green-600">{item.availableSeats} ghế</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center mb-4">
+                    <div className="flex items-center">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${i < Math.floor(item.rating) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="ml-2 text-sm text-gray-600">{item.rating}/5</span>
+                  </div>
+
+                  <button
+                    onClick={() => handleBookingClick(item.id)}
+                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Đặt vé ngay
+                  </button>
+                </div>
+              ))}
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {routes.reduce((sum, route) => sum + route.availableSeats, 0)}
+
+            {/* Stats */}
+            <div className="mt-12 bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Thống kê</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{routes.length}</div>
+                  <div className="text-sm text-gray-600">Tổng tuyến đường</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {filtered.reduce((sum, r) => sum + r.availableSeats, 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Ghế có sẵn (trên các tuyến hiển thị)</div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {Math.round((filtered.reduce((s, r) => s + r.rating, 0) / filtered.length) * 10) / 10}
+                  </div>
+                  <div className="text-sm text-gray-600">Đánh giá trung bình</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">{cardData.filter(c => c.trip).length}</div>
+                  <div className="text-sm text-gray-600">Số tuyến có chuyến hiển thị</div>
+                </div>
               </div>
-              <div className="text-sm text-gray-600">Ghế có sẵn</div>
             </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">
-                {Math.round(routes.reduce((sum, route) => sum + route.rating, 0) / routes.length * 10) / 10}
-              </div>
-              <div className="text-sm text-gray-600">Đánh giá trung bình</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">
-                {new Set(routes.map(route => route.company)).size}
-              </div>
-              <div className="text-sm text-gray-600">Nhà xe</div>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
