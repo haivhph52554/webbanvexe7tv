@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const Trip = require('../models/Trip');
 const TripSeatStatus = require('../models/TripSeatStatus');
+const { sendBookingConfirmationEmail } = require('../utils/mailer');
 
 const normalizeToNumber = (v) => {
   const num = parseInt(String(v).replace(/\D/g, ''), 10);
@@ -19,12 +20,16 @@ exports.checkout = async (req, res) => {
       return res.status(400).json({ error: 'Thiếu tripId hoặc seatNumbers' });
     }
 
-    await session.withTransaction(async () => {
+    const runFlow = async (maybeSession) => {
+      const s = (query) => (maybeSession ? query.session(maybeSession) : query);
+      const wopt = maybeSession ? { session: maybeSession } : {};
+
       // 1) Lấy trip + tham chiếu bus/route
-      const trip = await Trip.findById(tripId)
-        .populate('route')
-        .populate('bus')
-        .session(session);
+      const trip = await s(
+        Trip.findById(tripId)
+          .populate('route')
+          .populate('bus')
+      );
       if (!trip) throw new Error('Trip không tồn tại');
 
       const seatCount = trip.bus?.seat_count || 0;
@@ -38,7 +43,7 @@ exports.checkout = async (req, res) => {
       if (!requestedNums.length) throw new Error('Thiếu seatNumbers');
 
       // 3) Lấy ghế hiện có của trip
-      let allSeatDocs = await TripSeatStatus.find({ trip: trip._id }).session(session);
+      let allSeatDocs = await s(TripSeatStatus.find({ trip: trip._id }));
 
       // 3a) Nếu CHƯA có ghế nào => seed toàn bộ 1..seat_count
       if (allSeatDocs.length === 0) {
@@ -51,8 +56,8 @@ exports.checkout = async (req, res) => {
             booking_id: null
           });
         }
-        await TripSeatStatus.insertMany(seedDocs, { session });
-        allSeatDocs = await TripSeatStatus.find({ trip: trip._id }).session(session);
+        await TripSeatStatus.insertMany(seedDocs, wopt);
+        allSeatDocs = await s(TripSeatStatus.find({ trip: trip._id }));
       }
 
       // 3b) Map số ghế -> doc
@@ -74,13 +79,13 @@ exports.checkout = async (req, res) => {
           status: 'available',
           booking_id: null
         }));
-        await TripSeatStatus.insertMany(addDocs, { session });
+        await TripSeatStatus.insertMany(addDocs, wopt);
 
         // nạp bổ sung vào map
-        const fresh = await TripSeatStatus.find({
+        const fresh = await s(TripSeatStatus.find({
           trip: trip._id,
           seat_number: { $in: missingNums.map(String) }
-        }).session(session);
+        }));
         for (const s of fresh) {
           const n = normalizeToNumber(s.seat_number);
           if (n != null) seatByNum.set(n, s);
@@ -126,7 +131,7 @@ exports.checkout = async (req, res) => {
             }
           }
         ],
-        { session }
+        wopt
       );
 
       // 8) Tạo payment
@@ -141,24 +146,24 @@ exports.checkout = async (req, res) => {
             paid_at: new Date()
           }
         ],
-        { session }
+        wopt
       );
 
       // Link payment vào booking (nếu schema có field)
       booking.payment = payment._id;
       booking.payment_id = payment._id;
-      await booking.save({ session });
+      await booking.save(wopt);
 
       // 9) Cập nhật trạng thái ghế theo _id (an toàn nhất)
       const idsToUpdate = willBookDocs.map((d) => d._id);
       await TripSeatStatus.updateMany(
         { _id: { $in: idsToUpdate } },
         { $set: { status: 'booked', booking_id: booking._id, updated_at: new Date() } },
-        { session }
+        wopt
       );
 
-      // 10) Trả payload cho FE (seats trả về dạng SỐ cho UI)
-      res.json({
+      // 10) Chuẩn bị payload trả về FE (seats trả về dạng SỐ cho UI)
+      const payload = {
         bookingId: String(booking._id),
         paymentId: String(payment._id),
         route: {
@@ -168,13 +173,26 @@ exports.checkout = async (req, res) => {
         },
         times: { departureTime: booking.start_time, arrivalTime: booking.end_time },
         bus: { busType: booking.bus_snapshot.bus_type, seatCount: booking.bus_snapshot.seat_count },
-        seats: requestedNums, // FE hiển thị số
+        seats: requestedNums,
         passenger: booking.passenger || null,
         pricePerSeat,
         totalAmount: computedTotal,
         paymentMethod: payment.method
-      });
-    });
+      };
+
+      // Gửi email xác nhận (không chặn response)
+      if (booking?.passenger?.email) {
+        // Fire-and-forget
+        sendBookingConfirmationEmail(booking.passenger.email, payload)
+          .catch((e) => console.error('Send email error:', e));
+      }
+
+      return payload;
+    };
+
+    // TẮT transaction hoàn toàn để tương thích MongoDB standalone
+    const payload = await runFlow(null);
+    return res.json(payload);
   } catch (err) {
     console.error('Checkout error:', err);
     res.status(400).json({ error: err.message || 'Checkout failed' });
