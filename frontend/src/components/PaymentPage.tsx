@@ -8,7 +8,7 @@ const API_BASE = 'http://localhost:5000';
 type PaymentState = {
   tripId: string;
   seats: number[]; // đã chọn ở BookingDetail
-  passenger: { name: string; phone: string; email?: string; note?: string; };
+  passenger: { name: string; phone: string; email?: string; note?: string; fromStop?: string; toStop?: string };
   route?: { from?: string; to?: string; durationMin?: number | null };
   bus?: { busType?: string; licensePlate?: string; seatCount?: number };
   times?: { departureTime?: string; arrivalTime?: string | null };
@@ -45,7 +45,7 @@ const PaymentPage: React.FC = () => {
         body: JSON.stringify({
           tripId: st.tripId,
           seatNumbers: st.seats,
-          passenger: st.passenger,
+          passenger: { ...st.passenger, fromStop: (st.passenger?.fromStop || st.route?.from), toStop: (st.passenger?.toStop || st.route?.to) },
           paymentMethod,
           amount: totalAmount
         })

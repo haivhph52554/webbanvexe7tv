@@ -6,6 +6,7 @@ const Route = require('./models/Route');
 const RouteStop = require('./models/RouteStop');
 const Trip = require('./models/Trip');
 const Booking = require('./models/Booking');
+const TripSeatStatus = require('./models/TripSeatStatus');
 
 (async () => {
   try {
@@ -22,59 +23,66 @@ const Booking = require('./models/Booking');
     console.log('👥 Tạo users...');
     // Admin
     const admin = await User.create({ 
-      full_name: 'Admin Hệ Thống', 
+      name: 'Admin Hệ Thống', 
       phone: '0901111111', 
       email: 'admin@basevex.com', 
-      password_hash: '$2b$10$example', 
-      role: 'admin' 
+      password: 'admin123',
+      role: 'admin'
     });
 
     // Customers
     const customer1 = await User.create({ 
-      full_name: 'Nguyễn Văn An', 
+      name: 'Nguyễn Văn An', 
       phone: '0901234567', 
       email: 'an@gmail.com', 
-      role: 'customer' 
+      password: 'password123',
+      role: 'user' 
     });
     const customer2 = await User.create({ 
-      full_name: 'Trần Thị Bình', 
+      name: 'Trần Thị Bình', 
       phone: '0912345678', 
       email: 'binh@gmail.com', 
-      role: 'customer' 
+      password: 'password123',
+      role: 'user' 
     });
     const customer3 = await User.create({ 
-      full_name: 'Lê Văn Cường', 
+      name: 'Lê Văn Cường', 
       phone: '0923456789', 
       email: 'cuong@gmail.com', 
-      role: 'customer' 
+      password: 'password123',
+      role: 'user' 
     });
 
     // Drivers
     const driver1 = await User.create({ 
-      full_name: 'Phạm Văn Đức', 
+      name: 'Phạm Văn Đức', 
       phone: '0934567890', 
       email: 'duc.tx@gmail.com', 
-      role: 'driver' 
+      password: 'password123',
+      role: 'user' 
     });
     const driver2 = await User.create({ 
-      full_name: 'Hoàng Văn Hùng', 
+      name: 'Hoàng Văn Hùng', 
       phone: '0945678901', 
       email: 'hung.tx@gmail.com', 
-      role: 'driver' 
+      password: 'password123',
+      role: 'user' 
     });
 
     // Assistants
     const assistant1 = await User.create({ 
-      full_name: 'Nguyễn Thị Lan', 
+      name: 'Nguyễn Thị Lan', 
       phone: '0956789012', 
       email: 'lan.phuxe@gmail.com', 
-      role: 'assistant' 
+      password: 'password123',
+      role: 'user' 
     });
     const assistant2 = await User.create({ 
-      full_name: 'Trần Thị Mai', 
+      name: 'Trần Thị Mai', 
       phone: '0967890123', 
       email: 'mai.phuxe@gmail.com', 
-      role: 'assistant' 
+      password: 'password123',
+      role: 'user' 
     });
 
     console.log('🚌 Tạo xe buýt...');
@@ -116,9 +124,9 @@ const Booking = require('./models/Booking');
       active: true
     });
 
-    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Thái Nguyên', order: 1, type: 'pickup' });
-    await RouteStop.create({ route: route1._id, stop_name: 'Cầu Nhật Tân', order: 2, type: 'both' });
-    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Mỹ Đình', order: 3, type: 'dropoff' });
+    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Thái Nguyên', order: 1, type: 'pickup', km_from_start: 0 });
+    await RouteStop.create({ route: route1._id, stop_name: 'Cầu Nhật Tân', order: 2, type: 'both', km_from_start: 40 });
+    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Mỹ Đình', order: 3, type: 'dropoff', km_from_start: 80 });
 
     // Route 2: Hà Nội - Sài Gòn
     const route2 = await Route.create({ 
@@ -130,9 +138,9 @@ const Booking = require('./models/Booking');
       active: true
     });
 
-    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Mỹ Đình', order: 1, type: 'pickup' });
-    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Vinh', order: 2, type: 'both' });
-    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Nước Ngầm', order: 3, type: 'dropoff' });
+    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Mỹ Đình', order: 1, type: 'pickup', km_from_start: 0 });
+    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Vinh', order: 2, type: 'both', km_from_start: 850 });
+    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Nước Ngầm', order: 3, type: 'dropoff', km_from_start: 1700 });
 
     // Route 3: Hà Nội - Đà Nẵng
     const route3 = await Route.create({ 
@@ -144,9 +152,9 @@ const Booking = require('./models/Booking');
       active: true
     });
 
-    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Mỹ Đình', order: 1, type: 'pickup' });
-    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Huế', order: 2, type: 'both' });
-    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Đà Nẵng', order: 3, type: 'dropoff' });
+    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Mỹ Đình', order: 1, type: 'pickup', km_from_start: 0 });
+    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Huế', order: 2, type: 'both', km_from_start: 380 });
+    await RouteStop.create({ route: route3._id, stop_name: 'Bến xe Đà Nẵng', order: 3, type: 'dropoff', km_from_start: 760 });
 
     console.log('🕐 Tạo chuyến xe...');
     const trips = [];
@@ -222,6 +230,22 @@ const Booking = require('./models/Booking');
       status: 'scheduled'
     }));
 
+    // Tạo TripSeatStatus cho mỗi chuyến để có dữ liệu số ghế trống
+    console.log('💺 Tạo trạng thái ghế cho các chuyến...');
+    for (const t of trips) {
+      try {
+        const bus = await Bus.findById(t.bus);
+        const seatCount = bus?.seat_count || 0;
+        const seatDocs = [];
+        for (let i = 1; i <= seatCount; i++) {
+          seatDocs.push({ trip: t._id, seat_number: String(i), status: 'available' });
+        }
+        if (seatDocs.length) await TripSeatStatus.insertMany(seatDocs);
+      } catch (err) {
+        console.error('Lỗi khi tạo TripSeatStatus cho trip', t._id, err);
+      }
+    }
+    
     console.log('🎫 Tạo đặt chỗ...');
     // Create bookings
     await Booking.create({
