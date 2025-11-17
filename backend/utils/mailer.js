@@ -1,8 +1,5 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter from environment variables. If not configured, fallback to a disabled sender.
-// Required envs (example):
-// SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM
 
 async function createTransporter() {
   const host = process.env.SMTP_HOST;
