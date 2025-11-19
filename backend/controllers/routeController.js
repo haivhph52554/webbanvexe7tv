@@ -8,12 +8,27 @@ const Review = require('../models/Review');
 // GET /api/routes/detailed
 exports.getAllRoutesDetailed = async (req, res) => {
   try {
+    const { date } = req.query;
+
     // Get all routes
     const routes = await Route.find().lean();
     
     // Get all trips for all routes
     const routeIds = routes.map(r => r._id);
-    const trips = await Trip.find({ route: { $in: routeIds } })
+    
+    const tripFilter = { route: { $in: routeIds } };
+    if (date) {
+      const searchDate = new Date(date);
+      const nextDay = new Date(date);
+      nextDay.setDate(searchDate.getDate() + 1);
+
+      tripFilter.start_time = {
+        $gte: searchDate,
+        $lt: nextDay,
+      };
+    }
+
+    const trips = await Trip.find(tripFilter)
       .populate('bus')
       .lean();
 
@@ -27,15 +42,16 @@ exports.getAllRoutesDetailed = async (req, res) => {
     });
 
     // Get available seats for all trips
-    const tripSeats = await TripSeatStatus.aggregate([
-      { $match: { trip: { $in: trips.map(t => t._id) } } },
+    const tripIds = trips.map(t => t._id);
+    const tripSeats = tripIds.length > 0 ? await TripSeatStatus.aggregate([
+      { $match: { trip: { $in: tripIds } } },
       { $group: { 
         _id: '$trip',
         availableSeats: { 
           $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] }
         }
       }}
-    ]);
+    ]) : [];
 
     // Create seats lookup
     const seatsByTrip = {};
@@ -44,8 +60,8 @@ exports.getAllRoutesDetailed = async (req, res) => {
     });
 
     // Get average ratings for all routes
-    const ratings = await Review.aggregate([
-      { $match: { trip: { $in: trips.map(t => t._id) } } },
+    const ratings = tripIds.length > 0 ? await Review.aggregate([
+      { $match: { trip: { $in: tripIds } } },
       { $lookup: {
         from: 'trips',
         localField: 'trip',
@@ -57,7 +73,7 @@ exports.getAllRoutesDetailed = async (req, res) => {
         _id: '$trip.route',
         avgRating: { $avg: '$rating' }
       }}
-    ]);
+    ]) : [];
 
     // Create ratings lookup
     const ratingsByRoute = {};
@@ -86,7 +102,7 @@ exports.getAllRoutesDetailed = async (req, res) => {
         company: route.company,
         features: route.features || []
       };
-    });
+    }).filter(route => route.start_time); // Only return routes that have trips on the given date
 
     res.json(detailedRoutes);
   } catch (err) {

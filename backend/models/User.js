@@ -31,9 +31,26 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
+    enum: ['user', 'admin', 'driver', 'assistant'],
     default: 'user'
-  }
+  },
+  // Các field riêng cho assistant (optional)
+  employee_id: {
+    type: String,
+    sparse: true
+  },
+  license_number: {
+    type: String,
+    sparse: true
+  },
+  experience_years: {
+    type: Number,
+    min: 0
+  },
+  assigned_trips: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Trip'
+  }]
 }, { timestamps: true });
 
 // Encrypt password using bcrypt

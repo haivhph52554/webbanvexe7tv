@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Eye, Trash2, XCircle } from 'lucide-react';
+import { useAuth } from '../App';
 
 interface Ticket {
   id: string;
@@ -27,18 +28,125 @@ interface Ticket {
   status: 'confirmed' | 'cancelled' | 'used';
 }
 
+type BookingDoc = {
+  _id: string;
+  user?: any;
+  trip?: any;
+  route_snapshot?: {
+    from: string;
+    to: string;
+    estimated_duration_min?: number;
+  };
+  bus_snapshot?: {
+    bus_type: string;
+    license_plate: string;
+    seat_count: number;
+  };
+  start_time: string;
+  end_time?: string | null;
+  seat_numbers: string[];
+  total_amount?: number;
+  total_price?: number;
+  passenger?: {
+    name: string;
+    phone: string;
+    email: string;
+    note: string;
+  };
+  status: 'pending' | 'paid' | 'cancelled' | 'completed';
+  createdAt: string;
+};
+
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+
 const MyTicketsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled' | 'used'>('all');
 
   useEffect(() => {
-    // Lấy vé từ localStorage
-    const savedTickets = localStorage.getItem('vexe7tv_tickets');
-    if (savedTickets) {
-      setTickets(JSON.parse(savedTickets));
-    }
-  }, []);
+    const fetchBookings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch từ API với credentials để gửi cookie token
+        const res = await fetch(`${API_BASE}/api/bookings`, {
+          credentials: 'include', // Quan trọng để gửi cookie
+        });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        
+        const bookings: BookingDoc[] = await res.json();
+        
+        // Chuyển đổi Booking format sang Ticket format
+        const convertedTickets: Ticket[] = bookings.map((booking) => {
+          const fmtTime = (iso?: string | null) => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return '-';
+            return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+          };
+
+          const fmtDate = (iso?: string | null) => {
+            if (!iso) return new Date().toISOString();
+            return iso;
+          };
+
+          const durationMin = booking.route_snapshot?.estimated_duration_min || 0;
+          const duration = durationMin 
+            ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`
+            : '-';
+
+          // Map status từ booking sang ticket
+          const mapStatus = (status: string): 'confirmed' | 'cancelled' | 'used' => {
+            if (status === 'cancelled') return 'cancelled';
+            if (status === 'completed') return 'used';
+            return 'confirmed'; // pending, paid -> confirmed
+          };
+
+          return {
+            id: booking._id,
+            bookingId: booking._id.substring(0, 8).toUpperCase(),
+            route: {
+              from: booking.route_snapshot?.from || '-',
+              to: booking.route_snapshot?.to || '-',
+              price: String(booking.total_amount || booking.total_price || 0),
+              duration,
+              departureTime: fmtTime(booking.start_time),
+              arrivalTime: fmtTime(booking.end_time),
+              busType: booking.bus_snapshot?.bus_type || '-',
+            },
+            seats: booking.seat_numbers.map(s => parseInt(s, 10)).filter(n => !Number.isNaN(n)),
+            passenger: booking.passenger || {
+              name: '',
+              phone: '',
+              email: '',
+              note: '',
+            },
+            totalAmount: booking.total_amount || booking.total_price || 0,
+            paymentMethod: 'banking', // Có thể lấy từ payment nếu cần
+            bookingDate: fmtDate(booking.createdAt),
+            status: mapStatus(booking.status),
+          };
+        });
+
+        setTickets(convertedTickets);
+      } catch (err: any) {
+        setError(err.message || 'Lỗi khi tải danh sách vé');
+        console.error('Error fetching bookings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [user]); // Re-fetch khi user thay đổi
 
   const filteredTickets = tickets.filter(ticket => {
     if (filterStatus === 'all') return true;
@@ -165,8 +273,28 @@ const MyTicketsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Đang tải danh sách vé...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-700">{error}</p>
+            {!user && (
+              <p className="text-sm text-red-600 mt-2">
+                Vui lòng <button onClick={() => navigate('/login')} className="underline font-medium">đăng nhập</button> để xem vé của bạn.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Tickets List */}
-        {filteredTickets.length > 0 ? (
+        {!loading && !error && filteredTickets.length > 0 ? (
           <div className="space-y-6">
             {filteredTickets.map((ticket) => (
               <div key={ticket.id} className="bg-white rounded-xl shadow-md p-6">
@@ -262,19 +390,33 @@ const MyTicketsPage: React.FC = () => {
               </div>
             ))}
           </div>
-        ) : (
+        ) : !loading && !error ? (
           <div className="text-center py-12">
             <Bus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Chưa có vé nào</h3>
-            <p className="text-gray-600 mb-6">Bạn chưa đặt vé nào. Hãy đặt vé để bắt đầu hành trình!</p>
-            <button
-              onClick={() => navigate('/')}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Đặt vé ngay
-            </button>
+            <p className="text-gray-600 mb-6">
+              {user 
+                ? 'Bạn chưa đặt vé nào. Hãy đặt vé để bắt đầu hành trình!'
+                : 'Vui lòng đăng nhập để xem vé của bạn hoặc đặt vé mới.'}
+            </p>
+            <div className="flex gap-4 justify-center">
+              {!user && (
+                <button
+                  onClick={() => navigate('/login')}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Đăng nhập
+                </button>
+              )}
+              <button
+                onClick={() => navigate('/')}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Đặt vé ngay
+              </button>
+            </div>
           </div>
-        )}
+        ) : null}
 
         {/* Stats */}
         {tickets.length > 0 && (

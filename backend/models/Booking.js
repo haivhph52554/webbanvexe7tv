@@ -11,6 +11,11 @@ const bookingSchema = new mongoose.Schema({
     to: String,
     estimated_duration_min: Number
   },
+  // If user selected specific stops for pickup/dropoff
+  pickup: { type: String },
+  dropoff: { type: String },
+  pickup_name: { type: String },
+  dropoff_name: { type: String },
   bus_snapshot: {
     bus_type: String,
     license_plate: String,

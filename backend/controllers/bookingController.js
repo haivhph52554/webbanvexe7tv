@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const Trip = require('../models/Trip');
 const TripSeatStatus = require('../models/TripSeatStatus');
+const RouteStop = require('../models/RouteStop');
 const { sendBookingConfirmationEmail } = require('../utils/mailer');
 
 const normalizeToNumber = (v) => {
@@ -14,7 +15,7 @@ const normalizeToNumber = (v) => {
 exports.checkout = async (req, res) => {
   const session = await mongoose.startSession();
   try {
-    const { tripId, seatNumbers, passenger, paymentMethod, amount } = req.body;
+    const { tripId, seatNumbers, passenger, paymentMethod, amount, stops } = req.body;
 
     if (!tripId || !Array.isArray(seatNumbers) || seatNumbers.length === 0) {
       return res.status(400).json({ error: 'Thiếu tripId hoặc seatNumbers' });
@@ -101,9 +102,30 @@ exports.checkout = async (req, res) => {
         throw new Error('Có ghế đã được giữ/đặt');
       }
 
-      // 6) Tính tiền ở server
-      const pricePerSeat = trip.base_price || 0;
-      const computedTotal = pricePerSeat * requestedNums.length;
+      // 6) Tính tiền ở server — nếu client truyền thông tin điểm dừng, tính theo đoạn giữa pickup/dropoff
+      let pricePerSeat = trip.base_price || 0;
+      let computedTotal = pricePerSeat * requestedNums.length;
+
+      if (stops && stops.pickupId && stops.dropoffId) {
+        // Load stops for route to compute relative fraction by order
+        const pickupStop = await RouteStop.findById(stops.pickupId);
+        const dropoffStop = await RouteStop.findById(stops.dropoffId);
+        if (pickupStop && dropoffStop && String(pickupStop.route) === String(dropoffStop.route)) {
+          const routeStops = await RouteStop.find({ route: pickupStop.route }).sort({ order: 1 });
+          if (routeStops && routeStops.length > 0) {
+            const orders = routeStops.map(s => (typeof s.order === 'number' ? s.order : 0));
+            const minOrder = Math.min(...orders);
+            const maxOrder = Math.max(...orders);
+            const totalSegments = (maxOrder - minOrder) || 1;
+            const segmentsBetween = Math.max(0, dropoffStop.order - pickupStop.order);
+            const fraction = Math.min(1, segmentsBetween / totalSegments);
+            // Compute prorated price per seat based on fraction of route length
+            pricePerSeat = Math.round((trip.base_price || 0) * fraction);
+            if (pricePerSeat <= 0) pricePerSeat = Math.max(1, Math.floor((trip.base_price || 0) * 0.2));
+            computedTotal = pricePerSeat * requestedNums.length;
+          }
+        }
+      }
       // if (Number(amount) !== computedTotal) throw new Error('Sai tổng tiền');
 
       // 7) Tạo booking — lưu label ghế y như DB (có thể là "1", "A1", ...)
@@ -111,6 +133,8 @@ exports.checkout = async (req, res) => {
       const [booking] = await Booking.create(
         [
           {
+            // Gắn user nếu đã đăng nhập
+            user: req.user ? req.user._id : undefined,
             trip: trip._id,
             start_time: trip.start_time,
             end_time: trip.end_time || null,
@@ -124,6 +148,10 @@ exports.checkout = async (req, res) => {
               to: trip.route?.to_city || '',
               estimated_duration_min: trip.route?.estimated_duration_min || null
             },
+            pickup: stops && stops.pickupId ? String(stops.pickupId) : undefined,
+            dropoff: stops && stops.dropoffId ? String(stops.dropoffId) : undefined,
+            pickup_name: (stops && stops.pickupId && typeof stops.pickupName === 'string') ? stops.pickupName : undefined,
+            dropoff_name: (stops && stops.dropoffId && typeof stops.dropoffName === 'string') ? stops.dropoffName : undefined,
             bus_snapshot: {
               bus_type: trip.bus?.bus_type || '',
               license_plate: trip.bus?.license_plate || '',
@@ -152,7 +180,9 @@ exports.checkout = async (req, res) => {
       // Link payment vào booking (nếu schema có field)
       booking.payment = payment._id;
       booking.payment_id = payment._id;
-      await booking.save(wopt);
+  // Ensure user is saved on booking (if middleware set req.user)
+  if (req.user && !booking.user) booking.user = req.user._id;
+  await booking.save(wopt);
 
       // 9) Cập nhật trạng thái ghế theo _id (an toàn nhất)
       const idsToUpdate = willBookDocs.map((d) => d._id);
@@ -179,11 +209,22 @@ exports.checkout = async (req, res) => {
         totalAmount: computedTotal,
         paymentMethod: payment.method
       };
+      // Include selected stops info if present
+      if (stops && stops.pickupId && stops.dropoffId) {
+        payload.stops = {
+          pickupId: String(stops.pickupId),
+          dropoffId: String(stops.dropoffId),
+          pickupName: stops.pickupName || (booking.pickup_name || null),
+          dropoffName: stops.dropoffName || (booking.dropoff_name || null)
+        };
+      }
 
       // Gửi email xác nhận (không chặn response)
-      if (booking?.passenger?.email) {
+      // Nếu người dùng đã đăng nhập, ưu tiên gửi đến email đã đăng ký của tài khoản
+      const recipientEmail = (req.user && req.user.email) ? req.user.email : (booking?.passenger?.email);
+      if (recipientEmail) {
         // Fire-and-forget
-        sendBookingConfirmationEmail(booking.passenger.email, payload)
+        sendBookingConfirmationEmail(recipientEmail, payload)
           .catch((e) => console.error('Send email error:', e));
       }
 
@@ -205,8 +246,28 @@ exports.checkout = async (req, res) => {
 exports.listOfUser = async (req, res) => {
   try {
     const { userId, phone } = req.query;
-    const q = userId ? { user: userId } : phone ? { 'passenger.phone': phone } : {};
-    const docs = await Booking.find(q).sort({ createdAt: -1 });
+    
+    // Nếu có user đăng nhập, tự động filter theo user đó
+    // Ưu tiên: req.user > userId query > phone query > không filter
+    let q = {};
+    
+    if (req.user && req.user._id) {
+      // User đã đăng nhập - chỉ lấy bookings của user đó
+      q = { user: req.user._id };
+    } else if (userId) {
+      // Admin có thể truyền userId để xem bookings của user khác
+      q = { user: userId };
+    } else if (phone) {
+      // Tìm theo số điện thoại (cho trường hợp chưa đăng nhập)
+      q = { 'passenger.phone': phone };
+    }
+    // Nếu không có gì, q = {} sẽ trả về tất cả (chỉ nên dùng cho admin)
+    
+    const docs = await Booking.find(q)
+      .populate('trip')
+      .populate('user', 'name email phone')
+      .sort({ createdAt: -1 });
+    
     res.json(docs);
   } catch (e) {
     res.status(500).json({ error: e.message });

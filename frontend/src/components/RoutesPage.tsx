@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, Star, Search, Calendar, Filter } from 'lucide-react';
 
 interface Route {
@@ -21,7 +21,18 @@ const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
 
 const RoutesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  
+  // Get initial search values from URL params
+  const fromParam = searchParams.get('from') || '';
+  const toParam = searchParams.get('to') || '';
+  const dateParam = searchParams.get('date') || '';
+  
+  // Build search term from from/to params
+  const initialSearchTerm = [fromParam, toParam].filter(Boolean).join(' ');
+  
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [selectedDate, setSelectedDate] = useState(dateParam);
   const [sortBy, setSortBy] = useState<'price' | 'duration' | 'rating'>('price');
   const [filterBusType, setFilterBusType] = useState<string>('all');
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -37,13 +48,40 @@ const RoutesPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Update search term when URL params change
+  useEffect(() => {
+    const newSearchTerm = [fromParam, toParam].filter(Boolean).join(' ');
+    if (newSearchTerm && newSearchTerm !== searchTerm) {
+      setSearchTerm(newSearchTerm);
+    }
+  }, [fromParam, toParam]);
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newDate = e.target.value;
+    setSelectedDate(newDate);
+    
+    // Update URL to trigger data refetch
+    const params = new URLSearchParams(window.location.search);
+    if (newDate) {
+      params.set('date', newDate);
+    } else {
+      params.delete('date');
+    }
+    navigate(`?${params.toString()}`, { replace: true });
+  };
+
   useEffect(() => {
     let mounted = true;
     const fetchRoutes = async () => {
       try {
         setLoading(true);
-        // Fetch all data in one request instead of multiple
-  const res = await fetch(`${API_BASE}/api/routes/detailed`);
+        // Build the URL with date query param if available
+        let url = `${API_BASE}/api/routes/detailed`;
+        if (dateParam) {
+          url += `?date=${dateParam}`;
+        }
+        
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -74,14 +112,23 @@ const RoutesPage: React.FC = () => {
 
     fetchRoutes();
     return () => { mounted = false; };
-  }, []);
+  }, [dateParam]);
 
   // Memoize filtered and sorted routes
   const filteredRoutes = useMemo(() => {
     return routes
       .filter(route => {
-        const matchesSearch = route.from.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                           route.to.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+        // If we have specific from/to params, match them exactly
+        let matchesSearch = true;
+        if (fromParam || toParam) {
+          const fromMatch = !fromParam || route.from.toLowerCase().includes(fromParam.toLowerCase());
+          const toMatch = !toParam || route.to.toLowerCase().includes(toParam.toLowerCase());
+          matchesSearch = fromMatch && toMatch;
+        } else if (debouncedSearchTerm) {
+          // Otherwise use general search
+          matchesSearch = route.from.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                         route.to.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+        }
         const matchesBusType = filterBusType === 'all' || route.busType.includes(filterBusType);
         return matchesSearch && matchesBusType;
       })
@@ -160,7 +207,7 @@ const RoutesPage: React.FC = () => {
 
         {/* Search and Filter */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <input
@@ -168,6 +215,16 @@ const RoutesPage: React.FC = () => {
                 placeholder="Tìm kiếm tuyến đường..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="relative">
+              <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={handleDateChange}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>

@@ -3,6 +3,7 @@ const Booking = require('../models/Booking');
 const Route = require('../models/Route');
 const Bus = require('../models/Bus');
 const User = require('../models/User');
+const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 
 // --- Buses CRUD helpers for admin UI ---
@@ -238,6 +239,358 @@ exports.users = async (req, res) => {
   } catch (err) {
     console.error('Error loading users:', err);
     res.status(500).send('Lỗi khi tải trang users: ' + err.message);
+  }
+};
+
+// --- Assistants Management ---
+// Trang Assistants Management
+exports.assistants = async (req, res) => {
+  try {
+    const assistants = await Assistant.find()
+      .populate('assigned_routes')
+      .populate('assigned_trips')
+      .sort({ createdAt: -1 });
+    
+    const stats = {
+      total: assistants.length,
+      active: assistants.filter(a => !a.status || a.status === 'active').length,
+      withRoutes: assistants.filter(a => a.assigned_routes && a.assigned_routes.length > 0).length,
+      withoutRoutes: assistants.filter(a => (!a.assigned_routes || a.assigned_routes.length === 0) && (!a.assigned_trips || a.assigned_trips.length === 0)).length
+    };
+    
+    res.render('admin/assistants', { assistants, stats, page: 'assistants' });
+  } catch (err) {
+    console.error('Error loading assistants:', err);
+    res.status(500).send('Lỗi khi tải trang assistants: ' + err.message);
+  }
+};
+
+// Form tạo assistant mới
+exports.newAssistant = async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const routes = await Route.find().sort({ origin: 1 });
+    res.render('admin/assistant_form', { assistant: null, routes, page: 'assistants', errors: null });
+  } catch (err) {
+    console.error('Error rendering new assistant form:', err);
+    res.status(500).send('Lỗi khi tải form tạo phụ xe: ' + err.message);
+  }
+};
+
+// Tạo assistant mới
+exports.createAssistant = async (req, res) => {
+  try {
+    const payload = {
+      name: req.body.name,
+      email: req.body.email,
+      phone: req.body.phone,
+      employee_id: req.body.employee_id,
+      license_number: req.body.license_number,
+      experience_years: Number(req.body.experience_years) || 0,
+      status: 'active',
+      assigned_trips: [],
+      assigned_routes: []
+    };
+    
+    // Xử lý assigned_routes nếu có
+    if (req.body.assigned_routes) {
+      const routeIds = Array.isArray(req.body.assigned_routes) 
+        ? req.body.assigned_routes 
+        : [req.body.assigned_routes];
+      payload.assigned_routes = routeIds.filter(id => id);
+    }
+    
+    await Assistant.create(payload);
+    res.redirect('/admin/assistants');
+  } catch (err) {
+    console.error('Error creating assistant:', err);
+    res.status(500).send('Lỗi khi tạo phụ xe: ' + err.message);
+  }
+};
+
+// Form sửa assistant
+exports.editAssistant = async (req, res) => {
+  try {
+    const Route = require('../models/Route');
+    const assistant = await Assistant.findById(req.params.id);
+    if (!assistant) return res.status(404).send('Phụ xe không tồn tại');
+    
+    const routes = await Route.find().sort({ origin: 1 });
+    res.render('admin/assistant_form', { assistant, routes, page: 'assistants', errors: null });
+  } catch (err) {
+    console.error('Error rendering edit assistant form:', err);
+    res.status(500).send('Lỗi khi tải form sửa phụ xe: ' + err.message);
+  }
+};
+
+// Cập nhật assistant
+exports.updateAssistant = async (req, res) => {
+  try {
+    const payload = {
+      name: req.body.name,
+      email: req.body.email,
+      phone: req.body.phone,
+      employee_id: req.body.employee_id,
+      license_number: req.body.license_number,
+      experience_years: Number(req.body.experience_years) || 0,
+      status: req.body.status || 'active'
+    };
+    
+    // Cập nhật assigned_routes nếu có
+    if (req.body.assigned_routes) {
+      const routeIds = Array.isArray(req.body.assigned_routes) 
+        ? req.body.assigned_routes 
+        : [req.body.assigned_routes];
+      payload.assigned_routes = routeIds.filter(id => id);
+    } else {
+      payload.assigned_routes = [];
+    }
+    
+    await Assistant.findByIdAndUpdate(req.params.id, payload);
+    res.redirect('/admin/assistants');
+  } catch (err) {
+    console.error('Error updating assistant:', err);
+    res.status(500).send('Lỗi khi cập nhật phụ xe: ' + err.message);
+  }
+};
+
+// Xóa assistant
+exports.deleteAssistant = async (req, res) => {
+  try {
+    await Assistant.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Đã xóa phụ xe thành công' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Xem chi tiết assistant
+exports.assistantDetail = async (req, res) => {
+  try {
+    const Checkin = require('../models/Checkin');
+    const Route = require('../models/Route');
+    const assistant = await Assistant.findById(req.params.id)
+      .populate('assigned_routes')
+      .populate({
+        path: 'assigned_trips',
+        populate: [
+          { path: 'route' },
+          { path: 'bus' }
+        ]
+      });
+    
+    if (!assistant) {
+      return res.status(404).send('Phụ xe không tồn tại');
+    }
+    
+    // Lấy lịch sử check-in của assistant này
+    const checkins = await Checkin.find({ assistant: assistant._id })
+      .populate({
+        path: 'booking',
+        populate: {
+          path: 'trip',
+          populate: [
+            { path: 'route' },
+            { path: 'bus' }
+          ]
+        }
+      })
+      .sort({ checkin_time: -1 })
+      .limit(50);
+    
+    // Thống kê
+    const totalCheckins = await Checkin.countDocuments({ assistant: assistant._id });
+    const checkedInCount = await Checkin.countDocuments({ 
+      assistant: assistant._id, 
+      status: 'checked_in' 
+    });
+    const noShowCount = await Checkin.countDocuments({ 
+      assistant: assistant._id, 
+      status: 'no_show' 
+    });
+    
+    // Lấy danh sách booking từ các route được gán
+    const upcomingBookings = [];
+    const allBookings = [];
+    
+    // Lấy tất cả trips từ các routes được gán
+    const routeIds = assistant.assigned_routes ? assistant.assigned_routes.map(r => r._id || r) : [];
+    
+    if (routeIds.length > 0) {
+      // Tìm tất cả trips thuộc các routes này
+      const trips = await Trip.find({ route: { $in: routeIds } })
+        .populate('route')
+        .populate('bus');
+      
+      // Lấy booking từ các trips này
+      for (const trip of trips) {
+        const bookings = await Booking.find({ 
+          trip: trip._id,
+          status: { $in: ['paid', 'completed'] }
+        })
+        .populate('user')
+        .populate({
+          path: 'trip',
+          populate: [
+            { path: 'route' },
+            { path: 'bus' }
+          ]
+        })
+        .sort({ createdAt: -1 });
+        
+        // Kiểm tra xem booking đã được check-in chưa
+        for (const booking of bookings) {
+          const checkin = await Checkin.findOne({ booking: booking._id });
+          const bookingInfo = {
+            booking,
+            trip,
+            checkin: checkin || null,
+            needsCheckin: !checkin
+          };
+          
+          allBookings.push(bookingInfo);
+          
+          if (!checkin) {
+            upcomingBookings.push(bookingInfo);
+          }
+        }
+      }
+    }
+    
+    // Nếu vẫn còn assigned_trips (tương thích ngược), lấy booking từ đó
+    if (assistant.assigned_trips && assistant.assigned_trips.length > 0) {
+      for (const trip of assistant.assigned_trips) {
+        // Kiểm tra xem trip này đã được xử lý chưa (nếu route đã được gán)
+        const tripRouteId = trip.route ? (trip.route._id || trip.route) : null;
+        const alreadyProcessed = tripRouteId && routeIds.some(rid => rid.toString() === tripRouteId.toString());
+        
+        if (!alreadyProcessed) {
+          const bookings = await Booking.find({ 
+            trip: trip._id,
+            status: { $in: ['paid', 'completed'] }
+          })
+          .populate('user')
+          .populate({
+            path: 'trip',
+            populate: [
+              { path: 'route' },
+              { path: 'bus' }
+            ]
+          })
+          .sort({ createdAt: -1 });
+          
+          for (const booking of bookings) {
+            const checkin = await Checkin.findOne({ booking: booking._id });
+            const bookingInfo = {
+              booking,
+              trip,
+              checkin: checkin || null,
+              needsCheckin: !checkin
+            };
+            
+            allBookings.push(bookingInfo);
+            
+            if (!checkin) {
+              upcomingBookings.push(bookingInfo);
+            }
+          }
+        }
+      }
+    }
+    
+    const stats = {
+      totalCheckins,
+      checkedInCount,
+      noShowCount,
+      checkinRate: totalCheckins > 0 ? ((checkedInCount / totalCheckins) * 100).toFixed(1) : 0,
+      assignedRoutesCount: assistant.assigned_routes ? assistant.assigned_routes.length : 0,
+      assignedTripsCount: assistant.assigned_trips ? assistant.assigned_trips.length : 0,
+      pendingCheckins: upcomingBookings.length,
+      totalBookings: allBookings.length
+    };
+    
+    res.render('admin/assistant_detail', { 
+      assistant, 
+      checkins, 
+      stats, 
+      upcomingBookings: upcomingBookings.slice(0, 50),
+      allBookings: allBookings.slice(0, 100),
+      page: 'assistants' 
+    });
+  } catch (err) {
+    console.error('Error loading assistant detail:', err);
+    res.status(500).send('Lỗi khi tải chi tiết phụ xe: ' + err.message);
+  }
+};
+
+// API: Check-in hành khách
+exports.checkinPassenger = async (req, res) => {
+  try {
+    const Checkin = require('../models/Checkin');
+    const { bookingId, status } = req.body; // status: 'checked_in' hoặc 'no_show'
+    const assistantId = req.params.id;
+    
+    if (!bookingId || !status) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Thiếu bookingId hoặc status' 
+      });
+    }
+    
+    if (!['checked_in', 'no_show'].includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Status không hợp lệ' 
+      });
+    }
+    
+    // Kiểm tra assistant tồn tại
+    const assistant = await Assistant.findById(assistantId);
+    if (!assistant) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Phụ xe không tồn tại' 
+      });
+    }
+    
+    // Kiểm tra booking tồn tại
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Booking không tồn tại' 
+      });
+    }
+    
+    // Kiểm tra xem đã check-in chưa
+    const existingCheckin = await Checkin.findOne({ booking: bookingId });
+    
+    if (existingCheckin) {
+      // Cập nhật check-in hiện có
+      existingCheckin.status = status;
+      existingCheckin.checkin_time = new Date();
+      existingCheckin.assistant = assistantId;
+      await existingCheckin.save();
+    } else {
+      // Tạo check-in mới
+      await Checkin.create({
+        booking: bookingId,
+        assistant: assistantId,
+        checkin_time: new Date(),
+        status: status
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: status === 'checked_in' ? 'Đã đánh dấu hành khách đã lên xe' : 'Đã đánh dấu hành khách không đến'
+    });
+  } catch (err) {
+    console.error('Error checking in passenger:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Lỗi khi check-in: ' + err.message 
+    });
   }
 };
 

@@ -36,12 +36,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userData = localStorage.getItem('user');
       if (userData) {
         try {
-          const response = await fetch('http://localhost:5000/api/auth/me', {
-            credentials: 'include'
+          const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+          const response = await fetch(`${API_BASE}/api/auth/me`, {
+            credentials: 'include' // Quan trọng để gửi cookie token
           });
           
           if (response.ok) {
-            setUser(JSON.parse(userData));
+            const data = await response.json();
+            // Lấy user từ API response thay vì localStorage
+            if (data.success && data.data) {
+              setUser(data.data);
+              localStorage.setItem('user', JSON.stringify(data.data));
+            } else {
+              // Fallback to localStorage nếu API không trả về data
+              setUser(JSON.parse(userData));
+            }
           } else {
             // Clear invalid auth data
             logout();

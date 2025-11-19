@@ -24,8 +24,32 @@ const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // Search form state
+  const [fromCity, setFromCity] = useState('');
+  const [toCity, setToCity] = useState('');
+  const [searchDate, setSearchDate] = useState('');
+
   const handleBookingClick = (routeId: string) => {
     navigate(`/booking/${routeId}`);
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Navigate to routes page with search params
+    const params = new URLSearchParams();
+    if (fromCity.trim()) {
+      params.append('from', fromCity.trim());
+    }
+    if (toCity.trim()) {
+      params.append('to', toCity.trim());
+    }
+    if (searchDate) {
+      params.append('date', searchDate);
+    }
+    
+    // Navigate to routes page with search query
+    const queryString = params.toString();
+    navigate(`/routes${queryString ? `?${queryString}` : ''}`);
   };
 
   useEffect(() => {
@@ -140,30 +164,48 @@ const HomePage: React.FC = () => {
             </p>
           </div>
 
-          {/* Search (chưa nối API tìm kiếm) */}
+          {/* Search Form */}
           <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
+            <form onSubmit={handleSearch} className="bg-white rounded-2xl shadow-xl p-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input type="text" placeholder="Điểm đi"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input 
+                    type="text" 
+                    placeholder="Điểm đi (ví dụ: Hà Nội)"
+                    value={fromCity}
+                    onChange={(e) => setFromCity(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
                 </div>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input type="text" placeholder="Điểm đến"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input 
+                    type="text" 
+                    placeholder="Điểm đến (ví dụ: TP. Hồ Chí Minh)"
+                    value={toCity}
+                    onChange={(e) => setToCity(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
                 </div>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input type="date"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input 
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  />
                 </div>
-                <button className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 flex items-center justify-center font-medium">
+                <button 
+                  type="submit"
+                  className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 flex items-center justify-center font-medium transition-colors"
+                >
                   <Search className="h-5 w-5 mr-2" /> Tìm kiếm
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       </section>

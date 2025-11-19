@@ -25,6 +25,13 @@ router.post('/trips/:id', adminController.updateTrip);
 router.get('/trips', adminController.trips);
 router.get('/bookings', adminController.bookings);
 router.get('/statistics', adminController.statistics);
+// Assistants create/edit
+router.get('/assistants/new', adminController.newAssistant);
+router.get('/assistants/:id/edit', adminController.editAssistant);
+router.get('/assistants/:id', adminController.assistantDetail);
+router.get('/assistants', adminController.assistants);
+router.post('/assistants', adminController.createAssistant);
+router.post('/assistants/:id', adminController.updateAssistant);
 
 // API để xóa booking
 router.delete('/bookings/:id', adminController.deleteBooking);
@@ -40,6 +47,12 @@ router.delete('/buses/:id', adminController.deleteBus);
 
 // API để xóa route
 router.delete('/routes/:id', adminController.deleteRoute);
+
+// API để xóa assistant
+router.delete('/assistants/:id', adminController.deleteAssistant);
+
+// API để check-in hành khách
+router.post('/assistants/:id/checkin', adminController.checkinPassenger);
 
 // API để cập nhật status booking
 router.put('/bookings/:id/status', adminController.updateBookingStatus);

@@ -1,5 +1,6 @@
 // src/components/BookingDetail.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../App';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, Users, Calendar } from 'lucide-react';
 
@@ -34,9 +35,18 @@ type SeatDoc = {
   booking_id?: string | null;
 };
 
+type RouteStopDoc = {
+  _id: string;
+  route: string;
+  stop_name: string;
+  order: number;
+  type: 'pickup' | 'dropoff' | 'both';
+};
+
 type TripDetailResponse = {
   trip: TripDoc;
   seats: SeatDoc[];
+  stops?: RouteStopDoc[];
 };
 
 const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
@@ -45,6 +55,7 @@ const BookingDetail: React.FC = () => {
   const { routeId } = useParams<{ routeId: string }>();
   const navigate = useNavigate();
 
+  const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
   const [allTrips, setAllTrips] = useState<TripDoc[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [errTrips, setErrTrips] = useState<string | null>(null);
@@ -57,6 +68,51 @@ const BookingDetail: React.FC = () => {
 
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [passengerInfo, setPassengerInfo] = useState({ name: '', phone: '', email: '', note: '' });
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // If the visitor is logged in and passenger email not filled yet, prefill it
+    if (user && user.email && !passengerInfo.email) {
+      setPassengerInfo(prev => ({ ...prev, email: user.email }));
+    }
+  }, [user]);
+
+  const isValidPhone = (phone: string) => {
+    if (!phone) return false;
+    const p = phone.trim();
+    // Accept Vietnamese mobile numbers starting with 0 or +84 followed by valid operator and 8 digits
+    // Examples: 0912345678 or +84912345678
+    const re = /^(?:\+84|0)(?:3|5|7|8|9)\d{8}$/;
+    return re.test(p);
+  };
+  const [selectedPickupId, setSelectedPickupId] = useState<string | null>(null);
+  const [selectedDropoffId, setSelectedDropoffId] = useState<string | null>(null);
+
+  // Reset selections when user chooses a different trip
+  useEffect(() => {
+    setSelectedPickupId(null);
+    setSelectedDropoffId(null);
+    setSelectedSeats([]);
+  }, [selectedTrip?._id]);
+
+  // Validate selected stops when tripDetail/stops change
+  useEffect(() => {
+    if (!tripDetail?.stops) return;
+    const hasPickup = selectedPickupId ? tripDetail.stops.some(s => s._id === selectedPickupId) : true;
+    const hasDropoff = selectedDropoffId ? tripDetail.stops.some(s => s._id === selectedDropoffId) : true;
+    if (!hasPickup) setSelectedPickupId(null);
+    if (!hasDropoff) setSelectedDropoffId(null);
+    // if both present, ensure order validity
+    if (selectedPickupId && selectedDropoffId) {
+      const pu = tripDetail.stops.find(s => s._id === selectedPickupId);
+      const dr = tripDetail.stops.find(s => s._id === selectedDropoffId);
+      if (pu && dr && pu.order >= dr.order) {
+        // dropoff invalid after stops changed; clear dropoff
+        setSelectedDropoffId(null);
+      }
+    }
+  }, [tripDetail?.stops]);
 
   useEffect(() => {
     let mounted = true;
@@ -240,17 +296,48 @@ const BookingDetail: React.FC = () => {
   const handleBooking = () => {
     if (!tripDetail?.trip?._id) { alert('Chưa chọn chuyến.'); return; }
     if (selectedSeats.length === 0) { alert('Vui lòng chọn ít nhất một ghế'); return; }
+    if (!selectedPickupId || !selectedDropoffId) { alert('Vui lòng chọn điểm đón và điểm trả'); return; }
+
+    // Ensure pickup is before dropoff by order
+    const pickup = tripDetail?.stops?.find(s => s._id === selectedPickupId);
+    const dropoff = tripDetail?.stops?.find(s => s._id === selectedDropoffId);
+    if (!pickup || !dropoff) { alert('Điểm dừng không hợp lệ'); return; }
+    if (pickup.order >= dropoff.order) { alert('Vui lòng chọn điểm đón trước điểm trả'); return; }
     if (!passengerInfo.name || !passengerInfo.phone) { alert('Vui lòng điền đầy đủ thông tin hành khách'); return; }
+    if (!isValidPhone(passengerInfo.phone)) { setPhoneError('Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 hoặc +84, ví dụ 0912345678.'); return; }
     navigate('/payment', { state: {
       tripId: tripDetail.trip._id,
       seats: selectedSeats,
       passenger: passengerInfo,
+      stops: { pickupId: selectedPickupId, dropoffId: selectedDropoffId, pickupName: pickup.stop_name, dropoffName: dropoff.stop_name },
       route: { from: tripDetail.trip.route?.from_city || '', to: tripDetail.trip.route?.to_city || '', durationMin: tripDetail.trip.route?.estimated_duration_min || null },
       bus: { busType: tripDetail.trip.bus?.bus_type || '', licensePlate: tripDetail.trip.bus?.license_plate || '', seatCount: tripDetail.trip.bus?.seat_count || 0 },
       times: { departureTime: tripDetail.trip.start_time, arrivalTime: tripDetail.trip.end_time || null },
-      pricePerSeat: tripDetail.trip.base_price || 0
+      pricePerSeat: computedPricePerSeat
     } });
   };
+
+  // Compute price per seat based on selected stops (same logic as server-side)
+  const computedPricePerSeat = React.useMemo(() => {
+    const base = tripDetail?.trip?.base_price || selectedTrip?.base_price || 0;
+    if (!tripDetail?.stops || !selectedPickupId || !selectedDropoffId) return base;
+    const pickup = tripDetail.stops.find(s => s._id === selectedPickupId);
+    const dropoff = tripDetail.stops.find(s => s._id === selectedDropoffId);
+    if (!pickup || !dropoff) return base;
+    const orders = tripDetail.stops.map(s => (typeof s.order === 'number' ? s.order : 0));
+    const minOrder = Math.min(...orders);
+    const maxOrder = Math.max(...orders);
+    const totalSegments = (maxOrder - minOrder) || 1;
+    const segmentsBetween = Math.max(0, dropoff.order - pickup.order);
+    const fraction = Math.min(1, segmentsBetween / totalSegments);
+    let price = Math.round(base * fraction);
+    if (price <= 0) price = Math.max(1, Math.floor(base * 0.2));
+    return price;
+  }, [tripDetail?.stops, tripDetail?.trip?.base_price, selectedPickupId, selectedDropoffId, selectedTrip?.base_price]);
+
+  const computedTotalAmount = React.useMemo(() => {
+    return (computedPricePerSeat || 0) * (selectedSeats.length || 0);
+  }, [computedPricePerSeat, selectedSeats.length]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -366,6 +453,118 @@ const BookingDetail: React.FC = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Hiển thị điểm dừng */}
+                {tripDetail?.stops && tripDetail.stops.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <MapPin className="h-5 w-5 text-blue-600 mr-2" />
+                      Các điểm dừng trên tuyến
+                    </h3>
+                    <div className="relative">
+                      {/* Đường thẳng nối các điểm */}
+                      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-blue-200"></div>
+                      
+                      <div className="space-y-4 relative">
+                        {(() => {
+                          const stops = tripDetail?.stops || [];
+                          return stops.map((stop, index) => {
+                          const isFirst = index === 0;
+                          const isLast = index === stops.length - 1;
+                          const getTypeColor = () => {
+                            if (stop.type === 'pickup') return 'bg-green-100 text-green-700 border-green-300';
+                            if (stop.type === 'dropoff') return 'bg-red-100 text-red-700 border-red-300';
+                            return 'bg-blue-100 text-blue-700 border-blue-300';
+                          };
+                          const getTypeLabel = () => {
+                            if (stop.type === 'pickup') return 'Điểm đón';
+                            if (stop.type === 'dropoff') return 'Điểm trả';
+                            return 'Điểm đón/trả';
+                          };
+
+                          const isSelectedPickup = selectedPickupId === stop._id;
+                          const isSelectedDropoff = selectedDropoffId === stop._id;
+
+                          const handleStopClick = () => {
+                            if (isSelectedPickup) { setSelectedPickupId(null); return; }
+                            if (isSelectedDropoff) { setSelectedDropoffId(null); return; }
+
+                            if (!selectedPickupId) {
+                              if (stop.type === 'dropoff') {
+                                alert('Không thể chọn điểm trả làm điểm đón. Vui lòng chọn điểm đón hợp lệ.');
+                                return;
+                              }
+                              setSelectedPickupId(stop._id);
+                              return;
+                            }
+
+                            if (selectedPickupId && !selectedDropoffId) {
+                                  const pickup = stops.find(s => s._id === selectedPickupId);
+                              if (pickup && stop.order <= pickup.order) {
+                                alert('Vui lòng chọn điểm trả nằm sau điểm đón.');
+                                return;
+                              }
+                              if (stop.type === 'pickup') {
+                                alert('Vui lòng chọn điểm trả hợp lệ.');
+                                return;
+                              }
+                              setSelectedDropoffId(stop._id);
+                              return;
+                            }
+
+                            setSelectedPickupId(stop._id);
+                            setSelectedDropoffId(null);
+                          };
+
+                          return (
+                            <div key={stop._id} className="relative flex items-start pl-10">
+                              <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm border-2 ${
+                                isFirst 
+                                  ? 'bg-blue-600 text-white border-blue-600' 
+                                  : isLast
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'bg-white text-blue-600 border-blue-400'
+                              }`}>
+                                {stop.order}
+                              </div>
+
+                              <div
+                                onClick={handleStopClick}
+                                role="button"
+                                tabIndex={0}
+                                className={[
+                                  'flex-1 rounded-lg p-3 border transition-colors cursor-pointer',
+                                  isSelectedPickup ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200',
+                                  isSelectedDropoff ? 'bg-indigo-50 border-indigo-400' : ''
+                                ].join(' ')}
+                                onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') handleStopClick(); }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <p className="font-medium text-gray-900">{stop.stop_name}</p>
+                                  <div className="ml-4 text-right">
+                                    <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-medium border ${getTypeColor()}`}>
+                                      {getTypeLabel()}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 flex items-center gap-2">
+                                  {isSelectedPickup && (
+                                    <span className="text-xs font-semibold text-blue-700">Bạn chọn điểm đón</span>
+                                  )}
+                                  {isSelectedDropoff && (
+                                    <span className="text-xs font-semibold text-indigo-700">Bạn chọn điểm trả</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                          });
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Chọn ghế */}
@@ -447,10 +646,13 @@ const BookingDetail: React.FC = () => {
                     <input
                       type="tel"
                       value={passengerInfo.phone}
-                      onChange={(e) => setPassengerInfo({ ...passengerInfo, phone: e.target.value })}
+                      onChange={(e) => { setPassengerInfo({ ...passengerInfo, phone: e.target.value }); if (phoneError) setPhoneError(null); }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Nhập số điện thoại"
                     />
+                    {phoneError && (
+                      <p className="text-sm text-red-600 mt-1">{phoneError}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
@@ -492,18 +694,24 @@ const BookingDetail: React.FC = () => {
                     <span className="text-gray-600">Số ghế:</span>
                     <span className="font-medium">{selectedSeats.length} ghế</span>
                   </div>
+                  {tripDetail?.stops && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Điểm đón / trả:</span>
+                      <span className="font-medium text-right">
+                        {selectedPickupId ? (tripDetail.stops.find(s => s._id === selectedPickupId)?.stop_name || '-') : '-'}
+                        {' '} / {' '}
+                        {selectedDropoffId ? (tripDetail.stops.find(s => s._id === selectedDropoffId)?.stop_name || '-') : '-'}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Giá/ghế:</span>
-                    <span className="font-medium">
-                      {(selectedTrip.base_price || 0).toLocaleString()}₫
-                    </span>
+                    <span className="font-medium">{(computedPricePerSeat || 0).toLocaleString()}₫</span>
                   </div>
                   <div className="border-t pt-4">
                     <div className="flex justify-between text-lg font-bold">
                       <span>Tổng cộng:</span>
-                      <span className="text-blue-600">
-                        {((selectedTrip.base_price || 0) * selectedSeats.length).toLocaleString()}₫
-                      </span>
+                      <span className="text-blue-600">{(computedTotalAmount || 0).toLocaleString()}₫</span>
                     </div>
                   </div>
                 </div>

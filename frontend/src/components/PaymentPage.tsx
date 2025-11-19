@@ -9,6 +9,7 @@ type PaymentState = {
   tripId: string;
   seats: number[]; // đã chọn ở BookingDetail
   passenger: { name: string; phone: string; email?: string; note?: string; };
+  stops?: { pickupId?: string; dropoffId?: string; pickupName?: string; dropoffName?: string };
   route?: { from?: string; to?: string; durationMin?: number | null };
   bus?: { busType?: string; licensePlate?: string; seatCount?: number };
   times?: { departureTime?: string; arrivalTime?: string | null };
@@ -42,6 +43,7 @@ const PaymentPage: React.FC = () => {
       const res = await fetch(`${API_BASE}/api/bookings/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Quan trọng để gửi cookie token
         body: JSON.stringify({
           tripId: st.tripId,
           seatNumbers: st.seats,
@@ -110,7 +112,7 @@ const PaymentPage: React.FC = () => {
                 <div className="flex items-center">
                   <MapPin className="h-5 w-5 text-blue-600 mr-2" />
                   <div>
-                    <p className="font-semibold text-gray-900">{st.route?.from || '-'}</p>
+                    <p className="font-semibold text-gray-900">{st.stops?.pickupName || st.route?.from || '-'}</p>
                     <p className="text-sm text-gray-600">Điểm đi</p>
                   </div>
                 </div>
@@ -128,7 +130,7 @@ const PaymentPage: React.FC = () => {
                 <div className="flex items-center">
                   <MapPin className="h-5 w-5 text-green-600 mr-2" />
                   <div>
-                    <p className="font-semibold text-gray-900">{st.route?.to || '-'}</p>
+                    <p className="font-semibold text-gray-900">{st.stops?.dropoffName || st.route?.to || '-'}</p>
                     <p className="text-sm text-gray-600">Điểm đến</p>
                   </div>
                 </div>

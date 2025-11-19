@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bookings Management - VeXe7TV Admin</title>
+    <title>Assistants Management - VeXe7TV Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
@@ -119,6 +119,9 @@
         
         .page-header {
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .page-header h2 {
@@ -132,6 +135,53 @@
         .page-header p {
             color: rgba(255, 255, 255, 0.9);
             font-size: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
         }
         
         .stats-grid {
@@ -158,7 +208,7 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            background: linear-gradient(90deg, var(--warning), #fbbf24);
         }
         
         .stat-card:hover {
@@ -181,7 +231,7 @@
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            background: linear-gradient(135deg, var(--warning), #fbbf24);
             color: white;
             box-shadow: var(--shadow-md);
         }
@@ -277,39 +327,9 @@
             color: #d97706;
         }
         
-        .badge-danger {
-            background: rgba(239, 68, 68, 0.1);
-            color: #dc2626;
-        }
-        
-        .badge-primary {
+        .badge-info {
             background: rgba(59, 130, 246, 0.1);
             color: #2563eb;
-        }
-        
-        .btn {
-            padding: 0.625rem 1.25rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.875rem;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-            box-shadow: var(--shadow);
-        }
-        
-        .btn-danger:hover {
-            background: #dc2626;
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
         }
         
         .empty-state {
@@ -333,16 +353,6 @@
         .empty-state p {
             color: var(--gray);
         }
-        
-        @media (max-width: 1024px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-            
-            .main-content {
-                margin-left: 0;
-            }
-        }
     </style>
 </head>
 <body>
@@ -361,6 +371,10 @@
                     <span>👥</span>
                     <span>Users</span>
                 </a>
+                <a href="/admin/assistants" class="nav-item active">
+                    <span>👷</span>
+                    <span>Assistants</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -373,7 +387,7 @@
                     <span>🕐</span>
                     <span>Trips</span>
                 </a>
-                <a href="/admin/bookings" class="nav-item active">
+                <a href="/admin/bookings" class="nav-item">
                     <span>🎫</span>
                     <span>Bookings</span>
                 </a>
@@ -390,43 +404,28 @@
         
         <main class="main-content">
             <div class="page-header">
-                <h2>Quản lý Đặt chỗ</h2>
-                <p>Quản lý tất cả đặt chỗ trong hệ thống</p>
+                <div>
+                    <h2>Quản lý Phụ xe</h2>
+                    <p>Quản lý tất cả phụ xe trong hệ thống</p>
+                </div>
+                <a href="/admin/assistants/new" class="btn btn-primary">➕ Thêm Phụ xe</a>
             </div>
             
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div>
-                            <h3>Tổng số đặt chỗ</h3>
+                            <h3>Tổng số phụ xe</h3>
                             <div class="value"><%= stats.total %></div>
                         </div>
-                        <div class="stat-card-icon">🎫</div>
+                        <div class="stat-card-icon">👷</div>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div>
-                            <h3>Đang chờ</h3>
-                            <div class="value"><%= stats.pending %></div>
-                        </div>
-                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">⏳</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <div>
-                            <h3>Đã thanh toán</h3>
-                            <div class="value"><%= stats.paid %></div>
-                        </div>
-                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--info), #60a5fa);">💳</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-header">
-                        <div>
-                            <h3>Hoàn thành</h3>
-                            <div class="value"><%= stats.completed %></div>
+                            <h3>Đang hoạt động</h3>
+                            <div class="value"><%= stats.active %></div>
                         </div>
                         <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">✅</div>
                     </div>
@@ -434,51 +433,75 @@
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div>
-                            <h3>Doanh thu</h3>
-                            <div class="value" style="font-size: 1.75rem;"><%= stats.totalRevenue.toLocaleString('vi-VN') %> ₫</div>
+                            <h3>Có tuyến</h3>
+                            <div class="value"><%= stats.withRoutes %></div>
                         </div>
-                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">💰</div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--info), #60a5fa);">📍</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Chưa có tuyến</h3>
+                            <div class="value"><%= stats.withoutRoutes %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--gray), #94a3b8);">⏸️</div>
                     </div>
                 </div>
             </div>
             
             <div class="content-card">
-                <h2>Danh sách Đặt chỗ</h2>
-                <% if (bookings.length === 0) { %>
+                <h2>Danh sách Phụ xe</h2>
+                <% if (assistants.length === 0) { %>
                     <div class="empty-state">
-                        <div class="empty-state-icon">🎫</div>
-                        <h3>Chưa có đặt chỗ nào</h3>
-                        <p>Khách hàng chưa đặt chỗ</p>
+                        <div class="empty-state-icon">👷</div>
+                        <h3>Chưa có phụ xe nào</h3>
+                        <p>Hãy thêm phụ xe mới vào hệ thống</p>
                     </div>
                 <% } else { %>
                     <div class="table-wrapper">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Khách hàng</th>
-                                    <th>Ghế</th>
-                                    <th>Tổng tiền</th>
-                                    <th>Trạng thái</th>
-                                    <th>Ngày đặt</th>
+                                    <th>Họ tên</th>
+                                    <th>Email</th>
+                                    <th>SĐT</th>
+                                    <th>Mã NV</th>
+                                    <th>Kinh nghiệm</th>
+                                    <th>Số chuyến</th>
+                                    <th>Ngày tạo</th>
                                     <th>Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <% bookings.forEach(function(booking) { %>
+                                <% assistants.forEach(function(assistant) { %>
                                     <tr>
-                                        <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
-                                        <td><%= booking.user?.full_name || booking.passenger?.name || 'N/A' %></td>
-                                        <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'N/A' %></span></td>
-                                        <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>
+                                        <td><strong><%= assistant.name %></strong></td>
+                                        <td><%= assistant.email || '-' %></td>
+                                        <td><%= assistant.phone || '-' %></td>
                                         <td>
-                                            <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
-                                                <%= booking.status === 'pending' ? 'Đang chờ' : booking.status === 'paid' ? 'Đã thanh toán' : booking.status === 'completed' ? 'Hoàn thành' : booking.status === 'cancelled' ? 'Đã hủy' : booking.status %>
+                                            <span class="badge badge-info">
+                                                <%= assistant.employee_id || 'N/A' %>
                                             </span>
                                         </td>
-                                        <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
                                         <td>
-                                            <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                            <%= assistant.experience_years || 0 %> năm
+                                        </td>
+                                        <td>
+                                            <% 
+                                                const routesCount = assistant.assigned_routes ? assistant.assigned_routes.length : 0;
+                                                const tripsCount = assistant.assigned_trips ? assistant.assigned_trips.length : 0;
+                                                const totalCount = routesCount + tripsCount;
+                                            %>
+                                            <span class="badge <%= totalCount > 0 ? 'badge-success' : 'badge-warning' %>">
+                                                <%= routesCount > 0 ? routesCount + ' tuyến' : (tripsCount > 0 ? tripsCount + ' chuyến (cũ)' : 'Chưa gán') %>
+                                            </span>
+                                        </td>
+                                        <td><%= new Date(assistant.createdAt).toLocaleString('vi-VN') %></td>
+                                        <td>
+                                            <a href="/admin/assistants/<%= assistant._id %>" class="btn" style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: var(--info); color: white;">👁️ Chi tiết</a>
+                                            <a href="/admin/assistants/<%= assistant._id %>/edit" class="btn btn-warning" style="padding: 0.5rem 1rem; margin-right: 0.5rem;">✏️ Sửa</a>
+                                            <button class="btn btn-danger" style="padding: 0.5rem 1rem;" onclick="deleteAssistant('<%= assistant._id %>')">🗑️ Xóa</button>
                                         </td>
                                     </tr>
                                 <% }); %>
@@ -491,13 +514,13 @@
     </div>
     
     <script>
-        async function deleteBooking(id) {
-            if (!confirm('Bạn có chắc muốn xóa đặt chỗ này?')) return;
+        async function deleteAssistant(id) {
+            if (!confirm('Bạn có chắc muốn xóa phụ xe này?')) return;
             try {
-                const response = await fetch(`/admin/bookings/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/admin/assistants/${id}`, { method: 'DELETE' });
                 const data = await response.json();
                 if (data.success) {
-                    alert('Đã xóa đặt chỗ thành công');
+                    alert('Đã xóa phụ xe thành công');
                     location.reload();
                 }
             } catch (error) {
@@ -507,3 +530,4 @@
     </script>
 </body>
 </html>
+
