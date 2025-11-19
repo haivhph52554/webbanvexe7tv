@@ -12,13 +12,14 @@ const tripRoutes = require('./routes/tripRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
 
 const app = express();
 
 // CORS configuration
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true // allow cookies from cross-origin requests
+  credentials: true
 }));
 
 app.use(express.json());
@@ -33,18 +34,29 @@ app.set('views', path.join(__dirname, 'views'));
 // connect
 connectDB();
 
-// ✅ ép compile model đúng trước khi có file nào khác dùng
+// ensure certain models are compiled early
 require('./models/RouteStop');        // collection: route_stops
 require('./models/TripSeatStatus');   // collection: trip_seat_status
 
+// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/assistant', assistantRoutes);
+
+// Admin EJS routes
 app.use('/admin', adminRoutes);
 
-app.get('/', (req, res) => res.send('Bus Booking API running'));
+// static / health
+app.get('/', (req, res) => res.send('BaseVeXe backend running'));
 
-const PORT = process.env.PORT || 5000;
+// error handler (basic)
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message || 'Server error' });
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));

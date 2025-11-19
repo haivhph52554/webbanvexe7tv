@@ -1,3 +1,4 @@
+// ...existing code...
 const Trip = require('../models/Trip');
 const Booking = require('../models/Booking');
 const Route = require('../models/Route');
@@ -120,19 +121,16 @@ exports.updateRoute = async (req, res) => {
 // Hiển thị admin dashboard
 exports.dashboard = async (req, res) => {
   try {
-    // Lấy tất cả trips với populate route và bus
     const trips = await Trip.find()
       .populate('route')
       .populate('bus')
       .sort({ start_time: -1 });
 
-    // Lấy tất cả bookings với populate
     const bookings = await Booking.find()
       .populate('user')
       .populate('trip')
       .sort({ createdAt: -1 });
 
-    // Tính toán thống kê
     const stats = {
       totalTrips: trips.length,
       totalBookings: bookings.length,
@@ -158,21 +156,17 @@ exports.dashboard = async (req, res) => {
 // API endpoint để xóa booking
 exports.deleteBooking = async (req, res) => {
   try {
-    // Get the booking first to get the trip and seat info
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
       return res.status(404).json({ error: 'Không tìm thấy đơn đặt chỗ' });
     }
 
-    // Check if booking has trip and seat information
     if (booking.trip && booking.seat_numbers && booking.seat_numbers.length > 0) {
-      // Find all affected seat statuses
       const seatStatuses = await TripSeatStatus.find({
         trip: booking.trip,
         seat_number: { $in: booking.seat_numbers }
       });
 
-      // Reset the seat statuses to available
       await TripSeatStatus.updateMany(
         {
           trip: booking.trip,
@@ -189,7 +183,6 @@ exports.deleteBooking = async (req, res) => {
       console.log(`Reset ${seatStatuses.length} seats to available for booking ${booking._id}`);
     }
 
-    // Delete the booking
     await Booking.findByIdAndDelete(req.params.id);
 
     res.json({ success: true, message: 'Đã xóa đặt chỗ và cập nhật trạng thái ghế thành công' });
@@ -224,18 +217,41 @@ exports.updateBookingStatus = async (req, res) => {
   }
 };
 
-// Trang Users Management
+// Trang Users Management (hỗ trợ lọc ?role=assistant và phân trang)
 exports.users = async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const roleFilter = req.query.role; // ?role=assistant
+    const pageNum = req.query.page ? Math.max(1, parseInt(req.query.page, 10) || 1) : 1;
+    const limit = 50;
+    const query = roleFilter ? { role: roleFilter } : {};
+
+    const [users, total] = await Promise.all([
+      User.find(query).sort({ createdAt: -1 }).skip((pageNum - 1) * limit).limit(limit).lean(),
+      User.countDocuments(query)
+    ]);
+
+    const statsAll = await User.find().lean();
     const stats = {
-      total: users.length,
-      customers: users.filter(u => u.role === 'customer').length,
-      drivers: users.filter(u => u.role === 'driver').length,
-      assistants: users.filter(u => u.role === 'assistant').length,
-      admins: users.filter(u => u.role === 'admin').length
+      total: statsAll.length,
+      customers: statsAll.filter(u => u.role === 'customer').length,
+      drivers: statsAll.filter(u => u.role === 'driver').length,
+      assistants: statsAll.filter(u => u.role === 'assistant').length,
+      admins: statsAll.filter(u => u.role === 'admin').length
     };
-    res.render('admin/users', { users, stats, page: 'users' });
+
+    const totalPages = Math.ceil(total / limit);
+
+    res.render('admin/users', {
+      users,
+      stats,
+      page: 'users',
+      roleFilter,
+      pagination: {
+        page: pageNum,
+        totalPages,
+        total
+      }
+    });
   } catch (err) {
     console.error('Error loading users:', err);
     res.status(500).send('Lỗi khi tải trang users: ' + err.message);
@@ -616,7 +632,6 @@ exports.routes = async (req, res) => {
     const RouteStop = require('../models/RouteStop');
     const routes = await Route.find().sort({ createdAt: -1 });
     
-    // Get stops for each route
     for (let route of routes) {
       route.stops = await RouteStop.find({ route: route._id }).sort({ order: 1 });
     }
@@ -793,7 +808,6 @@ exports.createTrip = async (req, res) => {
 
     const trip = await Trip.create(payload);
 
-    // create seats based on bus seat_count
     const bus = await Bus.findById(trip.bus);
     const seatCount = bus?.seat_count || 0;
     const seatDocs = [];
@@ -841,4 +855,4 @@ exports.updateTrip = async (req, res) => {
     res.status(500).send('Lỗi khi cập nhật chuyến: ' + err.message);
   }
 };
-
+// ...existing code...

@@ -1,3 +1,4 @@
+<!-- ...existing code... -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -151,7 +152,8 @@
         </div>
         <nav>
             <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Dashboard</a>
-            <a href="/admin/users" class="<%= page === 'users' ? 'active' : '' %>">👥 Users</a>
+            <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Users</a>
+            <a href="/admin/users?role=assistant" class="<%= page === 'users' && typeof roleFilter !== 'undefined' && roleFilter === 'assistant' ? 'active' : '' %>">🧑‍✈️ Lơ xe</a>
             <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Buses</a>
             <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Routes</a>
             <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Trips</a>
@@ -168,4 +170,4 @@
     <%- typeof additionalScripts !== 'undefined' ? additionalScripts : '' %>
 </body>
 </html>
-
+// ...existing code...
