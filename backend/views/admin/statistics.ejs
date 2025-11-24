@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics - VeXe7TV Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #3b82f6;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --gray-light: #e2e8f0;
+            --white: #ffffff;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--dark);
+        }
+        
+        .admin-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-xl);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 0.875rem 1.5rem;
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            margin: 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .page-header {
+            margin-bottom: 2rem;
+        }
+        
+        .page-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+        }
+        
+        .revenue-card {
+            background: linear-gradient(135deg, var(--success) 0%, #34d399 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-xl);
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .revenue-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .revenue-card-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .revenue-card h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+        
+        .revenue-card .value {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+        
+        .revenue-card .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .section {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light);
+        }
+        
+        .section-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin: 0;
+        }
+        
+        .section-icon {
+            font-size: 1.75rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .stat-card {
+            background: var(--light);
+            padding: 1.5rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid transparent;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-light);
+            background: var(--white);
+        }
+        
+        .stat-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .stat-card h3 {
+            color: var(--gray);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1;
+        }
+        
+        .icon-users { background: linear-gradient(135deg, var(--info), #60a5fa) !important; }
+        .icon-customer { background: linear-gradient(135deg, var(--success), #34d399) !important; }
+        .icon-driver { background: linear-gradient(135deg, var(--info), #60a5fa) !important; }
+        .icon-assistant { background: linear-gradient(135deg, var(--warning), #fbbf24) !important; }
+        .icon-admin { background: linear-gradient(135deg, var(--danger), #f87171) !important; }
+        .icon-bus { background: linear-gradient(135deg, var(--primary), var(--primary-light)) !important; }
+        .icon-route { background: linear-gradient(135deg, var(--success), #34d399) !important; }
+        .icon-trip { background: linear-gradient(135deg, var(--info), #60a5fa) !important; }
+        .icon-booking { background: linear-gradient(135deg, var(--primary), var(--primary-light)) !important; }
+        .icon-pending { background: linear-gradient(135deg, var(--warning), #fbbf24) !important; }
+        .icon-paid { background: linear-gradient(135deg, var(--info), #60a5fa) !important; }
+        .icon-completed { background: linear-gradient(135deg, var(--success), #34d399) !important; }
+        .icon-cancelled { background: linear-gradient(135deg, var(--danger), #f87171) !important; }
+        .icon-scheduled { background: linear-gradient(135deg, var(--info), #60a5fa) !important; }
+        .icon-departed { background: linear-gradient(135deg, var(--warning), #fbbf24) !important; }
+        
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+            
+            .revenue-card .value {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚌 VeXe7TV</h1>
+                <p>Trang quản trị</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin" class="nav-item">
+                    <span>📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/admin/users" class="nav-item">
+                    <span>👥</span>
+                    <span>Users</span>
+                </a>
+                <a href="/admin/buses" class="nav-item">
+                    <span>🚌</span>
+                    <span>Buses</span>
+                </a>
+                <a href="/admin/routes" class="nav-item">
+                    <span>📍</span>
+                    <span>Routes</span>
+                </a>
+                <a href="/admin/trips" class="nav-item">
+                    <span>🕐</span>
+                    <span>Trips</span>
+                </a>
+                <a href="/admin/bookings" class="nav-item">
+                    <span>🎫</span>
+                    <span>Bookings</span>
+                </a>
+                <a href="/admin/statistics" class="nav-item active">
+                    <span>📈</span>
+                    <span>Statistics</span>
+                </a>
+                <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
+                    <span>🏠</span>
+                    <span>Về trang chủ</span>
+                </a>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Thống kê & Báo cáo</h2>
+                <p>Tổng quan toàn diện về hệ thống</p>
+            </div>
+            
+            <!-- Revenue Card -->
+            <div class="revenue-card">
+                <div class="revenue-card-content">
+                    <h3>Tổng doanh thu</h3>
+                    <div class="value"><%= stats.bookings.revenue.toLocaleString('vi-VN') %> ₫</div>
+                    <div class="subtitle">Từ tất cả các đặt chỗ đã thanh toán</div>
+                </div>
+            </div>
+            
+            <!-- Users Statistics -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">👥</span>
+                    <h2>Thống kê Người dùng</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tổng số</h3>
+                                <div class="value"><%= stats.users.total %></div>
+                            </div>
+                            <div class="stat-card-icon icon-users">👥</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Khách hàng</h3>
+                                <div class="value"><%= stats.users.byRole.customer %></div>
+                            </div>
+                            <div class="stat-card-icon icon-customer">🛒</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tài xế</h3>
+                                <div class="value"><%= stats.users.byRole.driver %></div>
+                            </div>
+                            <div class="stat-card-icon icon-driver">🚗</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Phụ xe</h3>
+                                <div class="value"><%= stats.users.byRole.assistant %></div>
+                            </div>
+                            <div class="stat-card-icon icon-assistant">👷</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Quản trị viên</h3>
+                                <div class="value"><%= stats.users.byRole.admin %></div>
+                            </div>
+                            <div class="stat-card-icon icon-admin">👨‍💼</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Buses & Routes Statistics -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">🚌</span>
+                    <h2>Thống kê Xe buýt & Tuyến đường</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tổng số xe</h3>
+                                <div class="value"><%= stats.buses.total %></div>
+                            </div>
+                            <div class="stat-card-icon icon-bus">🚌</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Xe đang hoạt động</h3>
+                                <div class="value"><%= stats.buses.active %></div>
+                            </div>
+                            <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">✅</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tổng số tuyến</h3>
+                                <div class="value"><%= stats.routes.total %></div>
+                            </div>
+                            <div class="stat-card-icon icon-route">📍</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tuyến đang hoạt động</h3>
+                                <div class="value"><%= stats.routes.active %></div>
+                            </div>
+                            <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">✅</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Trips Statistics -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">🕐</span>
+                    <h2>Thống kê Chuyến xe</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tổng số</h3>
+                                <div class="value"><%= stats.trips.total %></div>
+                            </div>
+                            <div class="stat-card-icon icon-trip">🕐</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã lên lịch</h3>
+                                <div class="value"><%= stats.trips.byStatus.scheduled %></div>
+                            </div>
+                            <div class="stat-card-icon icon-scheduled">📅</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã khởi hành</h3>
+                                <div class="value"><%= stats.trips.byStatus.departed %></div>
+                            </div>
+                            <div class="stat-card-icon icon-departed">🚀</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã hoàn thành</h3>
+                                <div class="value"><%= stats.trips.byStatus.completed %></div>
+                            </div>
+                            <div class="stat-card-icon icon-completed">✅</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã hủy</h3>
+                                <div class="value"><%= stats.trips.byStatus.cancelled %></div>
+                            </div>
+                            <div class="stat-card-icon icon-cancelled">❌</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bookings Statistics -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">🎫</span>
+                    <h2>Thống kê Đặt chỗ</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Tổng số</h3>
+                                <div class="value"><%= stats.bookings.total %></div>
+                            </div>
+                            <div class="stat-card-icon icon-booking">🎫</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đang chờ</h3>
+                                <div class="value"><%= stats.bookings.byStatus.pending %></div>
+                            </div>
+                            <div class="stat-card-icon icon-pending">⏳</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã thanh toán</h3>
+                                <div class="value"><%= stats.bookings.byStatus.paid %></div>
+                            </div>
+                            <div class="stat-card-icon icon-paid">💳</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Hoàn thành</h3>
+                                <div class="value"><%= stats.bookings.byStatus.completed %></div>
+                            </div>
+                            <div class="stat-card-icon icon-completed">✅</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <h3>Đã hủy</h3>
+                                <div class="value"><%= stats.bookings.byStatus.cancelled %></div>
+                            </div>
+                            <div class="stat-card-icon icon-cancelled">❌</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
