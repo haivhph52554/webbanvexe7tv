@@ -7,7 +7,7 @@ const User = require('../models/User');
 const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 
-// --- Buses CRUD helpers for admin UI --- 12345678910
+// --- Buses CRUD helpers for admin UI --- 123456
 exports.newBus = async (req, res) => {
   try {
     res.render('admin/bus_form', { bus: null, page: 'buses', errors: null });
