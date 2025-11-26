@@ -173,13 +173,6 @@ const MyTicketsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteTicket = (ticketId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa vé này?')) {
-      const updatedTickets = tickets.filter(ticket => ticket.id !== ticketId);
-      setTickets(updatedTickets);
-      localStorage.setItem('vexe7tv_tickets', JSON.stringify(updatedTickets));
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -378,13 +371,6 @@ const MyTicketsPage: React.FC = () => {
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={() => handleDeleteTicket(ticket.id)}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Xóa
-                    </button>
                   </div>
                 </div>
               </div>
