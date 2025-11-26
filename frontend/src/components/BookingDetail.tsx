@@ -254,12 +254,19 @@ const BookingDetail: React.FC = () => {
     };
   }, []);
 
-  const fmtTime = (iso?: string | null) => {
-    if (!iso) return '-';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '-';
-    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  };
+const fmtDateTime = (iso?: string | null) => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('vi-VN', { 
+    weekday: 'short', 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+};  
 
   const fmtDuration = (mins?: number) => {
     if (typeof mins !== 'number' || Number.isNaN(mins)) return '-';
@@ -372,20 +379,22 @@ const BookingDetail: React.FC = () => {
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600">Chọn chuyến:</span>
-              <select
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
-                value={selectedTrip?._id || ''}
-                onChange={(e) => {
-                  const t = allTrips.find(x => x._id === e.target.value) || null;
-                  setSelectedTrip(t);
-                }}
-              >
-                {allTrips.map(t => (
-                  <option key={t._id} value={t._id}>
-                    {t.route?.from_city || '-'} → {t.route?.to_city || '-'} | {fmtTime(t.start_time)} — {fmtTime(t.end_time || undefined)}
-                  </option>
-                ))}
-              </select>
+             <select
+  className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
+  value={selectedTrip?._id || ''}
+  onChange={(e) => {
+    const t = allTrips.find(x => x._id === e.target.value) || null;
+    setSelectedTrip(t);
+  }}
+>
+  {allTrips.map(t => (
+    <option key={t._id} value={t._id}>
+      {t.route?.from_city || '-'} → {t.route?.to_city || '-'} | 
+      {fmtDateTime(t.start_time)} — {fmtDateTime(t.end_time || undefined)}
+    </option>
+  ))}
+</select>
+
             </div>
           )}
         </div>
@@ -433,12 +442,12 @@ const BookingDetail: React.FC = () => {
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-blue-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Giờ khởi hành</p>
-                    <p className="text-gray-600">{fmtTime(selectedTrip.start_time)}</p>
+                    <p className="text-gray-600">{fmtDateTime(selectedTrip.start_time)}</p>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Giờ đến</p>
-                    <p className="text-gray-600">{fmtTime(selectedTrip.end_time || undefined)}</p>
+                    <p className="text-gray-600">{fmtDateTime(selectedTrip.end_time || undefined)}</p>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Bus className="h-6 w-6 text-purple-600 mx-auto mb-2" />
