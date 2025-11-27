@@ -2,12 +2,11 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, CreditCard, Shield, Lock } from 'lucide-react';
-
 const API_BASE = 'http://localhost:5000';
 
 type PaymentState = {
   tripId: string;
-  seats: number[]; // đã chọn ở BookingDetail
+  seats: number[];
   passenger: { name: string; phone: string; email?: string; note?: string; };
   stops?: { pickupId?: string; dropoffId?: string; pickupName?: string; dropoffName?: string };
   route?: { from?: string; to?: string; durationMin?: number | null };
@@ -21,7 +20,8 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const st = (location.state || {}) as PaymentState;
 
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking' | 'cod'>('banking');
+  // Mặc định chọn Banking
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking'>('banking');
   const [isProcessing, setIsProcessing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -43,7 +43,7 @@ const PaymentPage: React.FC = () => {
       const res = await fetch(`${API_BASE}/api/bookings/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Quan trọng để gửi cookie token
+        credentials: 'include', 
         body: JSON.stringify({
           tripId: st.tripId,
           seatNumbers: st.seats,
@@ -53,13 +53,12 @@ const PaymentPage: React.FC = () => {
           stops: st.stops
         })
       });
+
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e?.error || `HTTP ${res.status}`);
       }
       const payload = await res.json();
-
-      // Điều hướng sang trang thành công, cầm dữ liệu thật từ BE
       navigate('/payment-success', { state: payload });
     } catch (e: any) {
       setErr(e?.message || 'Có lỗi khi thanh toán');
@@ -104,7 +103,7 @@ const PaymentPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Thông tin đặt vé (từ state) */}
+          {/* Thông tin đặt vé */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Thông tin chuyến đi</h3>
@@ -198,7 +197,7 @@ const PaymentPage: React.FC = () => {
 
               {/* MoMo */}
               <div
-                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${paymentMethod==='momo' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors mb-3 ${paymentMethod==='momo' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}
                 onClick={() => setPaymentMethod('momo')}
               >
                 <div className="flex items-center">
@@ -236,24 +235,8 @@ const PaymentPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* COD */}
-              <div
-                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${paymentMethod==='cod' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setPaymentMethod('cod')}
-              >
-                <div className="flex items-center">
-                  <div className="w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center">
-                    {paymentMethod === 'cod' && <div className="w-3 h-3 bg-green-500 rounded-full"></div>}
-                  </div>
-                  <div className="flex items-center">
-                    <Bus className="h-8 w-8 text-green-600 mr-3" />
-                    <div>
-                      <p className="font-semibold text-gray-900">Thanh toán tại xe</p>
-                      <p className="text-sm text-gray-600">Trả tiền khi lên xe</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* ĐÃ XÓA PHẦN THANH TOÁN TẠI XE Ở ĐÂY */}
+
             </div>
 
             {/* Tóm tắt */}
@@ -263,7 +246,6 @@ const PaymentPage: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Ghế đã chọn:</span>
                   <span className="font-medium text-right">
-                    {/* Ví dụ: 2 ghế (A1, A2) */}
                     {st.seats.length} ghế <br/>
                     <span className="text-blue-600 text-sm">({st.seats.join(', ')})</span>
                   </span>
