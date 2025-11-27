@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Eye, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Eye, Trash2, XCircle, Phone } from 'lucide-react';
 import { useAuth } from '../App';
 
 interface Ticket {
@@ -25,7 +25,7 @@ interface Ticket {
   totalAmount: number;
   paymentMethod: string;
   bookingDate: string;
-  status: 'confirmed' | 'cancelled' | 'used';
+  status: 'confirmed' | 'cancelled' | 'used' | 'pending';
 }
 
 type BookingDoc = {
@@ -65,7 +65,7 @@ const MyTicketsPage: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled' | 'used'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled' | 'used' | 'pending'>('all');
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -104,9 +104,10 @@ const MyTicketsPage: React.FC = () => {
             : '-';
 
           // Map status từ booking sang ticket
-          const mapStatus = (status: string): 'confirmed' | 'cancelled' | 'used' => {
+          const mapStatus = (status: string): 'confirmed' | 'cancelled' | 'used' | 'pending' => {
             if (status === 'cancelled') return 'cancelled';
             if (status === 'completed') return 'used';
+            if (status === 'pending') return 'pending';
             return 'confirmed'; // pending, paid -> confirmed
           };
 
@@ -184,6 +185,7 @@ const MyTicketsPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       case 'used': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -193,6 +195,7 @@ const MyTicketsPage: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed': return 'Đã xác nhận';
+      case 'pending': return 'Chờ thanh toán';
       case 'cancelled': return 'Đã hủy';
       case 'used': return 'Đã sử dụng';
       default: return 'Không xác định';
@@ -358,9 +361,11 @@ const MyTicketsPage: React.FC = () => {
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                     >
                       <Eye className="h-4 w-4 mr-2" />
-                      Xem chi tiết
+                      Chi tiết
                     </button>
-                    {ticket.status === 'confirmed' && (
+
+                    {ticket.status === 'confirmed' ? (
+                      /* ĐÃ THANH TOÁN: Tải vé + Hỗ trợ */
                       <>
                         <button
                           onClick={() => handleDownloadTicket(ticket)}
@@ -368,6 +373,25 @@ const MyTicketsPage: React.FC = () => {
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Tải vé
+                        </button>
+                        <a
+                          href="tel:19001234"
+                          className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center decoration-0"
+                          title="Liên hệ tổng đài"
+                        >
+                          <Phone className="h-4 w-4 mr-2" />
+                          Hỗ trợ
+                        </a>
+                      </>
+                    ) : ticket.status === 'pending' ? (
+                      /* CHỜ THANH TOÁN: Thanh toán + Hủy */
+                      <>
+                        <button
+                           onClick={() => alert("Vui lòng chuyển khoản theo mã QR")}
+                           className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center"
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          Thanh toán
                         </button>
                         <button
                           onClick={() => handleCancelTicket(ticket.id)}
@@ -377,14 +401,16 @@ const MyTicketsPage: React.FC = () => {
                           Hủy vé
                         </button>
                       </>
+                    ) : (
+                      /* ĐÃ HỦY/ĐI: Xóa lịch sử */
+                      <button
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Xóa lịch sử
+                      </button>
                     )}
-                    <button
-                      onClick={() => handleDeleteTicket(ticket.id)}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Xóa
-                    </button>
                   </div>
                 </div>
               </div>

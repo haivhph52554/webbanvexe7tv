@@ -311,6 +311,19 @@
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
         }
+
+        /* Thêm style cho nút Duyệt */
+        .btn-success {
+            background: var(--success);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
         
         .empty-state {
             text-align: center;
@@ -478,6 +491,17 @@
                                         </td>
                                         <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
                                         <td>
+                                            <% if (booking.status === 'pending') { %>
+                                                <button 
+                                                    class="btn btn-success" 
+                                                    onclick="updateStatus('<%= booking._id %>', 'paid')"
+                                                    style="margin-right: 0.5rem;"
+                                                    title="Xác nhận đã nhận tiền"
+                                                >
+                                                    ✔ Duyệt
+                                                </button>
+                                            <% } %>
+
                                             <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
                                         </td>
                                     </tr>
@@ -491,6 +515,7 @@
     </div>
     
     <script>
+        // Hàm xóa booking cũ
         async function deleteBooking(id) {
             if (!confirm('Bạn có chắc muốn xóa đặt chỗ này?')) return;
             try {
@@ -502,6 +527,29 @@
                 }
             } catch (error) {
                 alert('Lỗi: ' + error.message);
+            }
+        }
+
+        // --- HÀM DUYỆT ĐƠN MỚI ---
+        async function updateStatus(id, status) {
+            if (!confirm('Xác nhận đã nhận được tiền cho đơn này?')) return;
+            try {
+                const response = await fetch(`/admin/bookings/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status }) 
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Đã duyệt đơn thành công!');
+                    location.reload(); // Tải lại trang để thấy màu xanh
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể cập nhật'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi kết nối server');
             }
         }
     </script>

@@ -40,7 +40,6 @@ exports.checkout = async (req, res) => {
       const requestedNums = (seatNumbers || [])
         .map(normalizeToNumber)
         .filter((n) => n != null);
-
       if (!requestedNums.length) throw new Error('Thiếu seatNumbers');
 
       // 3) Lấy ghế hiện có của trip
@@ -62,7 +61,8 @@ exports.checkout = async (req, res) => {
       }
 
       // 3b) Map số ghế -> doc
-      const seatByNum = new Map(); // num -> doc
+      const seatByNum = new Map();
+      // num -> doc
       for (const s of allSeatDocs) {
         const n = normalizeToNumber(s.seat_number);
         if (n != null && !seatByNum.has(n)) seatByNum.set(n, s);
@@ -73,7 +73,6 @@ exports.checkout = async (req, res) => {
       if (missingNums.length) {
         const invalid = missingNums.filter((n) => n < 1 || n > seatCount);
         if (invalid.length) throw new Error('Số ghế vượt quá seat_count của xe');
-
         const addDocs = missingNums.map((n) => ({
           trip: trip._id,
           seat_number: String(n),
@@ -126,10 +125,14 @@ exports.checkout = async (req, res) => {
           }
         }
       }
-      // if (Number(amount) !== computedTotal) throw new Error('Sai tổng tiền');
-
-      // 7) Tạo booking — lưu label ghế y như DB (có thể là "1", "A1", ...)
+      
+      // 7) Tạo booking
       const seatLabels = willBookDocs.map((d) => d.seat_number);
+      
+      // --- LOGIC MỚI: Xác định trạng thái ---
+      // Nếu là Banking hoặc MoMo -> Pending. COD -> Paid (hoặc pending tùy bạn, ở đây để paid cho đơn giản)
+      const initialStatus = (paymentMethod === 'banking' || paymentMethod === 'momo') ? 'pending' : 'paid';
+
       const [booking] = await Booking.create(
         [
           {
@@ -142,7 +145,12 @@ exports.checkout = async (req, res) => {
             passenger: passenger || null,
             total_amount: computedTotal,
             total_price: computedTotal,
-            status: 'paid',
+            
+            // --- SỬA Ở ĐÂY ---
+            status: initialStatus, 
+            stops: stops, 
+            // -----------------
+
             route_snapshot: {
               from: trip.route?.from_city || '',
               to: trip.route?.to_city || '',
@@ -170,8 +178,11 @@ exports.checkout = async (req, res) => {
             method: paymentMethod || 'banking',
             amount: computedTotal,
             transaction_code: `TX${Date.now()}`,
-            status: 'success',
-            paid_at: new Date()
+            
+            // --- SỬA Ở ĐÂY ---
+            status: initialStatus === 'paid' ? 'success' : 'pending',
+            paid_at: initialStatus === 'paid' ? new Date() : null
+            // -----------------
           }
         ],
         wopt
@@ -180,9 +191,9 @@ exports.checkout = async (req, res) => {
       // Link payment vào booking (nếu schema có field)
       booking.payment = payment._id;
       booking.payment_id = payment._id;
-  // Ensure user is saved on booking (if middleware set req.user)
-  if (req.user && !booking.user) booking.user = req.user._id;
-  await booking.save(wopt);
+      // Ensure user is saved on booking (if middleware set req.user)
+      if (req.user && !booking.user) booking.user = req.user._id;
+      await booking.save(wopt);
 
       // 9) Cập nhật trạng thái ghế theo _id (an toàn nhất)
       const idsToUpdate = willBookDocs.map((d) => d._id);
@@ -209,6 +220,7 @@ exports.checkout = async (req, res) => {
         totalAmount: computedTotal,
         paymentMethod: payment.method
       };
+
       // Include selected stops info if present
       if (stops && stops.pickupId && stops.dropoffId) {
         payload.stops = {
@@ -246,11 +258,9 @@ exports.checkout = async (req, res) => {
 exports.listOfUser = async (req, res) => {
   try {
     const { userId, phone } = req.query;
-    
     // Nếu có user đăng nhập, tự động filter theo user đó
     // Ưu tiên: req.user > userId query > phone query > không filter
     let q = {};
-    
     if (req.user && req.user._id) {
       // User đã đăng nhập - chỉ lấy bookings của user đó
       q = { user: req.user._id };
@@ -267,7 +277,6 @@ exports.listOfUser = async (req, res) => {
       .populate('trip')
       .populate('user', 'name email phone')
       .sort({ createdAt: -1 });
-    
     res.json(docs);
   } catch (e) {
     res.status(500).json({ error: e.message });

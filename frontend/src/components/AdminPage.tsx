@@ -1,3 +1,4 @@
+// frontend/src/components/AdminPage.tsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -26,6 +27,9 @@ const AdminPage: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [activeTab, setActiveTab] = useState<'trips' | 'bookings'>('trips');
 
+  // URL Backend
+  const API_BASE = 'http://localhost:5000';
+
   useEffect(() => {
     fetchTrips();
     fetchBookings();
@@ -33,7 +37,7 @@ const AdminPage: React.FC = () => {
 
   const fetchTrips = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/trips');
+      const response = await fetch(`${API_BASE}/api/trips`);
       const data = await response.json();
       setTrips(data);
     } catch (error) {
@@ -43,7 +47,8 @@ const AdminPage: React.FC = () => {
 
   const fetchBookings = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/bookings');
+      // Dùng endpoint admin để lấy tất cả booking
+      const response = await fetch(`${API_BASE}/api/bookings`);
       const data = await response.json();
       setBookings(data);
     } catch (error) {
@@ -57,7 +62,8 @@ const AdminPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/bookings/${bookingId}`, {
+      // Gọi API xóa trong admin routes
+      const response = await fetch(`${API_BASE}/admin/bookings/${bookingId}`, {
         method: 'DELETE',
       });
 
@@ -70,6 +76,31 @@ const AdminPage: React.FC = () => {
     } catch (error) {
       console.error('Error:', error);
       alert('Có lỗi khi xóa đặt chỗ. Vui lòng thử lại.');
+    }
+  };
+
+  // --- HÀM DUYỆT THANH TOÁN (MỚI) ---
+  const handleApprovePayment = async (bookingId: string) => {
+    if (!window.confirm('Xác nhận đã nhận được tiền cho đơn này?')) return;
+    
+    try {
+      // Gọi API update status (Lưu ý: dùng /admin/bookings/... theo đúng file adminRoutes.js)
+      const response = await fetch(`${API_BASE}/admin/bookings/${bookingId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid' }) // Chuyển sang trạng thái đã thanh toán
+      });
+
+      if (response.ok) {
+        alert('Đã duyệt đơn thành công!');
+        fetchBookings(); // Load lại danh sách để cập nhật trạng thái
+      } else {
+        const err = await response.json();
+        alert('Lỗi khi duyệt đơn: ' + (err.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error approving:', error);
+      alert('Lỗi kết nối đến server');
     }
   };
 
@@ -157,7 +188,7 @@ const AdminPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-              {trips.map((trip) => (
+                  {trips.map((trip) => (
                     <tr key={trip._id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '1rem' }}>{trip._id.substring(0, 8)}...</td>
                       <td style={{ padding: '1rem' }}>{trip.route?.name || 'N/A'}</td>
@@ -225,16 +256,46 @@ const AdminPage: React.FC = () => {
                         <span style={{
                           padding: '0.25rem 0.75rem',
                           borderRadius: '4px',
-                          backgroundColor: booking.status === 'confirmed' ? '#d1fae5' : '#fee2e2',
-                          color: booking.status === 'confirmed' ? '#065f46' : '#991b1b'
+                          backgroundColor: 
+                            booking.status === 'paid' || booking.status === 'confirmed' || booking.status === 'completed' 
+                              ? '#d1fae5' 
+                              : booking.status === 'pending' 
+                                ? '#fef3c7' 
+                                : '#fee2e2',
+                          color: 
+                            booking.status === 'paid' || booking.status === 'confirmed' || booking.status === 'completed'
+                              ? '#065f46' 
+                              : booking.status === 'pending' 
+                                ? '#d97706' 
+                                : '#991b1b'
                         }}>
-                          {booking.status}
+                          {booking.status === 'paid' ? 'Đã thanh toán' : booking.status === 'pending' ? 'Chờ thanh toán' : booking.status}
                         </span>
                       </td>
                       <td style={{ padding: '1rem' }}>
                         {new Date(booking.createdAt).toLocaleString('vi-VN')}
                       </td>
                       <td style={{ padding: '1rem' }}>
+                        {/* NÚT DUYỆT: Chỉ hiện khi trạng thái là pending */}
+                        {booking.status === 'pending' && (
+                          <button
+                            onClick={() => handleApprovePayment(booking._id)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#10b981', // Màu xanh lá
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              marginRight: '8px',
+                              transition: 'all 0.2s'
+                            }}
+                            title="Xác nhận đã nhận tiền"
+                          >
+                            ✔ Duyệt
+                          </button>
+                        )}
+
                         <button 
                           onClick={() => handleDeleteBooking(booking._id)}
                           style={{
@@ -270,4 +331,3 @@ const AdminPage: React.FC = () => {
 };
 
 export default AdminPage;
-

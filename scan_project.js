@@ -4,7 +4,7 @@ const path = require('path');
 // Cấu hình: Các thư mục và file cần BỎ QUA
 const IGNORE_DIRS = ['node_modules', '.git', '.vscode', 'dist', 'build', 'coverage', '.next', 'public'];
 const IGNORE_FILES = ['package-lock.json', 'yarn.lock', '.DS_Store', '.env'];
-const ALLOWED_EXTS = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.json', '.html', '.vue'];
+const ALLOWED_EXTS = ['.js', '.jsx', '.ts', '.tsx', '.css', '.scss', '.json', '.html', '.vue', '.ejs'];
 
 // Tên file kết quả đầu ra
 const OUTPUT_FILE = 'FULL_PROJECT_CODE.txt';

@@ -91,13 +91,46 @@ const PaymentSuccess: React.FC = () => {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
-            <CheckCircle className="h-12 w-12 text-green-600" />
+       {/* LOGIC HIỂN THỊ: Chấp nhận cả Banking và MoMo là pending để hiện QR */}
+        {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') && s.totalAmount > 0 ? (
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mb-8 text-center max-w-md mx-auto">
+            <h3 className="text-xl font-bold text-yellow-800 mb-4 animate-pulse">
+              ⏳ Đơn hàng đang chờ thanh toán!
+            </h3>
+            
+            <div className="bg-white p-2 inline-block rounded-lg shadow-sm border">
+              {/* QR Code VietQR tự động */}
+              <img 
+                src={`https://img.vietqr.io/image/MB-0945555555-compact.jpg?amount=${s.totalAmount}&addInfo=VEXE ${s.bookingId}`} 
+                alt="QR Code thanh toán" 
+                className="h-48 w-48 mx-auto"
+              />
+            </div>
+            
+            <div className="mt-4 text-sm text-gray-800 space-y-1">
+              <p>Ngân hàng: <strong>MB Bank</strong></p>
+              <p>Số tài khoản: <strong className="text-lg">0945555555</strong></p>
+              <p>Chủ tài khoản: <strong>NGUYEN VAN A</strong></p>
+              <p className="pt-2">Nội dung chuyển khoản (Bắt buộc):</p>
+              <p className="font-mono font-bold text-red-600 text-lg bg-white inline-block px-2 py-1 rounded border border-red-200">
+                VEXE {s.bookingId}
+              </p>
+            </div>
+            
+            <p className="mt-4 text-red-600 text-xs italic">
+              * Vui lòng chuyển khoản đúng nội dung để hệ thống tự động xử lý.
+            </p>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Đặt vé thành công!</h2>
-          <p className="text-gray-600">Mã đặt vé: {s.bookingId}</p>
-        </div>
+        ) : (
+          /* TRƯỜNG HỢP CŨ: Đã thanh toán (COD hoặc logic khác) */
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
+              <CheckCircle className="h-12 w-12 text-green-600" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Đặt vé thành công!</h2>
+            <p className="text-gray-600">Mã đặt vé: {s.bookingId}</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Vé điện tử */}
@@ -105,7 +138,17 @@ const PaymentSuccess: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Vé điện tử</h3>
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">Đã thanh toán</span>
+                
+                {/* Logic kiểm tra: Nếu là Banking/Momo -> Hiện Chờ thanh toán (Vàng), Ngược lại -> Đã thanh toán (Xanh) */}
+                {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? (
+                   <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                     ⏳ Chờ thanh toán
+                   </span>
+                ) : (
+                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                     ✅ Đã thanh toán
+                   </span>
+                )}
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
