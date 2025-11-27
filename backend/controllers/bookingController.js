@@ -292,3 +292,35 @@ exports.detail = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
+// API Hủy vé dành cho khách hàng
+exports.cancel = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Không tìm thấy vé' });
+    }
+
+    // Chỉ cho phép hủy khi đang pending
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ error: 'Chỉ có thể hủy vé khi đang chờ thanh toán' });
+    }
+
+    // 1. Cập nhật trạng thái Booking
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // 2. Nhả ghế ra (trả về status available)
+    await TripSeatStatus.updateMany(
+      { booking_id: booking._id },
+      { $set: { status: 'available', booking_id: null } }
+    );
+
+    res.json({ success: true, message: 'Hủy vé thành công' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
+  }
+};

@@ -44,4 +44,7 @@ router.get('/', optionalAuth, bookingController.listOfUser);
 // Lấy chi tiết 1 booking theo id
 router.get('/:id', bookingController.detail);
 
+// Huỷ booking
+router.put('/:id/cancel', bookingController.cancel);
+
 module.exports = router;

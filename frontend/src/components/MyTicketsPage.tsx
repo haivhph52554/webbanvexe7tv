@@ -164,13 +164,35 @@ const MyTicketsPage: React.FC = () => {
     alert(`Đang tải xuống vé ${ticket.bookingId}`);
   };
 
-  const handleCancelTicket = (ticketId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn hủy vé này?')) {
-      const updatedTickets = tickets.map(ticket => 
-        ticket.id === ticketId ? { ...ticket, status: 'cancelled' as const } : ticket
-      );
-      setTickets(updatedTickets);
-      localStorage.setItem('vexe7tv_tickets', JSON.stringify(updatedTickets));
+  const handleCancelTicket = async (ticketId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy vé này? Hành động này sẽ trả lại ghế trống.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Gọi API hủy vé xuống Backend
+      const res = await fetch(`${API_BASE}/api/bookings/${ticketId}/cancel`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert('Hủy vé thành công!');
+        // Reload lại trang để cập nhật danh sách mới nhất từ server
+        window.location.reload(); 
+      } else {
+        alert(data.error || 'Có lỗi xảy ra khi hủy vé');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi kết nối server');
+    } finally {
+      setLoading(false);
     }
   };
 
