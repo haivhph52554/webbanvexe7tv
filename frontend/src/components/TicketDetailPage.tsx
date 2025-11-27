@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText, AlertCircle } from 'lucide-react';
 
 interface Ticket {
   id: string;
@@ -24,7 +24,7 @@ interface Ticket {
   totalAmount: number;
   paymentMethod: string;
   bookingDate: string;
-  status: 'confirmed' | 'cancelled' | 'used';
+  status: 'confirmed' | 'cancelled' | 'used' | 'pending'; // Thêm pending vào đây
 }
 
 const TicketDetailPage: React.FC = () => {
@@ -38,7 +38,6 @@ const TicketDetailPage: React.FC = () => {
   }
 
   const handleDownloadTicket = () => {
-    // Simulate ticket download
     alert(`Đang tải xuống vé ${ticket.bookingId}`);
   };
 
@@ -53,6 +52,7 @@ const TicketDetailPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800'; // Màu vàng cho Pending
       case 'cancelled': return 'bg-red-100 text-red-800';
       case 'used': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -62,6 +62,7 @@ const TicketDetailPage: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed': return 'Đã xác nhận';
+      case 'pending': return 'Chờ thanh toán'; // Hiển thị chữ đúng
       case 'cancelled': return 'Đã hủy';
       case 'used': return 'Đã sử dụng';
       default: return 'Không xác định';
@@ -108,7 +109,6 @@ const TicketDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Vé điện tử */}
           <div className="space-y-6">
-            {/* Vé điện tử */}
             <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Vé điện tử</h3>
@@ -165,13 +165,25 @@ const TicketDetailPage: React.FC = () => {
                 </div>
               </div>
               
-              <button
-                onClick={handleDownloadTicket}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Tải vé điện tử
-              </button>
+              {/* LOGIC NÚT TẢI VÉ: Chỉ hiện khi Đã xác nhận */}
+              {ticket.status === 'confirmed' ? (
+                <button
+                  onClick={handleDownloadTicket}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  Tải vé điện tử
+                </button>
+              ) : ticket.status === 'pending' ? (
+                <div className="w-full bg-yellow-100 text-yellow-800 py-3 px-4 rounded-lg border border-yellow-200 text-center font-medium flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  Vui lòng thanh toán để tải vé
+                </div>
+              ) : (
+                <button disabled className="w-full bg-gray-300 text-gray-500 py-2 px-4 rounded-lg cursor-not-allowed flex items-center justify-center">
+                  Vé không khả dụng
+                </button>
+              )}
             </div>
 
             {/* Thông tin chuyến đi */}
@@ -206,7 +218,7 @@ const TicketDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Thông tin chi tiết */}
+          {/* Thông tin chi tiết bên phải */}
           <div className="space-y-6">
             {/* Thông tin hành khách */}
             <div className="bg-white rounded-xl shadow-md p-6">
@@ -268,7 +280,6 @@ const TicketDetailPage: React.FC = () => {
                   <span className="text-gray-600">Số ghế:</span>
                   <span className="font-medium">{ticket.seats.length} ghế</span>
                 </div>
-                {/* Removed explicit 'Ghế đã chọn' row to avoid duplicate display */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Giá vé/ghế:</span>
                   <span className="font-medium">{ticket.route.price}₫</span>
