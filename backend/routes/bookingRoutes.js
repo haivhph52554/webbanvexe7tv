@@ -48,3 +48,5 @@ router.get('/:id', bookingController.detail);
 router.put('/:id/cancel', bookingController.cancel);
 
 module.exports = router;
+
+// chưa thêm phần bên admin không được tự tiện xóa phần vé đã thanh toán của khách hàng
