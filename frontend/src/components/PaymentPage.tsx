@@ -49,7 +49,8 @@ const PaymentPage: React.FC = () => {
           seatNumbers: st.seats,
           passenger: st.passenger,
           paymentMethod,
-          amount: totalAmount
+          amount: totalAmount,
+          stops: st.stops
         })
       });
       if (!res.ok) {
@@ -149,7 +150,12 @@ const PaymentPage: React.FC = () => {
                   <span className="text-gray-600">Loại xe:</span>
                   <span className="ml-2 font-medium">{st.bus?.busType || '-'}</span>
                 </div>
-
+                <div className="col-span-2 border-t border-dashed pt-2 mt-1">
+                   <span className="text-gray-600">Ghế đã chọn:</span>
+                   <span className="ml-2 font-bold text-blue-600 text-base">
+                     {st.seats.join(', ')}
+                   </span>
+                </div>
                 <div>
                   <span className="text-gray-600">Biển số:</span>
                   <span className="ml-2 font-medium font-mono text-blue-700">
