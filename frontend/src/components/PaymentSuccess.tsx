@@ -8,7 +8,7 @@ type SuccessPayload = {
   paymentId: string;
   route: { from: string; to: string; durationMin: number | null };
   times: { departureTime: string; arrivalTime: string | null };
-  bus: { busType: string; seatCount: number };
+  bus: { busType: string; seatCount: number; licensePlate?: string };
   seats: (number|string)[];
   passenger: { name?: string; phone?: string; email?: string; note?: string } | null;
   pricePerSeat: number;
@@ -140,6 +140,7 @@ const PaymentSuccess: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-600">Ghế:</span><span className="ml-2 font-medium">{s.seats.join(', ')}</span></div>
+                  <div><span className="text-gray-600">Xe:</span><span className="ml-2 font-medium">{s.bus.busType} {s.bus.licensePlate ? `(${s.bus.licensePlate})` : ''}</span></div>
                   <div><span className="text-gray-600">Loại xe:</span><span className="ml-2 font-medium">{s.bus.busType}</span></div>
                   <div><span className="text-gray-600">Hành khách:</span><span className="ml-2 font-medium">{s.passenger?.name || '-'}</span></div>
                   <div><span className="text-gray-600">SĐT:</span><span className="ml-2 font-medium">{s.passenger?.phone || '-'}</span></div>

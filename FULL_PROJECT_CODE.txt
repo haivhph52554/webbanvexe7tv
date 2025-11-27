@@ -76,7 +76,7 @@ const User = require('../models/User');
 const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 
-// --- Buses CRUD helpers for admin UI ---
+// --- Buses CRUD helpers for admin UI --- 12345
 exports.newBus = async (req, res) => {
   try {
     res.render('admin/bus_form', { bus: null, page: 'buses', errors: null });
@@ -3647,53 +3647,59 @@ import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import './App.css';
 
-// Create auth context
+// 1. Thêm isLoading vào Context Type
 interface AuthContextType {
   user: any;
+  isLoading: boolean; 
   login: (userData: any) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  isLoading: true, // Mặc định là đang load
   login: () => {},
   logout: () => {},
 });
 
-// Auth provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true); // State để theo dõi quá trình check login
 
   useEffect(() => {
-    // Check if user data exists in localStorage and validate with backend
     const validateAuth = async () => {
+      setIsLoading(true); // Bắt đầu check
       const userData = localStorage.getItem('user');
+      
       if (userData) {
         try {
+          // Lấy URL Backend từ biến môi trường hoặc fallback về localhost
           const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+          
           const response = await fetch(`${API_BASE}/api/auth/me`, {
             credentials: 'include' // Quan trọng để gửi cookie token
           });
           
           if (response.ok) {
             const data = await response.json();
-            // Lấy user từ API response thay vì localStorage
             if (data.success && data.data) {
               setUser(data.data);
               localStorage.setItem('user', JSON.stringify(data.data));
             } else {
-              // Fallback to localStorage nếu API không trả về data
               setUser(JSON.parse(userData));
             }
           } else {
-            // Clear invalid auth data
+            // Token hết hạn hoặc không hợp lệ
             logout();
           }
         } catch (error) {
-          // Clear auth data on error
           logout();
         }
+      } else {
+        // Không có data trong storage
+        setIsLoading(false);
       }
+      setIsLoading(false); // Kết thúc check
     };
 
     validateAuth();
@@ -3707,25 +3713,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    setIsLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook for using auth context
 export const useAuth = () => useContext(AuthContext);
 
-// Protected route component
+// Protected route component đã được nâng cấp
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ 
   children, 
   allowedRoles = [] 
 }) => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
+  // 2. Nếu đang check login thì hiện màn hình chờ, ĐỪNG redirect vội
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+          <p className="text-gray-500 text-sm">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check xong rồi mà không có user thì mới đá về login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
@@ -3748,6 +3767,8 @@ const App: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            
+            {/* Các route cần bảo vệ */}
             <Route
               path="/my-tickets"
               element={
@@ -3804,7 +3825,6 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 --- END OF FILE: frontend\src\App.tsx ---
 
 
@@ -4216,10 +4236,13 @@ const BookingDetail: React.FC = () => {
         
         // Filter and sort trips
         const filtered = data
-          .filter(t => {
-            // `t.route` may be populated (object with _id) or just an ObjectId/string.
-            const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
-            return tid === routeId;
+            .filter(t => {
+              const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
+              const tripTime = new Date(t.start_time);
+              const now = new Date();
+              
+              // BẬT LẠI DÒNG NÀY:
+              return tid === routeId && tripTime > now;
           })
           .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
@@ -4462,18 +4485,30 @@ const BookingDetail: React.FC = () => {
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600">Chọn chuyến:</span>
               <select
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
+                className="border border-gray-300 rounded-lg px-3 py-2 bg-white w-full max-w-xl" // Thêm w-full để rộng ra xíu
                 value={selectedTrip?._id || ''}
                 onChange={(e) => {
                   const t = allTrips.find(x => x._id === e.target.value) || null;
                   setSelectedTrip(t);
                 }}
               >
-                {allTrips.map(t => (
-                  <option key={t._id} value={t._id}>
-                    {t.route?.from_city || '-'} → {t.route?.to_city || '-'} | {fmtTime(t.start_time)} — {fmtTime(t.end_time || undefined)}
-                  </option>
-                ))}
+                {allTrips.map(t => {
+                  // Tạo hàm format hiển thị cả Ngày và Giờ
+                  const d = new Date(t.start_time);
+                  const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                  const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                  
+                  // Tính giờ đến dự kiến
+                  const dEnd = t.end_time ? new Date(t.end_time) : null;
+                  const timeEndStr = dEnd ? dEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '...';
+
+                  return (
+                    <option key={t._id} value={t._id}>
+                      {/* Hiển thị: 24/11 | 08:00 - 10:00 | Thái Nguyên -> Hà Nội */}
+                      {dateStr} | {timeStr} - {timeEndStr} | {t.route?.from_city || '-'} → {t.route?.to_city || '-'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -4518,22 +4553,41 @@ const BookingDetail: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                  {/* Ô 1: Giờ khởi hành */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-blue-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Giờ khởi hành</p>
                     <p className="text-gray-600">{fmtTime(selectedTrip.start_time)}</p>
                   </div>
+                  
+                  {/* Ô 2: Giờ đến */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Giờ đến</p>
                     <p className="text-gray-600">{fmtTime(selectedTrip.end_time || undefined)}</p>
                   </div>
+
+                  {/* Ô 3: BIỂN SỐ XE  */}
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    {/* Icon BS đơn giản */}
+                    <div className="h-6 w-8 mx-auto mb-2 flex items-center justify-center bg-blue-600 text-white rounded text-xs font-bold">
+                      BS
+                    </div>
+                    <p className="font-semibold text-gray-900">Biển số</p>
+                    <p className="text-blue-700 font-bold text-lg">
+                      {selectedTrip.bus?.license_plate || '---'}
+                    </p>
+                  </div>
+
+                  {/* Ô 4: Loại xe */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Bus className="h-6 w-6 text-purple-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Loại xe</p>
                     <p className="text-gray-600">{selectedTrip.bus?.bus_type || '-'}</p>
                   </div>
+
+                  {/* Ô 5: Số ghế */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Users className="h-6 w-6 text-orange-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Số ghế</p>
@@ -4667,15 +4721,17 @@ const BookingDetail: React.FC = () => {
                 ) : (
                   <>
                     <div className="grid grid-cols-4 gap-3">
-                      {(tripDetail?.seats || []).map((seat) => {
+                    {(tripDetail?.seats || [])
+                      .sort((a, b) => parseInt(a.seat_number) - parseInt(b.seat_number))
+                      .map((seat) => {
                         const seatNumber = parseInt(seat.seat_number, 10);
+                        
                         // Find the current status of this seat
                         const seatStatus = tripDetail?.seats?.find(
                           s => s.seat_number === String(seatNumber)
                         );
                         const status = seatStatus?.status || 'available';
                         const isSelected = selectedSeats.includes(seatNumber);
-
 
                         return (
                           <button
@@ -4695,8 +4751,8 @@ const BookingDetail: React.FC = () => {
                             {seatNumber}
                           </button>
                         );
-                      })}
-                    </div>
+                    })}
+                  </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-4">
                       <div className="flex items-center">

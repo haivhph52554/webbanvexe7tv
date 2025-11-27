@@ -149,6 +149,13 @@ const PaymentPage: React.FC = () => {
                   <span className="text-gray-600">Loại xe:</span>
                   <span className="ml-2 font-medium">{st.bus?.busType || '-'}</span>
                 </div>
+
+                <div>
+                  <span className="text-gray-600">Biển số:</span>
+                  <span className="ml-2 font-medium font-mono text-blue-700">
+                    {st.bus?.licensePlate || '---'}
+                  </span>
+              </div>
               </div>
             </div>
 
@@ -248,9 +255,14 @@ const PaymentPage: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-900 mb-4">Tóm tắt thanh toán</h3>
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Số ghế:</span>
-                  <span className="font-medium">{st.seats.length} ghế</span>
+                  <span className="text-gray-600">Ghế đã chọn:</span>
+                  <span className="font-medium text-right">
+                    {/* Ví dụ: 2 ghế (A1, A2) */}
+                    {st.seats.length} ghế <br/>
+                    <span className="text-blue-600 text-sm">({st.seats.join(', ')})</span>
+                  </span>
                 </div>
+
                 <div className="flex justify-between">
                   <span className="text-gray-600">Giá vé/ghế:</span>
                   <span className="font-medium">{(st.pricePerSeat || 0).toLocaleString()}₫</span>

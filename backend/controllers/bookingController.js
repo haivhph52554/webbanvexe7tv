@@ -202,7 +202,7 @@ exports.checkout = async (req, res) => {
           durationMin: booking.route_snapshot.estimated_duration_min
         },
         times: { departureTime: booking.start_time, arrivalTime: booking.end_time },
-        bus: { busType: booking.bus_snapshot.bus_type, seatCount: booking.bus_snapshot.seat_count },
+        bus: { busType: booking.bus_snapshot.bus_type, seatCount: booking.bus_snapshot.seat_count, licensePlate: booking.bus_snapshot.license_plate },
         seats: requestedNums,
         passenger: booking.passenger || null,
         pricePerSeat,
