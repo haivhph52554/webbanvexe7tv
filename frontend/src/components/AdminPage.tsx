@@ -1,4 +1,4 @@
-// frontend/src/components/AdminPage.tsx
+// frontend/src/components/AdminPage.tsxxx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
