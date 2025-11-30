@@ -161,6 +161,20 @@ exports.deleteBooking = async (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy đơn đặt chỗ' });
     }
 
+    // Bảo vệ: Không cho phép xóa booking đã thanh toán hoặc đã hoàn thành
+    if (booking.status === 'paid' || booking.status === 'completed') {
+      return res.status(403).json({ 
+        error: 'Không thể xóa đơn đặt chỗ đã thanh toán hoặc đã hoàn thành. Vui lòng hủy đơn thay vì xóa.' 
+      });
+    }
+
+    // Kiểm tra nếu có payment_id thì cũng không cho xóa
+    if (booking.payment_id || booking.payment) {
+      return res.status(403).json({ 
+        error: 'Không thể xóa đơn đặt chỗ đã có thanh toán. Vui lòng hủy đơn thay vì xóa.' 
+      });
+    }
+
     if (booking.trip && booking.seat_numbers && booking.seat_numbers.length > 0) {
       const seatStatuses = await TripSeatStatus.find({
         trip: booking.trip,

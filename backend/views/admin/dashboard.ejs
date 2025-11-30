@@ -605,7 +605,11 @@
                                             </td>
                                             <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
                                             <td>
-                                                <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                                <% if (booking.status === 'pending' || booking.status === 'cancelled') { %>
+                                                    <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                                <% } else { %>
+                                                    <span class="text-gray-500 text-sm" title="Không thể xóa đơn đã thanh toán hoặc đã hoàn thành">🔒 Đã khóa</span>
+                                                <% } %>
                                             </td>
                                         </tr>
                                     <% }); %>
@@ -663,6 +667,8 @@
                 if (data.success) {
                     alert('Đã xóa đặt chỗ thành công');
                     location.reload();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể xóa đặt chỗ'));
                 }
             } catch (error) {
                 alert('Lỗi khi xóa: ' + error.message);
