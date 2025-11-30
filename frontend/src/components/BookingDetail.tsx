@@ -49,7 +49,19 @@ type TripDetailResponse = {
   stops?: RouteStopDoc[];
 };
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+// Use relative path to leverage Vite proxy, or fallback to env variable
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
+
+// Function to compare seats arrays - moved outside component to prevent re-render loops
+const seatsEqual = (a?: SeatDoc[], b?: SeatDoc[]) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  return a.every((seat, i) => 
+    seat.seat_number === b[i].seat_number && 
+    seat.status === b[i].status
+  );
+};
 
 const BookingDetail: React.FC = () => {
   const { routeId } = useParams<{ routeId: string }>();
@@ -112,7 +124,7 @@ const BookingDetail: React.FC = () => {
         setSelectedDropoffId(null);
       }
     }
-  }, [tripDetail?.stops]);
+  }, [tripDetail?.stops, selectedPickupId, selectedDropoffId]);
 
   useEffect(() => {
     let mounted = true;
@@ -120,22 +132,44 @@ const BookingDetail: React.FC = () => {
       try {
         setLoadingTrips(true);
         setErrTrips(null);
-        const res = await fetch(`${API_BASE}/api/trips`);
+        const url = API_BASE ? `${API_BASE}/api/trips` : '/api/trips';
+        console.log('[BookingDetail] Fetching trips from:', url, 'routeId:', routeId);
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: TripDoc[] = await res.json();
+        console.log('[BookingDetail] Received trips:', data.length, 'trips');
         if (!mounted) return;
         
         // Filter and sort trips
         const filtered = data
             .filter(t => {
-              const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
-              const tripTime = new Date(t.start_time);
-              const now = new Date();
+              if (!t?.route) {
+                console.log('[BookingDetail] Trip has no route:', t._id);
+                return false;
+              }
+              // Handle both populated (object) and non-populated (string) route
+              const routeIdValue = typeof t.route === 'object' && t.route !== null 
+                ? String(t.route._id || t.route) 
+                : String(t.route);
               
-              // BẬT LẠI DÒNG NÀY:
-              return tid === routeId && tripTime > now;
+              // Only filter by routeId, allow past trips for now (can be filtered by date later)
+              const matches = routeIdValue === routeId;
+              if (!matches) {
+                console.log('[BookingDetail] Trip filtered out (route mismatch):', t._id, 'routeIdValue:', routeIdValue, 'expected:', routeId);
+              }
+              return matches;
+          })
+          .filter(t => {
+            // Filter out cancelled trips
+            if (t.status === 'cancelled') {
+              console.log('[BookingDetail] Trip filtered out (cancelled):', t._id);
+              return false;
+            }
+            return true;
           })
           .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+        
+        console.log('[BookingDetail] Filtered trips:', filtered.length, 'for routeId:', routeId);
 
         // Only update state if data has actually changed
         setAllTrips(prev => {
@@ -164,18 +198,6 @@ const BookingDetail: React.FC = () => {
     return () => { mounted = false; };
   }, [routeId]);
 
-  // Poll trip details (seats) for the selected trip so UI reflects changes made by admin
-  // Function to compare seats arrays
-  const seatsEqual = (a?: SeatDoc[], b?: SeatDoc[]) => {
-    if (!a && !b) return true;
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
-    return a.every((seat, i) => 
-      seat.seat_number === b[i].seat_number && 
-      seat.status === b[i].status
-    );
-  };
-
   // Effect for handling trip details and polling
   useEffect(() => {
     if (!selectedTrip?._id) {
@@ -193,7 +215,7 @@ const BookingDetail: React.FC = () => {
         if (!tripDetail) setLoadingDetail(true);
         setErrDetail(null);
 
-        const res = await fetch(`${API_BASE}/api/trips/${selectedTrip._id}`);
+        const res = await fetch(API_BASE ? `${API_BASE}/api/trips/${selectedTrip._id}` : `/api/trips/${selectedTrip._id}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: TripDetailResponse = await res.json();
 
@@ -237,25 +259,26 @@ const BookingDetail: React.FC = () => {
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [selectedTrip?._id, seatsEqual]);
+  }, [selectedTrip?._id]);
 
   // Debug: detect mounts/unmounts and page unloads to help diagnose unexpected reloads
-  useEffect(() => {
-    console.info('[BookingDetail] mounted');
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      console.warn('[BookingDetail] beforeunload', e);
-    };
-    const onVisibility = () => {
-      console.info('[BookingDetail] visibilitychange', document.visibilityState);
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      console.info('[BookingDetail] unmounted');
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, []);
+  // Commented out to prevent console spam - uncomment if needed for debugging
+  // useEffect(() => {
+  //   console.info('[BookingDetail] mounted');
+  //   const onBeforeUnload = (e: BeforeUnloadEvent) => {
+  //     console.warn('[BookingDetail] beforeunload', e);
+  //   };
+  //   const onVisibility = () => {
+  //     console.info('[BookingDetail] visibilitychange', document.visibilityState);
+  //   };
+  //   window.addEventListener('beforeunload', onBeforeUnload);
+  //   document.addEventListener('visibilitychange', onVisibility);
+  //   return () => {
+  //     console.info('[BookingDetail] unmounted');
+  //     window.removeEventListener('beforeunload', onBeforeUnload);
+  //     document.removeEventListener('visibilitychange', onVisibility);
+  //   };
+  // }, []);
 
   const fmtTime = (iso?: string | null) => {
     if (!iso) return '-';
