@@ -49,3 +49,49 @@ body {
     display: none !important;
   }
 }
+
+/* Print styles: tối ưu cho in / lưu PDF trên desktop và mobile */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Ẩn các phần không cần in (navigation, nút, footer) */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Làm vé chiếm toàn trang in, bỏ shadow/border */
+  .printable-ticket {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ảnh / biểu tượng co vừa trang */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  svg {
+    color: #000 !important;
+    fill: currentColor !important;
+  }
+
+  /* Giảm kích thước font trên in để vừa khổ */
+  body, .printable-ticket, .printable-ticket * {
+    font-size: 12px !important;
+  }
+}
+
+/* Kích thước trang in mặc định (desktop) */
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}

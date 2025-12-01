@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText, AlertCircle } from 'lucide-react';
 
@@ -31,6 +31,7 @@ const TicketDetailPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const ticket = location.state?.ticket as Ticket;
+  const autoPrint = location.state?.autoPrint;
 
   if (!ticket) {
     navigate('/my-tickets');
@@ -38,8 +39,15 @@ const TicketDetailPage: React.FC = () => {
   }
 
   const handleDownloadTicket = () => {
-    alert(`Đang tải xuống vé ${ticket.bookingId}`);
+    window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      // Delay một chút để DOM render xong trước khi in
+      setTimeout(() => window.print(), 300);
+    }
+  }, [autoPrint]);
 
   const handleBackToTickets = () => {
     navigate('/my-tickets');
@@ -81,7 +89,7 @@ const TicketDetailPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-4">
             <button 
@@ -109,7 +117,7 @@ const TicketDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Vé điện tử */}
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200 printable-ticket">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Vé điện tử</h3>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(ticket.status)}`}>
@@ -169,18 +177,18 @@ const TicketDetailPage: React.FC = () => {
               {ticket.status === 'confirmed' ? (
                 <button
                   onClick={handleDownloadTicket}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center no-print"
                 >
                   <Download className="h-5 w-5 mr-2" />
                   Tải vé điện tử
                 </button>
               ) : ticket.status === 'pending' ? (
-                <div className="w-full bg-yellow-100 text-yellow-800 py-3 px-4 rounded-lg border border-yellow-200 text-center font-medium flex items-center justify-center">
+                <div className="w-full bg-yellow-100 text-yellow-800 py-3 px-4 rounded-lg border border-yellow-200 text-center font-medium flex items-center justify-center no-print">
                   <AlertCircle className="h-5 w-5 mr-2" />
                   Vui lòng thanh toán để tải vé
                 </div>
               ) : (
-                <button disabled className="w-full bg-gray-300 text-gray-500 py-2 px-4 rounded-lg cursor-not-allowed flex items-center justify-center">
+                <button disabled className="w-full bg-gray-300 text-gray-500 py-2 px-4 rounded-lg cursor-not-allowed flex items-center justify-center no-print">
                   Vé không khả dụng
                 </button>
               )}
@@ -309,7 +317,7 @@ const TicketDetailPage: React.FC = () => {
             </div>
 
             {/* Hành động */}
-            <div className="space-y-3">
+            <div className="space-y-3 no-print">
               <button
                 onClick={handleBackToTickets}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"

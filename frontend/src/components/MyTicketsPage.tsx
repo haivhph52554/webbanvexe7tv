@@ -160,8 +160,8 @@ const MyTicketsPage: React.FC = () => {
   };
 
   const handleDownloadTicket = (ticket: Ticket) => {
-    // Simulate download
-    alert(`Đang tải xuống vé ${ticket.bookingId}`);
+    // Mở trang chi tiết và tự động in (hoặc lưu PDF) từ đó
+    navigate('/ticket-detail', { state: { ticket, autoPrint: true } });
   };
 
   const handleCancelTicket = async (ticketId: string) => {
