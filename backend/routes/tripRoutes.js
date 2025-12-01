@@ -11,7 +11,7 @@ router.get('/route/:routeId', tripController.getTripsByRoute);
 router.get('/:tripId/seats', tripController.getSeatsByTrip);
 
 router.get('/', async (req, res) => {
-  const trips = await Trip.find().populate('route').populate('bus');
+  const trips = await Trip.find().populate('route').populate('bus').sort({ createdAt: -1 });
   res.json(trips);
 });
 
