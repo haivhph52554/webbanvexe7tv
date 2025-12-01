@@ -139,37 +139,35 @@ const BookingDetail: React.FC = () => {
         const data: TripDoc[] = await res.json();
         console.log('[BookingDetail] Received trips:', data.length, 'trips');
         if (!mounted) return;
+
+        // Lấy thời gian hiện tại
+        const now = new Date();
         
         // Filter and sort trips
         const filtered = data
             .filter(t => {
-              if (!t?.route) {
-                console.log('[BookingDetail] Trip has no route:', t._id);
-                return false;
-              }
-              // Handle both populated (object) and non-populated (string) route
+              // 1. Kiểm tra dữ liệu Route hợp lệ
+              if (!t?.route) return false;
+
+              // 2. Lấy ID tuyến đường (xử lý cả trường hợp populate object hoặc string ID)
               const routeIdValue = typeof t.route === 'object' && t.route !== null 
                 ? String(t.route._id || t.route) 
                 : String(t.route);
               
-              // Only filter by routeId, allow past trips for now (can be filtered by date later)
-              const matches = routeIdValue === routeId;
-              if (!matches) {
-                console.log('[BookingDetail] Trip filtered out (route mismatch):', t._id, 'routeIdValue:', routeIdValue, 'expected:', routeId);
-              }
-              return matches;
-          })
-          .filter(t => {
-            // Filter out cancelled trips
-            if (t.status === 'cancelled') {
-              console.log('[BookingDetail] Trip filtered out (cancelled):', t._id);
-              return false;
-            }
-            return true;
-          })
-          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-        
-        console.log('[BookingDetail] Filtered trips:', filtered.length, 'for routeId:', routeId);
+              // 3. Điều kiện lọc:
+              // - Đúng tuyến đường (routeId)
+              // - KHÔNG bị hủy (status != cancelled)
+              // - Thời gian khởi hành phải lớn hơn hiện tại (tripStartTime > now)
+              const isCorrectRoute = routeIdValue === routeId;
+              const isActive = t.status !== 'cancelled';
+              const tripStartTime = new Date(t.start_time);
+              const isFutureTrip = tripStartTime > now; 
+
+              return isCorrectRoute && isActive && isFutureTrip;
+            })
+            .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+            
+        console.log('[BookingDetail] Valid future trips:', filtered.length);
 
         // Only update state if data has actually changed
         setAllTrips(prev => {

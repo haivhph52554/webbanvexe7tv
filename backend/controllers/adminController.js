@@ -124,7 +124,7 @@ exports.dashboard = async (req, res) => {
     const trips = await Trip.find()
       .populate('route')
       .populate('bus')
-      .sort({ start_time: -1 });
+      .sort({ createdAt: -1 });
 
     const bookings = await Booking.find()
       .populate('user')
@@ -686,7 +686,7 @@ exports.trips = async (req, res) => {
     const trips = await Trip.find()
       .populate('route')
       .populate('bus')
-      .sort({ start_time: -1 });
+      .sort({ createdAt: -1 });
     
     const stats = {
       total: trips.length,
