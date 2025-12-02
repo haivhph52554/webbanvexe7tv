@@ -16,6 +16,7 @@ backend\models\Assistant.js
 backend\models\Booking.js
 backend\models\Bus.js
 backend\models\Checkin.js
+backend\models\Driver.js
 backend\models\Feedback.js
 backend\models\Payment.js
 backend\models\Review.js
@@ -48,6 +49,9 @@ backend\views\admin\bookings.ejs
 backend\views\admin\buses.ejs
 backend\views\admin\bus_form.ejs
 backend\views\admin\dashboard.ejs
+backend\views\admin\driver.ejs
+backend\views\admin\driver_detail.ejs
+backend\views\admin\driver_form.ejs
 backend\views\admin\layout.ejs
 backend\views\admin\routes.ejs
 backend\views\admin\route_form.ejs
@@ -969,7 +973,146 @@ exports.updateTrip = async (req, res) => {
     res.status(500).send('Lỗi khi cập nhật chuyến: ' + err.message);
   }
 };
-// ...existing code...
+
+const Driver = require('../models/Driver'); // Nhớ import model
+
+// 1. Hiển thị danh sách tài xế
+exports.drivers = async (req, res) => {
+  try {
+    const drivers = await Driver.find().sort({ createdAt: -1 });
+    // Thống kê nhanh
+    const stats = {
+      total: drivers.length,
+      active: drivers.filter(d => d.status === 'active').length
+    };
+    res.render('admin/drivers', { drivers, stats, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 2. Form thêm tài xế mới
+exports.newDriver = async (req, res) => {
+  try {
+    // Lấy danh sách các chuyến "Sắp chạy" để admin có thể gán luôn lúc tạo (nếu muốn)
+    const trips = await Trip.find({ status: 'scheduled' })
+        .populate('route').populate('bus');
+    
+    res.render('admin/driver_form', { driver: null, trips, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 3. Xử lý tạo tài xế (Lưu vào DB)
+exports.createDriver = async (req, res) => {
+  try {
+    // A. Tạo tài khoản User trước (để có thể đăng nhập)
+    let user = await User.findOne({ email: req.body.email });
+    if (!user) {
+        user = await User.create({
+            name: req.body.name,
+            email: req.body.email,
+            phone: req.body.phone,
+            password: '123456', // Mật khẩu mặc định
+            role: 'driver'      // Role là driver
+        });
+    } else {
+        // Nếu email đã tồn tại, cập nhật role
+        user.role = 'driver';
+        await user.save();
+    }
+
+    // B. Tạo hồ sơ Driver
+    const payload = {
+        userId: user._id,
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        license_number: req.body.license_number,
+        experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id,
+        status: 'active',
+        assigned_trips: req.body.assigned_trips || [] // Lưu các chuyến được gán
+    };
+
+    await Driver.create(payload);
+    res.redirect('/admin/drivers');
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Lỗi tạo tài xế: ' + err.message);
+  }
+};
+
+// 4. Form sửa tài xế
+exports.editDriver = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    const trips = await Trip.find({ status: 'scheduled' }).populate('route').populate('bus');
+    res.render('admin/driver_form', { driver, trips, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 5. Cập nhật tài xế
+exports.updateDriver = async (req, res) => {
+  try {
+    const payload = {
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        license_number: req.body.license_number,
+        experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id,
+        status: req.body.status,
+        assigned_trips: req.body.assigned_trips || []
+    };
+    await Driver.findByIdAndUpdate(req.params.id, payload);
+    res.redirect('/admin/drivers');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 6. Xóa tài xế
+exports.deleteDriver = async (req, res) => {
+  try {
+    await Driver.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 7. XEM CHI TIẾT TÀI XẾ (Chức năng quan trọng bạn yêu cầu)
+// Xem tài xế gán chuyến nào, trạng thái ra sao
+exports.driverDetail = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).send('Không tìm thấy');
+
+    // Tìm các chuyến xe nằm trong danh sách assigned_trips của tài xế
+    // Populate đầy đủ để hiển thị tên tuyến, biển số, trạng thái
+    const trips = await Trip.find({ _id: { $in: driver.assigned_trips } })
+        .populate('route')
+        .populate('bus')
+        .sort({ start_time: -1 }); // Mới nhất lên đầu
+
+    // Thống kê nhanh trạng thái chuyến
+    const stats = {
+        total: trips.length,
+        scheduled: trips.filter(t => t.status === 'scheduled').length, // Sắp chạy
+        departed: trips.filter(t => t.status === 'departed').length,   // Đang chạy
+        completed: trips.filter(t => t.status === 'completed').length  // Đã xong
+    };
+
+    res.render('admin/driver_detail', { driver, trips, stats, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
 --- END OF FILE: backend\controllers\adminController.js ---
 
 
@@ -2473,6 +2616,53 @@ module.exports = mongoose.model('Checkin', checkinSchema);
 --- END OF FILE: backend\models\Checkin.js ---
 
 
+--- START OF FILE: backend\models\Driver.js ---
+const mongoose = require('mongoose');
+
+const driverSchema = new mongoose.Schema({
+  // Liên kết với bảng User để sau này làm chức năng đăng nhập
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
+  // Thông tin cá nhân
+  name: { type: String, required: true },
+  email: { 
+    type: String, 
+    required: true,
+    unique: true, 
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email không hợp lệ']
+  },
+  phone: { 
+    type: String, 
+    required: true,
+    match: [/^(0|84|\+84)[0-9]{9}$/, 'Số điện thoại không hợp lệ']
+  },
+
+  // Thông tin chuyên môn
+  license_number: { type: String, required: true }, // Bắt buộc với tài xế
+  experience_years: { type: Number, default: 0 },
+  employee_id: { type: String },
+
+  // Danh sách các chuyến được phân công (Để Admin xem lịch trình)
+  assigned_trips: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Trip'
+  }],
+
+  // Trạng thái tài xế
+  status: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active'
+  }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Driver', driverSchema);
+--- END OF FILE: backend\models\Driver.js ---
+
+
 --- START OF FILE: backend\models\Feedback.js ---
 const mongoose = require("mongoose");
 
@@ -2782,6 +2972,17 @@ router.post('/assistants/:id/checkin', adminController.checkinPassenger);
 
 // API để cập nhật status booking
 router.put('/bookings/:id/status', adminController.updateBookingStatus);
+
+// --- QUẢN LÝ TÀI XẾ (DRIVER) ---
+router.get('/drivers', adminController.drivers);           // Danh sách
+router.get('/drivers/new', adminController.newDriver);     // Form tạo
+router.post('/drivers', adminController.createDriver);     // Lưu mới
+router.get('/drivers/:id', adminController.driverDetail);  // Xem chi tiết & Lịch trình (Quan trọng)
+router.get('/drivers/:id/edit', adminController.editDriver); // Form sửa
+router.post('/drivers/:id', adminController.updateDriver); // Lưu sửa
+router.delete('/drivers/:id', adminController.deleteDriver); // Xóa
+
+module.exports = router;
 
 module.exports = router;
 
@@ -3985,6 +4186,10 @@ main();
                     <span>👷</span>
                     <span>Lơ xe</span>
                 </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -4431,6 +4636,10 @@ main();
                     <span>👷</span>
                     <span>Lơ xe</span>
                 </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -4799,7 +5008,7 @@ main();
           <div class="error-msg" id="error-name">Vui lòng nhập họ tên</div>
         </div>
         <div>
-          <label>Email (Tùy chọn)</label>
+          <label>Email *</label>
           <input type="email" id="email" name="email" value="<%= assistant ? assistant.email : '' %>" placeholder="email@example.com" />
           <div class="error-msg" id="error-email">Email không hợp lệ</div>
         </div>
@@ -4909,14 +5118,13 @@ main();
         }
 
         // 3. Kiểm tra Email (Nếu có nhập thì phải đúng định dạng)
-        if (emailInput.value.trim()) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailInput.value.match(emailRegex)) {
-                showError(emailInput, 'error-email', true);
-                isValid = false;
-            } else {
-                showError(emailInput, 'error-email', false);
-            }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        // Nếu không nhập gì HOẶC nhập sai định dạng đều báo lỗi
+        if (!emailInput.value.trim() || !emailInput.value.match(emailRegex)) {
+            showError(emailInput, 'error-email', true);
+            isValid = false;
+        } else {
+            showError(emailInput, 'error-email', false);
         }
 
         // Nếu có lỗi thì chặn gửi form
@@ -5323,6 +5531,10 @@ main();
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
                     <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -5903,6 +6115,10 @@ main();
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
                     <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
                 </a>
                 <a href="/admin/buses" class="nav-item active">
                     <span>🚌</span>
@@ -6528,6 +6744,10 @@ main();
                     <span>👷</span>
                     <span>Lơ xe</span>
                 </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -6773,6 +6993,233 @@ main();
 --- END OF FILE: backend\views\admin\dashboard.ejs ---
 
 
+--- START OF FILE: backend\views\admin\driver.ejs ---
+<%- include('layout') %>
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h2>Quản lý Tài xế</h2>
+            <p>Danh sách tài xế trong hệ thống</p>
+        </div>
+        <a href="/admin/drivers/new" class="btn btn-success" style="text-decoration:none; color:white;">+ Thêm Tài xế</a>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Tổng số</h3>
+            <div class="value"><%= stats.total %></div>
+        </div>
+        <div class="stat-card">
+            <h3>Đang hoạt động</h3>
+            <div class="value"><%= stats.active %></div>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <div class="table-wrapper">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:#f8f9fa; border-bottom:2px solid #eee;">
+                        <th style="padding:15px; text-align:left;">Họ tên</th>
+                        <th style="padding:15px; text-align:left;">SĐT / Email</th>
+                        <th style="padding:15px; text-align:left;">Bằng lái</th>
+                        <th style="padding:15px; text-align:left;">Trạng thái</th>
+                        <th style="padding:15px; text-align:left;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% drivers.forEach(d => { %>
+                        <tr style="border-bottom:1px solid #eee;">
+                            <td style="padding:15px;"><strong><%= d.name %></strong><br><small class="text-muted"><%= d.employee_id %></small></td>
+                            <td style="padding:15px;"><%= d.phone %><br><small><%= d.email %></small></td>
+                            <td style="padding:15px;"><span class="badge badge-info"><%= d.license_number %></span></td>
+                            <td style="padding:15px;">
+                                <span class="badge <%= d.status==='active'?'badge-success':'badge-danger' %>">
+                                    <%= d.status==='active'?'Đang làm':'Đã nghỉ' %>
+                                </span>
+                            </td>
+                            <td style="padding:15px;">
+                                <a href="/admin/drivers/<%= d._id %>" class="btn btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px;">Chi tiết</a>
+                                <a href="/admin/drivers/<%= d._id %>/edit" class="btn btn-warning" style="padding:5px 10px; text-decoration:none; font-size:12px;">Sửa</a>
+                                <button onclick="deleteDriver('<%= d._id %>')" class="btn btn-danger" style="padding:5px 10px; font-size:12px;">Xóa</button>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function deleteDriver(id) {
+        if(!confirm('Xóa tài xế này?')) return;
+        const res = await fetch('/admin/drivers/' + id, {method:'DELETE'});
+        const data = await res.json();
+        if(data.success) location.reload();
+        else alert('Lỗi: ' + data.error);
+    }
+</script>
+--- END OF FILE: backend\views\admin\driver.ejs ---
+
+
+--- START OF FILE: backend\views\admin\driver_detail.ejs ---
+<%- include('layout') %>
+<div class="main-content">
+    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h2>Hồ sơ: <%= driver.name %></h2>
+            <p>Bằng lái: <strong><%= driver.license_number %></strong> | Email: <%= driver.email %></p>
+        </div>
+        <a href="/admin/drivers" class="btn btn-secondary" style="text-decoration:none; background:#ddd; padding:8px 15px; border-radius:5px; color:#333;">Quay lại</a>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:30px;">
+        <div class="stat-card" style="border-left:4px solid #3b82f6; background:white; padding:15px; border-radius:8px;">
+            <div style="color:#666; font-size:12px;">TỔNG CHUYẾN</div>
+            <div style="font-size:24px; font-weight:bold;"><%= stats.total %></div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #eab308; background:white; padding:15px; border-radius:8px;">
+            <div style="color:#666; font-size:12px;">ĐANG CHẠY</div>
+            <div style="font-size:24px; font-weight:bold; color:#eab308;"><%= stats.departed %></div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #22c55e; background:white; padding:15px; border-radius:8px;">
+            <div style="color:#666; font-size:12px;">ĐÃ HOÀN THÀNH</div>
+            <div style="font-size:24px; font-weight:bold; color:#166534;"><%= stats.completed %></div>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <h3>📋 Lịch trình & Trạng thái hoạt động</h3>
+        <% if (trips.length === 0) { %>
+            <p style="padding:20px; text-align:center; color:#999;">Tài xế này chưa được gán chuyến nào.</p>
+        <% } else { %>
+            <div class="table-wrapper">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f8f9fa; border-bottom:2px solid #eee;">
+                            <th style="padding:15px; text-align:left;">Ngày giờ</th>
+                            <th style="padding:15px; text-align:left;">Tuyến đường</th>
+                            <th style="padding:15px; text-align:left;">Biển số xe</th>
+                            <th style="padding:15px; text-align:left;">Trạng thái hiện tại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% trips.forEach(t => { %>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:15px;">
+                                    <strong><%= new Date(t.start_time).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}) %></strong><br>
+                                    <%= new Date(t.start_time).toLocaleDateString('vi-VN') %>
+                                </td>
+                                <td style="padding:15px;"><%= t.route ? t.route.name : 'Tuyến đã xóa' %></td>
+                                <td style="padding:15px;"><strong><%= t.bus ? t.bus.license_plate : '...' %></strong></td>
+                                <td style="padding:15px;">
+                                    <% if (t.status === 'scheduled') { %>
+                                        <span class="badge" style="background:#dbeafe; color:#1e40af; padding:5px 10px; border-radius:15px;">📅 Sắp chạy</span>
+                                    <% } else if (t.status === 'departed') { %>
+                                        <span class="badge" style="background:#fef9c3; color:#854d0e; padding:5px 10px; border-radius:15px;">🚍 Đang chạy</span>
+                                    <% } else if (t.status === 'completed') { %>
+                                        <span class="badge" style="background:#dcfce7; color:#166534; padding:5px 10px; border-radius:15px;">✅ Đã xong</span>
+                                    <% } else { %>
+                                        <span class="badge" style="background:#fee2e2; color:#991b1b; padding:5px 10px; border-radius:15px;">❌ Đã hủy</span>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        <% } %>
+    </div>
+</div>
+--- END OF FILE: backend\views\admin\driver_detail.ejs ---
+
+
+--- START OF FILE: backend\views\admin\driver_form.ejs ---
+<%- include('layout') %>
+<div class="main-content">
+    <div class="page-header">
+        <h2><%= driver ? 'Sửa thông tin Tài xế' : 'Thêm Tài xế mới' %></h2>
+    </div>
+
+    <div class="content-card" style="max-width:800px;">
+        <form id="driverForm" method="POST" action="<%= driver ? '/admin/drivers/'+driver._id : '/admin/drivers' %>">
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:15px;">
+                <div>
+                    <label>Họ tên *</label>
+                    <input type="text" name="name" id="name" class="form-control" value="<%= driver ? driver.name : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <div id="err-name" style="color:red; font-size:12px; display:none;">Vui lòng nhập tên</div>
+                </div>
+                <div>
+                    <label>Email (Bắt buộc) *</label>
+                    <input type="email" name="email" id="email" class="form-control" value="<%= driver ? driver.email : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <div id="err-email" style="color:red; font-size:12px; display:none;">Email bắt buộc và phải đúng định dạng</div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:15px;">
+                <div>
+                    <label>Số điện thoại *</label>
+                    <input type="text" name="phone" id="phone" value="<%= driver ? driver.phone : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <div id="err-phone" style="color:red; font-size:12px; display:none;">SĐT phải có 10 số</div>
+                </div>
+                <div>
+                    <label>Bằng lái xe (Hạng) *</label>
+                    <input type="text" name="license_number" id="license" value="<%= driver ? driver.license_number : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                    <div id="err-license" style="color:red; font-size:12px; display:none;">Vui lòng nhập bằng lái</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label>Phân công chuyến xe (Có thể chọn nhiều)</label>
+                <div style="max-height:200px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:5px;">
+                    <% trips.forEach(t => { 
+                        const checked = driver && driver.assigned_trips && driver.assigned_trips.some(at => at.toString() === t._id.toString());
+                    %>
+                    <div style="margin-bottom:5px;">
+                        <input type="checkbox" name="assigned_trips" value="<%= t._id %>" <%= checked ? 'checked' : '' %>>
+                        <strong><%= new Date(t.start_time).toLocaleString('vi-VN') %></strong>: 
+                        <%= t.route ? t.route.name : 'Unknown' %> 
+                        (<%= t.bus ? t.bus.license_plate : 'No Bus' %>)
+                    </div>
+                    <% }) %>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding:10px 20px; border:none; background:#4f46e5; color:white; border-radius:5px; cursor:pointer;">Lưu lại</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.getElementById('driverForm').addEventListener('submit', function(e) {
+        let valid = true;
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        
+        // Validate Email
+        if(!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+            document.getElementById('err-email').style.display = 'block';
+            valid = false;
+        } else {
+            document.getElementById('err-email').style.display = 'none';
+        }
+
+        // Validate Phone
+        if(!phone.match(/^0\d{9}$/)) {
+            document.getElementById('err-phone').style.display = 'block';
+            valid = false;
+        } else {
+            document.getElementById('err-phone').style.display = 'none';
+        }
+
+        if(!valid) e.preventDefault();
+    });
+</script>
+--- END OF FILE: backend\views\admin\driver_form.ejs ---
+
+
 --- START OF FILE: backend\views\admin\layout.ejs ---
 <!-- ...existing code... -->
 <!DOCTYPE html>
@@ -6930,6 +7377,7 @@ main();
             <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Dashboard</a>
             <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Users</a>
             <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>"><span>🧑‍✈️</span> <span>Phụ xe</span></a>
+            <a href="/admin/drivers" class="<%= page === 'drivers' ? 'active' : '' %>">🚐 Tài xế</a>
             <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Buses</a>
             <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Routes</a>
             <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Trips</a>
@@ -7339,6 +7787,10 @@ main();
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
                     <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -7873,6 +8325,10 @@ main();
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
                     <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -8529,6 +8985,10 @@ main();
                     <span>👷</span>
                     <span>Lơ xe</span>
                 </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -9120,6 +9580,10 @@ main();
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
                     <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
                 </a>
                 <a href="/admin/buses" class="nav-item <%= page === 'buses' ? 'active' : '' %>">
                     <span>🚌</span>

@@ -48,7 +48,7 @@
           <div class="error-msg" id="error-name">Vui lòng nhập họ tên</div>
         </div>
         <div>
-          <label>Email (Tùy chọn)</label>
+          <label>Email *</label>
           <input type="email" id="email" name="email" value="<%= assistant ? assistant.email : '' %>" placeholder="email@example.com" />
           <div class="error-msg" id="error-email">Email không hợp lệ</div>
         </div>
@@ -158,14 +158,13 @@
         }
 
         // 3. Kiểm tra Email (Nếu có nhập thì phải đúng định dạng)
-        if (emailInput.value.trim()) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailInput.value.match(emailRegex)) {
-                showError(emailInput, 'error-email', true);
-                isValid = false;
-            } else {
-                showError(emailInput, 'error-email', false);
-            }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        // Nếu không nhập gì HOẶC nhập sai định dạng đều báo lỗi
+        if (!emailInput.value.trim() || !emailInput.value.match(emailRegex)) {
+            showError(emailInput, 'error-email', true);
+            isValid = false;
+        } else {
+            showError(emailInput, 'error-email', false);
         }
 
         // Nếu có lỗi thì chặn gửi form

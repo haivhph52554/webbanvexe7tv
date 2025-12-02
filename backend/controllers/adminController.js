@@ -886,4 +886,143 @@ exports.updateTrip = async (req, res) => {
     res.status(500).send('Lỗi khi cập nhật chuyến: ' + err.message);
   }
 };
-// ...existing code...
+
+const Driver = require('../models/Driver'); // Nhớ import model
+
+// 1. Hiển thị danh sách tài xế
+exports.drivers = async (req, res) => {
+  try {
+    const drivers = await Driver.find().sort({ createdAt: -1 });
+    // Thống kê nhanh
+    const stats = {
+      total: drivers.length,
+      active: drivers.filter(d => d.status === 'active').length
+    };
+    res.render('admin/drivers', { drivers, stats, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 2. Form thêm tài xế mới
+exports.newDriver = async (req, res) => {
+  try {
+    // Lấy danh sách các chuyến "Sắp chạy" để admin có thể gán luôn lúc tạo (nếu muốn)
+    const trips = await Trip.find({ status: 'scheduled' })
+        .populate('route').populate('bus');
+    
+    res.render('admin/driver_form', { driver: null, trips, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 3. Xử lý tạo tài xế (Lưu vào DB)
+exports.createDriver = async (req, res) => {
+  try {
+    // A. Tạo tài khoản User trước (để có thể đăng nhập)
+    let user = await User.findOne({ email: req.body.email });
+    if (!user) {
+        user = await User.create({
+            name: req.body.name,
+            email: req.body.email,
+            phone: req.body.phone,
+            password: '123456', // Mật khẩu mặc định
+            role: 'driver'      // Role là driver
+        });
+    } else {
+        // Nếu email đã tồn tại, cập nhật role
+        user.role = 'driver';
+        await user.save();
+    }
+
+    // B. Tạo hồ sơ Driver
+    const payload = {
+        userId: user._id,
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        license_number: req.body.license_number,
+        experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id,
+        status: 'active',
+        assigned_trips: req.body.assigned_trips || [] // Lưu các chuyến được gán
+    };
+
+    await Driver.create(payload);
+    res.redirect('/admin/drivers');
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Lỗi tạo tài xế: ' + err.message);
+  }
+};
+
+// 4. Form sửa tài xế
+exports.editDriver = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    const trips = await Trip.find({ status: 'scheduled' }).populate('route').populate('bus');
+    res.render('admin/driver_form', { driver, trips, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 5. Cập nhật tài xế
+exports.updateDriver = async (req, res) => {
+  try {
+    const payload = {
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        license_number: req.body.license_number,
+        experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id,
+        status: req.body.status,
+        assigned_trips: req.body.assigned_trips || []
+    };
+    await Driver.findByIdAndUpdate(req.params.id, payload);
+    res.redirect('/admin/drivers');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+// 6. Xóa tài xế
+exports.deleteDriver = async (req, res) => {
+  try {
+    await Driver.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 7. XEM CHI TIẾT TÀI XẾ (Chức năng quan trọng bạn yêu cầu)
+// Xem tài xế gán chuyến nào, trạng thái ra sao
+exports.driverDetail = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).send('Không tìm thấy');
+
+    // Tìm các chuyến xe nằm trong danh sách assigned_trips của tài xế
+    // Populate đầy đủ để hiển thị tên tuyến, biển số, trạng thái
+    const trips = await Trip.find({ _id: { $in: driver.assigned_trips } })
+        .populate('route')
+        .populate('bus')
+        .sort({ start_time: -1 }); // Mới nhất lên đầu
+
+    // Thống kê nhanh trạng thái chuyến
+    const stats = {
+        total: trips.length,
+        scheduled: trips.filter(t => t.status === 'scheduled').length, // Sắp chạy
+        departed: trips.filter(t => t.status === 'departed').length,   // Đang chạy
+        completed: trips.filter(t => t.status === 'completed').length  // Đã xong
+    };
+
+    res.render('admin/driver_detail', { driver, trips, stats, page: 'drivers' });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};

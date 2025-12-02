@@ -57,5 +57,16 @@ router.post('/assistants/:id/checkin', adminController.checkinPassenger);
 // API để cập nhật status booking
 router.put('/bookings/:id/status', adminController.updateBookingStatus);
 
+// --- QUẢN LÝ TÀI XẾ (DRIVER) ---
+router.get('/drivers', adminController.drivers);           // Danh sách
+router.get('/drivers/new', adminController.newDriver);     // Form tạo
+router.post('/drivers', adminController.createDriver);     // Lưu mới
+router.get('/drivers/:id', adminController.driverDetail);  // Xem chi tiết & Lịch trình (Quan trọng)
+router.get('/drivers/:id/edit', adminController.editDriver); // Form sửa
+router.post('/drivers/:id', adminController.updateDriver); // Lưu sửa
+router.delete('/drivers/:id', adminController.deleteDriver); // Xóa
+
+module.exports = router;
+
 module.exports = router;
 
