@@ -275,9 +275,9 @@
                     <span>👥</span>
                     <span>Users</span>
                 </a>
-                <a href="/admin/assistants" class="nav-item active">
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
-                    <span>Assistants</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -397,7 +397,7 @@
                                             <strong><%= (route.origin || route.from_city) + ' → ' + (route.destination || route.to_city) %></strong>
                                         </td>
                                         <td>
-                                            <%= route.distance ? route.distance + ' km' : 'N/A' %>
+                                            <%= route.total_distance_km ? route.total_distance_km + ' km' : 'N/A' %>
                                         </td>
                                         <td>
                                             <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'N/A' %>

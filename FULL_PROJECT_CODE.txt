@@ -207,7 +207,7 @@ exports.dashboard = async (req, res) => {
     const trips = await Trip.find()
       .populate('route')
       .populate('bus')
-      .sort({ start_time: -1 });
+      .sort({ createdAt: -1 });
 
     const bookings = await Booking.find()
       .populate('user')
@@ -244,6 +244,24 @@ exports.deleteBooking = async (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy đơn đặt chỗ' });
     }
 
+    // Bảo vệ: Không cho phép xóa booking đã thanh toán hoặc đã hoàn thành
+    // Bảo vệ: Không cho phép xóa booking đã thanh toán hoặc đã hoàn thành
+    if (booking.status === 'paid' || booking.status === 'completed') {
+      return res.status(403).json({ 
+        error: 'Không thể xóa đơn đặt chỗ đã thanh toán hoặc đã hoàn thành. Vui lòng hủy đơn thay vì xóa.' 
+      });
+    }
+
+    // Nếu booking đã bị hủy (cancelled) thì cho phép admin xóa, ngay cả khi có record payment.
+    // Trong trường hợp này, cố gắng xóa bản ghi Payment liên quan (nếu có) để tránh rác dữ liệu.
+    // Nếu booking còn ở trạng thái khác và có payment thì vẫn chặn xóa.
+    const Payment = require('../models/Payment');
+    if (booking.status !== 'cancelled' && (booking.payment_id || booking.payment)) {
+      return res.status(403).json({ 
+        error: 'Không thể xóa đơn đặt chỗ đã có thanh toán. Vui lòng hủy đơn thay vì xóa.' 
+      });
+    }
+
     if (booking.trip && booking.seat_numbers && booking.seat_numbers.length > 0) {
       const seatStatuses = await TripSeatStatus.find({
         trip: booking.trip,
@@ -264,6 +282,19 @@ exports.deleteBooking = async (req, res) => {
       );
 
       console.log(`Reset ${seatStatuses.length} seats to available for booking ${booking._id}`);
+    }
+
+    // Nếu có payment liên kết và booking đã cancelled, xoá payment record (nếu tồn tại)
+    try {
+      if (booking.status === 'cancelled' && (booking.payment_id || booking.payment)) {
+        const paymentId = booking.payment_id || booking.payment;
+        // Xóa document Payment nếu tồn tại
+        await Payment.findByIdAndDelete(paymentId).catch(err => {
+          console.warn('Không thể xóa payment liên quan:', err.message);
+        });
+      }
+    } catch (err) {
+      console.warn('Lỗi khi xóa payment liên quan:', err.message);
     }
 
     await Booking.findByIdAndDelete(req.params.id);
@@ -738,7 +769,7 @@ exports.trips = async (req, res) => {
     const trips = await Trip.find()
       .populate('route')
       .populate('bus')
-      .sort({ start_time: -1 });
+      .sort({ createdAt: -1 });
     
     const stats = {
       total: trips.length,
@@ -1501,6 +1532,38 @@ exports.detail = async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Not found' });
     res.json(doc);
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// API Hủy vé dành cho khách hàng
+exports.cancel = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Không tìm thấy vé' });
+    }
+
+    // Chỉ cho phép hủy khi đang pending
+    if (booking.status !== 'pending') {
+      return res.status(400).json({ error: 'Chỉ có thể hủy vé khi đang chờ thanh toán' });
+    }
+
+    // 1. Cập nhật trạng thái Booking
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // 2. Nhả ghế ra (trả về status available)
+    await TripSeatStatus.updateMany(
+      { booking_id: booking._id },
+      { $set: { status: 'available', booking_id: null } }
+    );
+
+    res.json({ success: true, message: 'Hủy vé thành công' });
+  } catch (e) {
+    console.error(e);
     res.status(500).json({ error: e.message });
   }
 };
@@ -2818,7 +2881,12 @@ router.get('/', optionalAuth, bookingController.listOfUser);
 // Lấy chi tiết 1 booking theo id
 router.get('/:id', bookingController.detail);
 
+// Huỷ booking
+router.put('/:id/cancel', bookingController.cancel);
+
 module.exports = router;
+
+// chưa thêm phần bên admin không được tự tiện xóa phần vé đã thanh toán của khách hàng
 
 --- END OF FILE: backend\routes\bookingRoutes.js ---
 
@@ -2913,7 +2981,7 @@ router.get('/route/:routeId', tripController.getTripsByRoute);
 router.get('/:tripId/seats', tripController.getSeatsByTrip);
 
 router.get('/', async (req, res) => {
-  const trips = await Trip.find().populate('route').populate('bus');
+  const trips = await Trip.find().populate('route').populate('bus').sort({ createdAt: -1 });
   res.json(trips);
 });
 
@@ -3383,7 +3451,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Server error' });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
 --- END OF FILE: backend\server.js ---
 
@@ -5151,6 +5219,19 @@ main();
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
         }
+
+        /* Thêm style cho nút Duyệt */
+        .btn-success {
+            background: var(--success);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
         
         .empty-state {
             text-align: center;
@@ -5318,7 +5399,22 @@ main();
                                         </td>
                                         <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
                                         <td>
-                                            <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                            <% if (booking.status === 'pending') { %>
+                                                <button 
+                                                    class="btn btn-success" 
+                                                    onclick="updateStatus('<%= booking._id %>', 'paid')"
+                                                    style="margin-right: 0.5rem;"
+                                                    title="Xác nhận đã nhận tiền"
+                                                >
+                                                    ✔ Duyệt
+                                                </button>
+                                            <% } %>
+
+                                            <% if (booking.status === 'pending' || booking.status === 'cancelled') { %>
+                                                <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                            <% } else { %>
+                                                <span class="text-gray-500 text-sm" title="Không thể xóa đơn đã thanh toán hoặc đã hoàn thành">🔒 Đã khóa</span>
+                                            <% } %>
                                         </td>
                                     </tr>
                                 <% }); %>
@@ -5331,6 +5427,7 @@ main();
     </div>
     
     <script>
+        // Hàm xóa booking
         async function deleteBooking(id) {
             if (!confirm('Bạn có chắc muốn xóa đặt chỗ này?')) return;
             try {
@@ -5339,15 +5436,39 @@ main();
                 if (data.success) {
                     alert('Đã xóa đặt chỗ thành công');
                     location.reload();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể xóa đặt chỗ'));
                 }
             } catch (error) {
                 alert('Lỗi: ' + error.message);
             }
         }
+
+        // --- HÀM DUYỆT ĐƠN MỚI ---
+        async function updateStatus(id, status) {
+            if (!confirm('Xác nhận đã nhận được tiền cho đơn này?')) return;
+            try {
+                const response = await fetch(`/admin/bookings/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status }) 
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Đã duyệt đơn thành công!');
+                    location.reload(); // Tải lại trang để thấy màu xanh
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể cập nhật'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi kết nối server');
+            }
+        }
     </script>
 </body>
 </html>
-
 --- END OF FILE: backend\views\admin\bookings.ejs ---
 
 
@@ -6525,7 +6646,11 @@ main();
                                             </td>
                                             <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
                                             <td>
-                                                <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                                <% if (booking.status === 'pending' || booking.status === 'cancelled') { %>
+                                                    <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                                <% } else { %>
+                                                    <span class="text-gray-500 text-sm" title="Không thể xóa đơn đã thanh toán hoặc đã hoàn thành">🔒 Đã khóa</span>
+                                                <% } %>
                                             </td>
                                         </tr>
                                     <% }); %>
@@ -6583,6 +6708,8 @@ main();
                 if (data.success) {
                     alert('Đã xóa đặt chỗ thành công');
                     location.reload();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể xóa đặt chỗ'));
                 }
             } catch (error) {
                 alert('Lỗi khi xóa: ' + error.message);
@@ -8590,6 +8717,8 @@ main();
             --gray: #64748b;
             --gray-light: #e2e8f0;
             --white: #ffffff;
+            --sidebar-bg: #ffffff;
+            --sidebar-hover: rgba(99, 102, 241, 0.1);
             --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -8611,8 +8740,7 @@ main();
         
         .sidebar {
             width: 280px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+            background: var(--sidebar-bg);
             box-shadow: var(--shadow-xl);
             position: fixed;
             height: 100vh;
@@ -8647,7 +8775,9 @@ main();
         }
         
         .nav-item {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             padding: 0.875rem 1.5rem;
             color: var(--dark);
             text-decoration: none;
@@ -8655,13 +8785,10 @@ main();
             transition: all 0.3s ease;
             border-left: 3px solid transparent;
             margin: 0.25rem 0;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
         }
         
         .nav-item:hover {
-            background: rgba(99, 102, 241, 0.1);
+            background: var(--sidebar-hover);
             border-left-color: var(--primary);
             color: var(--primary);
             transform: translateX(4px);
@@ -8672,6 +8799,10 @@ main();
             border-left-color: var(--primary);
             color: var(--primary);
             font-weight: 600;
+        }
+        
+        .nav-item span:first-child {
+            font-size: 1.25rem;
         }
         
         .main-content {
@@ -8686,518 +8817,394 @@ main();
         }
         
         .page-header h2 {
-            <!DOCTYPE html>
-            <html lang="vi">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Users Management - VeXe7TV Admin</title>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-                <style>
-                    * {
-                        margin: 0;
-                        padding: 0;
-                        box-sizing: border-box;
-                    }
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
         
-                    :root {
-                        --primary: #6366f1;
-                        --primary-dark: #4f46e5;
-                        --primary-light: #818cf8;
-                        --secondary: #10b981;
-                        --danger: #ef4444;
-                        --warning: #f59e0b;
-                        --success: #10b981;
-                        --info: #3b82f6;
-                        --dark: #1e293b;
-                        --light: #f8fafc;
-                        --gray: #64748b;
-                        --gray-light: #e2e8f0;
-                        --white: #ffffff;
-                        --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-                        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                        --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                    }
+        .page-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.125rem;
+        }
         
-                    body {
-                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        background-attachment: fixed;
-                        min-height: 100vh;
-                        color: var(--dark);
-                    }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
         
-                    .admin-wrapper {
-                        display: flex;
-                        min-height: 100vh;
-                    }
+        .stat-card {
+            background: var(--white);
+            padding: 1.75rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
         
-                    .sidebar {
-                        width: 280px;
-                        background: rgba(255, 255, 255, 0.95);
-                        backdrop-filter: blur(10px);
-                        box-shadow: var(--shadow-xl);
-                        position: fixed;
-                        height: 100vh;
-                        overflow-y: auto;
-                        z-index: 1000;
-                        transition: transform 0.3s ease;
-                    }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+        }
         
-                    .sidebar-header {
-                        padding: 2rem 1.5rem;
-                        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-                        color: white;
-                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                    }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
         
-                    .sidebar-header h1 {
-                        font-size: 1.5rem;
-                        font-weight: 700;
-                        margin-bottom: 0.5rem;
-                        display: flex;
-                        align-items: center;
-                        gap: 0.75rem;
-                    }
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
         
-                    .sidebar-header p {
-                        font-size: 0.875rem;
-                        opacity: 0.9;
-                    }
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
         
-                    .sidebar-nav {
-                        padding: 1.5rem 0;
-                    }
+        .stat-card h3 {
+            color: var(--gray);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
         
-                    .nav-item {
-                        display: block;
-                        padding: 0.875rem 1.5rem;
-                        color: var(--dark);
-                        text-decoration: none;
-                        font-weight: 500;
-                        transition: all 0.3s ease;
-                        border-left: 3px solid transparent;
-                        margin: 0.25rem 0;
-                        display: flex;
-                        align-items: center;
-                        gap: 0.75rem;
-                    }
+        .stat-card .value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1;
+        }
         
-                    .nav-item:hover {
-                        background: rgba(99, 102, 241, 0.1);
-                        border-left-color: var(--primary);
-                        color: var(--primary);
-                        transform: translateX(4px);
-                    }
+        .content-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
         
-                    .nav-item.active {
-                        background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
-                        border-left-color: var(--primary);
-                        color: var(--primary);
-                        font-weight: 600;
-                    }
+        .content-card h2 {
+            margin: 0 0 1.5rem 0;
+            color: var(--dark);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
         
-                    .main-content {
-                        flex: 1;
-                        margin-left: 280px;
-                        padding: 2rem;
-                        min-height: 100vh;
-                    }
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+        }
         
-                    .page-header {
-                        margin-bottom: 2rem;
-                    }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
         
-                    .page-header h2 {
-                        font-size: 2rem;
-                        font-weight: 700;
-                        color: white;
-                        margin-bottom: 0.5rem;
-                        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                    }
+        thead {
+            background: var(--light);
+        }
         
-                    .page-header p {
-                        color: rgba(255, 255, 255, 0.9);
-                        font-size: 1rem;
-                    }
+        th {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-light);
+        }
         
-                    .stats-grid {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                        gap: 1.5rem;
-                        margin-bottom: 2rem;
-                    }
+        td {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--gray-light);
+            color: var(--dark);
+        }
         
-                    .stat-card {
-                        background: var(--white);
-                        padding: 1.75rem;
-                        border-radius: 16px;
-                        box-shadow: var(--shadow-lg);
-                        transition: all 0.3s ease;
-                        position: relative;
-                        overflow: hidden;
-                    }
+        tbody tr {
+            transition: all 0.2s ease;
+        }
         
-                    .stat-card::before {
-                        content: '';
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        height: 4px;
-                        background: linear-gradient(90deg, var(--primary), var(--primary-light));
-                    }
+        tbody tr:hover {
+            background: var(--light);
+        }
         
-                    .stat-card:hover {
-                        transform: translateY(-4px);
-                        box-shadow: var(--shadow-xl);
-                    }
+        .badge {
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
         
-                    .stat-card-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: flex-start;
-                        margin-bottom: 1rem;
-                    }
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
         
-                    .stat-card-icon {
-                        width: 48px;
-                        height: 48px;
-                        border-radius: 12px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 1.5rem;
-                        background: linear-gradient(135deg, var(--primary), var(--primary-light));
-                        color: white;
-                        box-shadow: var(--shadow-md);
-                    }
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
         
-                    .stat-card h3 {
-                        color: var(--gray);
-                        font-size: 0.875rem;
-                        font-weight: 600;
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                        margin-bottom: 0.5rem;
-                    }
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
         
-                    .stat-card .value {
-                        font-size: 2.25rem;
-                        font-weight: 700;
-                        color: var(--dark);
-                        line-height: 1;
-                    }
+        .badge-primary {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
+        }
         
-                    .content-card {
-                        background: var(--white);
-                        border-radius: 16px;
-                        padding: 2rem;
-                        box-shadow: var(--shadow-lg);
-                        margin-bottom: 2rem;
-                    }
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
         
-                    .content-card h2 {
-                        margin: 0 0 1.5rem 0;
-                        color: var(--dark);
-                        font-size: 1.5rem;
-                        font-weight: 700;
-                    }
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: var(--shadow);
+        }
         
-                    .table-wrapper {
-                        overflow-x: auto;
-                        border-radius: 12px;
-                    }
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
         
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--gray);
+        }
         
-                    thead {
-                        background: var(--light);
-                    }
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
         
-                    th {
-                        padding: 1rem 1.25rem;
-                        text-align: left;
-                        font-weight: 600;
-                        color: var(--dark);
-                        font-size: 0.875rem;
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                        border-bottom: 2px solid var(--gray-light);
-                    }
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
         
-                    td {
-                        padding: 1.25rem;
-                        border-bottom: 1px solid var(--gray-light);
-                        color: var(--dark);
-                    }
+        .empty-state p {
+            color: var(--gray);
+        }
         
-                    tbody tr {
-                        transition: all 0.2s ease;
-                    }
-        
-                    tbody tr:hover {
-                        background: var(--light);
-                        transform: scale(1.01);
-                    }
-        
-                    .badge {
-                        padding: 0.375rem 0.875rem;
-                        border-radius: 20px;
-                        font-size: 0.8125rem;
-                        font-weight: 600;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 0.375rem;
-                    }
-        
-                    .badge-success {
-                        background: rgba(16, 185, 129, 0.1);
-                        color: #059669;
-                    }
-        
-                    .badge-warning {
-                        background: rgba(245, 158, 11, 0.1);
-                        color: #d97706;
-                    }
-        
-                    .badge-danger {
-                        background: rgba(239, 68, 68, 0.1);
-                        color: #dc2626;
-                    }
-        
-                    .badge-primary {
-                        background: rgba(59, 130, 246, 0.1);
-                        color: #2563eb;
-                    }
-        
-                    .btn {
-                        padding: 0.625rem 1.25rem;
-                        border: none;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 0.875rem;
-                        transition: all 0.3s ease;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 0.5rem;
-                    }
-        
-                    .btn-danger {
-                        background: var(--danger);
-                        color: white;
-                        box-shadow: var(--shadow);
-                    }
-        
-                    .btn-danger:hover {
-                        background: #dc2626;
-                        transform: translateY(-2px);
-                        box-shadow: var(--shadow-md);
-                    }
-        
-                    .empty-state {
-                        text-align: center;
-                        padding: 4rem 2rem;
-                        color: var(--gray);
-                    }
-        
-                    .empty-state-icon {
-                        font-size: 4rem;
-                        margin-bottom: 1rem;
-                        opacity: 0.5;
-                    }
-        
-                    .empty-state h3 {
-                        font-size: 1.25rem;
-                        margin-bottom: 0.5rem;
-                        color: var(--dark);
-                    }
-        
-                    .empty-state p {
-                        color: var(--gray);
-                    }
-        
-                    @media (max-width: 1024px) {
-                        .sidebar {
-                            transform: translateX(-100%);
-                        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
             
-                        .main-content {
-                            margin-left: 0;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="admin-wrapper">
-                    <aside class="sidebar">
-                        <div class="sidebar-header">
-                            <h1>🚌 VeXe7TV</h1>
-                            <p>Trang quản trị</p>
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚌 VeXe7TV</h1>
+                <p>Trang quản trị</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin" class="nav-item <%= page === 'dashboard' ? 'active' : '' %>">
+                    <span>📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/admin/users" class="nav-item <%= page === 'users' && !roleFilter ? 'active' : '' %>">
+                    <span>👥</span>
+                    <span>Users</span>
+                </a>
+                <a href="/admin/users?role=assistant" class="nav-item <%= page === 'users' && roleFilter === 'assistant' ? 'active' : '' %>">
+                    <span>🧑‍✈️</span>
+                    <span>Lơ xe</span>
+                </a>
+                <a href="/admin/buses" class="nav-item <%= page === 'buses' ? 'active' : '' %>">
+                    <span>🚌</span>
+                    <span>Buses</span>
+                </a>
+                <a href="/admin/routes" class="nav-item <%= page === 'routes' ? 'active' : '' %>">
+                    <span>📍</span>
+                    <span>Routes</span>
+                </a>
+                <a href="/admin/trips" class="nav-item <%= page === 'trips' ? 'active' : '' %>">
+                    <span>🕐</span>
+                    <span>Trips</span>
+                </a>
+                <a href="/admin/bookings" class="nav-item <%= page === 'bookings' ? 'active' : '' %>">
+                    <span>🎫</span>
+                    <span>Bookings</span>
+                </a>
+                <a href="/admin/statistics" class="nav-item <%= page === 'statistics' ? 'active' : '' %>">
+                    <span>📈</span>
+                    <span>Statistics</span>
+                </a>
+                <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
+                    <span>🏠</span>
+                    <span>Về trang chủ</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Quản lý Người dùng</h2>
+                <p>Quản lý tất cả người dùng trong hệ thống</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Tổng số người dùng</h3>
+                            <div class="value"><%= stats.total %></div>
                         </div>
-                        <nav class="sidebar-nav">
-                            <a href="/admin" class="nav-item <%= page === 'dashboard' ? 'active' : '' %>">
-                                <span>📊</span>
-                                <span>Dashboard</span>
-                            </a>
-                            <a href="/admin/users" class="nav-item <%= page === 'users' && !roleFilter ? 'active' : '' %>">
-                                <span>👥</span>
-                                <span>Users</span>
-                            </a>
-                            <!-- Lơ xe link -->
-                            <a href="/admin/users?role=assistant" class="nav-item <%= page === 'users' && roleFilter === 'assistant' ? 'active' : '' %>">
-                                <span>🧑‍✈️</span>
-                                <span>Lơ xe</span>
-                            </a>
-                            <a href="/admin/buses" class="nav-item <%= page === 'buses' ? 'active' : '' %>">
-                                <span>🚌</span>
-                                <span>Buses</span>
-                            </a>
-                            <a href="/admin/routes" class="nav-item <%= page === 'routes' ? 'active' : '' %>">
-                                <span>📍</span>
-                                <span>Routes</span>
-                            </a>
-                            <a href="/admin/trips" class="nav-item <%= page === 'trips' ? 'active' : '' %>">
-                                <span>🕐</span>
-                                <span>Trips</span>
-                            </a>
-                            <a href="/admin/bookings" class="nav-item <%= page === 'bookings' ? 'active' : '' %>">
-                                <span>🎫</span>
-                                <span>Bookings</span>
-                            </a>
-                            <a href="/admin/statistics" class="nav-item <%= page === 'statistics' ? 'active' : '' %>">
-                                <span>📈</span>
-                                <span>Statistics</span>
-                            </a>
-                            <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
-                                <span>🏠</span>
-                                <span>Về trang chủ</span>
-                            </a>
-                        </nav>
-                    </aside>
-        
-                    <main class="main-content">
-                        <div class="page-header">
-                            <h2>Quản lý Người dùng</h2>
-                            <p>Quản lý tất cả người dùng trong hệ thống</p>
-                        </div>
-            
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <div class="stat-card-header">
-                                    <div>
-                                        <h3>Tổng số người dùng</h3>
-                                        <div class="value"><%= stats.total %></div>
-                                    </div>
-                                    <div class="stat-card-icon">👥</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-card-header">
-                                    <div>
-                                        <h3>Khách hàng</h3>
-                                        <div class="value"><%= stats.customers %></div>
-                                    </div>
-                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">🛒</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-card-header">
-                                    <div>
-                                        <h3>Tài xế</h3>
-                                        <div class="value"><%= stats.drivers %></div>
-                                    </div>
-                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--info), #60a5fa);">🚗</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-card-header">
-                                    <div>
-                                        <h3>Phụ xe</h3>
-                                        <div class="value"><%= stats.assistants %></div>
-                                    </div>
-                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">👷</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-card-header">
-                                    <div>
-                                        <h3>Quản trị viên</h3>
-                                        <div class="value"><%= stats.admins %></div>
-                                    </div>
-                                    <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--danger), #f87171);">👨‍💼</div>
-                                </div>
-                            </div>
-                        </div>
-            
-                        <div class="content-card">
-                            <h2>Danh sách Người dùng</h2>
-                            <% if (users.length === 0) { %>
-                                <div class="empty-state">
-                                    <div class="empty-state-icon">👥</div>
-                                    <h3>Chưa có người dùng nào</h3>
-                                    <p>Hệ thống chưa có người dùng</p>
-                                </div>
-                            <% } else { %>
-                                <div class="table-wrapper">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Họ tên</th>
-                                                <th>Email</th>
-                                                <th>SĐT</th>
-                                                <th>Vai trò</th>
-                                                <th>Ngày tạo</th>
-                                                <th>Thao tác</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <% users.forEach(function(user) { %>
-                                                <tr>
-                                                    <td><strong><%= user.name %></strong></td>
-                                                    <td><%= user.email || '-' %></td>
-                                                    <td><%= user.phone || '-' %></td>
-                                                    <td>
-                                                        <span class="badge <%= user.role === 'admin' ? 'badge-danger' : user.role === 'driver' ? 'badge-primary' : user.role === 'assistant' ? 'badge-warning' : 'badge-success' %>">
-                                                            <%= user.role === 'admin' ? 'Quản trị viên' : user.role === 'driver' ? 'Tài xế' : user.role === 'assistant' ? 'Phụ xe' : user.role === 'customer' ? 'Khách hàng' : user.role %>
-                                                        </span>
-                                                    </td>
-                                                    <td><%= new Date(user.createdAt).toLocaleString('vi-VN') %></td>
-                                                    <td>
-                                                        <button class="btn btn-danger" onclick="deleteUser('<%= user._id %>')">🗑️ Xóa</button>
-                                                    </td>
-                                                </tr>
-                                            <% }); %>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <% } %>
-                        </div>
-                    </main>
+                        <div class="stat-card-icon">👥</div>
+                    </div>
                 </div>
-    
-                <script>
-                    async function deleteUser(id) {
-                        if (!confirm('Bạn có chắc muốn xóa người dùng này?')) return;
-                        try {
-                            const response = await fetch(`/admin/users/${id}`, { method: 'DELETE' });
-                            const data = await response.json();
-                            if (data.success) {
-                                alert('Đã xóa người dùng thành công');
-                                location.reload();
-                            }
-                        } catch (error) {
-                            alert('Lỗi: ' + error.message);
-                        }
-                    }
-                </script>
-            </body>
-            </html>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Khách hàng</h3>
+                            <div class="value"><%= stats.customers %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">🛒</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Tài xế</h3>
+                            <div class="value"><%= stats.drivers %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--info), #60a5fa);">🚗</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Phụ xe</h3>
+                            <div class="value"><%= stats.assistants %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">👷</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Quản trị viên</h3>
+                            <div class="value"><%= stats.admins %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--danger), #f87171);">👨‍💼</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <h2>Danh sách Người dùng</h2>
+                <% if (users.length === 0) { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <h3>Chưa có người dùng nào</h3>
+                        <p>Hệ thống chưa có người dùng</p>
+                    </div>
+                <% } else { %>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Họ tên</th>
+                                    <th>Email</th>
+                                    <th>SĐT</th>
+                                    <th>Vai trò</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% users.forEach(function(user) { %>
+                                    <tr>
+                                        <td><strong><%= user.name %></strong></td>
+                                        <td><%= user.email || '-' %></td>
+                                        <td><%= user.phone || '-' %></td>
+                                        <td>
+                                            <span class="badge <%= user.role === 'admin' ? 'badge-danger' : user.role === 'driver' ? 'badge-primary' : user.role === 'assistant' ? 'badge-warning' : 'badge-success' %>">
+                                                <%= user.role === 'admin' ? 'Quản trị viên' : user.role === 'driver' ? 'Tài xế' : user.role === 'assistant' ? 'Phụ xe' : user.role === 'customer' ? 'Khách hàng' : user.role %>
+                                            </span>
+                                        </td>
+                                        <td><%= new Date(user.createdAt).toLocaleString('vi-VN') %></td>
+                                        <td>
+                                            <button class="btn btn-danger" onclick="deleteUser('<%= user._id %>')">🗑️ Xóa</button>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } %>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function deleteUser(id) {
+            if (!confirm('Bạn có chắc muốn xóa người dùng này?')) return;
+            try {
+                const response = await fetch(`/admin/users/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Đã xóa người dùng thành công');
+                    location.reload();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể xóa người dùng'));
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
 
 --- END OF FILE: backend\views\admin\users.ejs ---
 
@@ -9311,6 +9318,52 @@ body {
   .hidden-desktop {
     display: none !important;
   }
+}
+
+/* Print styles: tối ưu cho in / lưu PDF trên desktop và mobile */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Ẩn các phần không cần in (navigation, nút, footer) */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Làm vé chiếm toàn trang in, bỏ shadow/border */
+  .printable-ticket {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ảnh / biểu tượng co vừa trang */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  svg {
+    color: #000 !important;
+    fill: currentColor !important;
+  }
+
+  /* Giảm kích thước font trên in để vừa khổ */
+  body, .printable-ticket, .printable-ticket * {
+    font-size: 12px !important;
+  }
+}
+
+/* Kích thước trang in mặc định (desktop) */
+@page {
+  size: A4 portrait;
+  margin: 10mm;
 }
 
 --- END OF FILE: frontend\src\App.css ---
@@ -9514,7 +9567,7 @@ export default App;
 
 
 --- START OF FILE: frontend\src\components\AdminPage.tsx ---
-// frontend/src/components/AdminPage.tsx
+// frontend/src/components/AdminPage.tsxxx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -9902,7 +9955,19 @@ type TripDetailResponse = {
   stops?: RouteStopDoc[];
 };
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+// Use relative path to leverage Vite proxy, or fallback to env variable
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
+
+// Function to compare seats arrays - moved outside component to prevent re-render loops
+const seatsEqual = (a?: SeatDoc[], b?: SeatDoc[]) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  return a.every((seat, i) => 
+    seat.seat_number === b[i].seat_number && 
+    seat.status === b[i].status
+  );
+};
 
 const BookingDetail: React.FC = () => {
   const { routeId } = useParams<{ routeId: string }>();
@@ -9965,7 +10030,7 @@ const BookingDetail: React.FC = () => {
         setSelectedDropoffId(null);
       }
     }
-  }, [tripDetail?.stops]);
+  }, [tripDetail?.stops, selectedPickupId, selectedDropoffId]);
 
   useEffect(() => {
     let mounted = true;
@@ -9973,22 +10038,42 @@ const BookingDetail: React.FC = () => {
       try {
         setLoadingTrips(true);
         setErrTrips(null);
-        const res = await fetch(`${API_BASE}/api/trips`);
+        const url = API_BASE ? `${API_BASE}/api/trips` : '/api/trips';
+        console.log('[BookingDetail] Fetching trips from:', url, 'routeId:', routeId);
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: TripDoc[] = await res.json();
+        console.log('[BookingDetail] Received trips:', data.length, 'trips');
         if (!mounted) return;
+
+        // Lấy thời gian hiện tại
+        const now = new Date();
         
         // Filter and sort trips
         const filtered = data
             .filter(t => {
-              const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
-              const tripTime = new Date(t.start_time);
-              const now = new Date();
+              // 1. Kiểm tra dữ liệu Route hợp lệ
+              if (!t?.route) return false;
+
+              // 2. Lấy ID tuyến đường (xử lý cả trường hợp populate object hoặc string ID)
+              const routeIdValue = typeof t.route === 'object' && t.route !== null 
+                ? String(t.route._id || t.route) 
+                : String(t.route);
               
-              // BẬT LẠI DÒNG NÀY:
-              return tid === routeId && tripTime > now;
-          })
-          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+              // 3. Điều kiện lọc:
+              // - Đúng tuyến đường (routeId)
+              // - KHÔNG bị hủy (status != cancelled)
+              // - Thời gian khởi hành phải lớn hơn hiện tại (tripStartTime > now)
+              const isCorrectRoute = routeIdValue === routeId;
+              const isActive = t.status !== 'cancelled';
+              const tripStartTime = new Date(t.start_time);
+              const isFutureTrip = tripStartTime > now; 
+
+              return isCorrectRoute && isActive && isFutureTrip;
+            })
+            .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+            
+        console.log('[BookingDetail] Valid future trips:', filtered.length);
 
         // Only update state if data has actually changed
         setAllTrips(prev => {
@@ -10017,18 +10102,6 @@ const BookingDetail: React.FC = () => {
     return () => { mounted = false; };
   }, [routeId]);
 
-  // Poll trip details (seats) for the selected trip so UI reflects changes made by admin
-  // Function to compare seats arrays
-  const seatsEqual = (a?: SeatDoc[], b?: SeatDoc[]) => {
-    if (!a && !b) return true;
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
-    return a.every((seat, i) => 
-      seat.seat_number === b[i].seat_number && 
-      seat.status === b[i].status
-    );
-  };
-
   // Effect for handling trip details and polling
   useEffect(() => {
     if (!selectedTrip?._id) {
@@ -10046,7 +10119,7 @@ const BookingDetail: React.FC = () => {
         if (!tripDetail) setLoadingDetail(true);
         setErrDetail(null);
 
-        const res = await fetch(`${API_BASE}/api/trips/${selectedTrip._id}`);
+        const res = await fetch(API_BASE ? `${API_BASE}/api/trips/${selectedTrip._id}` : `/api/trips/${selectedTrip._id}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: TripDetailResponse = await res.json();
 
@@ -10090,25 +10163,26 @@ const BookingDetail: React.FC = () => {
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [selectedTrip?._id, seatsEqual]);
+  }, [selectedTrip?._id]);
 
   // Debug: detect mounts/unmounts and page unloads to help diagnose unexpected reloads
-  useEffect(() => {
-    console.info('[BookingDetail] mounted');
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      console.warn('[BookingDetail] beforeunload', e);
-    };
-    const onVisibility = () => {
-      console.info('[BookingDetail] visibilitychange', document.visibilityState);
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      console.info('[BookingDetail] unmounted');
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, []);
+  // Commented out to prevent console spam - uncomment if needed for debugging
+  // useEffect(() => {
+  //   console.info('[BookingDetail] mounted');
+  //   const onBeforeUnload = (e: BeforeUnloadEvent) => {
+  //     console.warn('[BookingDetail] beforeunload', e);
+  //   };
+  //   const onVisibility = () => {
+  //     console.info('[BookingDetail] visibilitychange', document.visibilityState);
+  //   };
+  //   window.addEventListener('beforeunload', onBeforeUnload);
+  //   document.addEventListener('visibilitychange', onVisibility);
+  //   return () => {
+  //     console.info('[BookingDetail] unmounted');
+  //     window.removeEventListener('beforeunload', onBeforeUnload);
+  //     document.removeEventListener('visibilitychange', onVisibility);
+  //   };
+  // }, []);
 
   const fmtTime = (iso?: string | null) => {
     if (!iso) return '-';
@@ -11610,17 +11684,39 @@ const MyTicketsPage: React.FC = () => {
   };
 
   const handleDownloadTicket = (ticket: Ticket) => {
-    // Simulate download
-    alert(`Đang tải xuống vé ${ticket.bookingId}`);
+    // Mở trang chi tiết và tự động in (hoặc lưu PDF) từ đó
+    navigate('/ticket-detail', { state: { ticket, autoPrint: true } });
   };
 
-  const handleCancelTicket = (ticketId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn hủy vé này?')) {
-      const updatedTickets = tickets.map(ticket => 
-        ticket.id === ticketId ? { ...ticket, status: 'cancelled' as const } : ticket
-      );
-      setTickets(updatedTickets);
-      localStorage.setItem('vexe7tv_tickets', JSON.stringify(updatedTickets));
+  const handleCancelTicket = async (ticketId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy vé này? Hành động này sẽ trả lại ghế trống.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Gọi API hủy vé xuống Backend
+      const res = await fetch(`${API_BASE}/api/bookings/${ticketId}/cancel`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert('Hủy vé thành công!');
+        // Reload lại trang để cập nhật danh sách mới nhất từ server
+        window.location.reload(); 
+      } else {
+        alert(data.error || 'Có lỗi xảy ra khi hủy vé');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi kết nối server');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -11939,12 +12035,11 @@ export default MyTicketsPage;
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, CreditCard, Shield, Lock } from 'lucide-react';
-
 const API_BASE = 'http://localhost:5000';
 
 type PaymentState = {
   tripId: string;
-  seats: number[]; // đã chọn ở BookingDetail
+  seats: number[];
   passenger: { name: string; phone: string; email?: string; note?: string; };
   stops?: { pickupId?: string; dropoffId?: string; pickupName?: string; dropoffName?: string };
   route?: { from?: string; to?: string; durationMin?: number | null };
@@ -11958,7 +12053,8 @@ const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const st = (location.state || {}) as PaymentState;
 
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking' | 'cod'>('banking');
+  // Mặc định chọn Banking
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking'>('banking');
   const [isProcessing, setIsProcessing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -11980,7 +12076,7 @@ const PaymentPage: React.FC = () => {
       const res = await fetch(`${API_BASE}/api/bookings/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Quan trọng để gửi cookie token
+        credentials: 'include', 
         body: JSON.stringify({
           tripId: st.tripId,
           seatNumbers: st.seats,
@@ -11990,13 +12086,12 @@ const PaymentPage: React.FC = () => {
           stops: st.stops
         })
       });
+
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e?.error || `HTTP ${res.status}`);
       }
       const payload = await res.json();
-
-      // Điều hướng sang trang thành công, cầm dữ liệu thật từ BE
       navigate('/payment-success', { state: payload });
     } catch (e: any) {
       setErr(e?.message || 'Có lỗi khi thanh toán');
@@ -12041,7 +12136,7 @@ const PaymentPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Thông tin đặt vé (từ state) */}
+          {/* Thông tin đặt vé */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Thông tin chuyến đi</h3>
@@ -12135,7 +12230,7 @@ const PaymentPage: React.FC = () => {
 
               {/* MoMo */}
               <div
-                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${paymentMethod==='momo' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors mb-3 ${paymentMethod==='momo' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}`}
                 onClick={() => setPaymentMethod('momo')}
               >
                 <div className="flex items-center">
@@ -12173,24 +12268,8 @@ const PaymentPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* COD */}
-              <div
-                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${paymentMethod==='cod' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setPaymentMethod('cod')}
-              >
-                <div className="flex items-center">
-                  <div className="w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center">
-                    {paymentMethod === 'cod' && <div className="w-3 h-3 bg-green-500 rounded-full"></div>}
-                  </div>
-                  <div className="flex items-center">
-                    <Bus className="h-8 w-8 text-green-600 mr-3" />
-                    <div>
-                      <p className="font-semibold text-gray-900">Thanh toán tại xe</p>
-                      <p className="text-sm text-gray-600">Trả tiền khi lên xe</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* ĐÃ XÓA PHẦN THANH TOÁN TẠI XE Ở ĐÂY */}
+
             </div>
 
             {/* Tóm tắt */}
@@ -12200,7 +12279,6 @@ const PaymentPage: React.FC = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Ghế đã chọn:</span>
                   <span className="font-medium text-right">
-                    {/* Ví dụ: 2 ghế (A1, A2) */}
                     {st.seats.length} ghế <br/>
                     <span className="text-blue-600 text-sm">({st.seats.join(', ')})</span>
                   </span>
@@ -12261,7 +12339,6 @@ const PaymentPage: React.FC = () => {
 };
 
 export default PaymentPage;
-
 --- END OF FILE: frontend\src\components\PaymentPage.tsx ---
 
 
@@ -13176,9 +13253,9 @@ export default RoutesPage;
 
 
 --- START OF FILE: frontend\src\components\TicketDetailPage.tsx ---
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Calendar, Download, Home, User, Phone, Mail, FileText, AlertCircle } from 'lucide-react';
 
 interface Ticket {
   id: string;
@@ -13202,13 +13279,14 @@ interface Ticket {
   totalAmount: number;
   paymentMethod: string;
   bookingDate: string;
-  status: 'confirmed' | 'cancelled' | 'used';
+  status: 'confirmed' | 'cancelled' | 'used' | 'pending'; // Thêm pending vào đây
 }
 
 const TicketDetailPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const ticket = location.state?.ticket as Ticket;
+  const autoPrint = location.state?.autoPrint;
 
   if (!ticket) {
     navigate('/my-tickets');
@@ -13216,9 +13294,15 @@ const TicketDetailPage: React.FC = () => {
   }
 
   const handleDownloadTicket = () => {
-    // Simulate ticket download
-    alert(`Đang tải xuống vé ${ticket.bookingId}`);
+    window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      // Delay một chút để DOM render xong trước khi in
+      setTimeout(() => window.print(), 300);
+    }
+  }, [autoPrint]);
 
   const handleBackToTickets = () => {
     navigate('/my-tickets');
@@ -13231,6 +13315,7 @@ const TicketDetailPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800'; // Màu vàng cho Pending
       case 'cancelled': return 'bg-red-100 text-red-800';
       case 'used': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -13240,6 +13325,7 @@ const TicketDetailPage: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed': return 'Đã xác nhận';
+      case 'pending': return 'Chờ thanh toán'; // Hiển thị chữ đúng
       case 'cancelled': return 'Đã hủy';
       case 'used': return 'Đã sử dụng';
       default: return 'Không xác định';
@@ -13258,7 +13344,7 @@ const TicketDetailPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center py-4">
             <button 
@@ -13286,8 +13372,7 @@ const TicketDetailPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Vé điện tử */}
           <div className="space-y-6">
-            {/* Vé điện tử */}
-            <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200 printable-ticket">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Vé điện tử</h3>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(ticket.status)}`}>
@@ -13343,13 +13428,25 @@ const TicketDetailPage: React.FC = () => {
                 </div>
               </div>
               
-              <button
-                onClick={handleDownloadTicket}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-              >
-                <Download className="h-5 w-5 mr-2" />
-                Tải vé điện tử
-              </button>
+              {/* LOGIC NÚT TẢI VÉ: Chỉ hiện khi Đã xác nhận */}
+              {ticket.status === 'confirmed' ? (
+                <button
+                  onClick={handleDownloadTicket}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center no-print"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  Tải vé điện tử
+                </button>
+              ) : ticket.status === 'pending' ? (
+                <div className="w-full bg-yellow-100 text-yellow-800 py-3 px-4 rounded-lg border border-yellow-200 text-center font-medium flex items-center justify-center no-print">
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  Vui lòng thanh toán để tải vé
+                </div>
+              ) : (
+                <button disabled className="w-full bg-gray-300 text-gray-500 py-2 px-4 rounded-lg cursor-not-allowed flex items-center justify-center no-print">
+                  Vé không khả dụng
+                </button>
+              )}
             </div>
 
             {/* Thông tin chuyến đi */}
@@ -13384,7 +13481,7 @@ const TicketDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Thông tin chi tiết */}
+          {/* Thông tin chi tiết bên phải */}
           <div className="space-y-6">
             {/* Thông tin hành khách */}
             <div className="bg-white rounded-xl shadow-md p-6">
@@ -13446,7 +13543,6 @@ const TicketDetailPage: React.FC = () => {
                   <span className="text-gray-600">Số ghế:</span>
                   <span className="font-medium">{ticket.seats.length} ghế</span>
                 </div>
-                {/* Removed explicit 'Ghế đã chọn' row to avoid duplicate display */}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Giá vé/ghế:</span>
                   <span className="font-medium">{ticket.route.price}₫</span>
@@ -13476,7 +13572,7 @@ const TicketDetailPage: React.FC = () => {
             </div>
 
             {/* Hành động */}
-            <div className="space-y-3">
+            <div className="space-y-3 no-print">
               <button
                 onClick={handleBackToTickets}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-medium"
@@ -13521,7 +13617,6 @@ const TicketDetailPage: React.FC = () => {
 };
 
 export default TicketDetailPage;
-
 --- END OF FILE: frontend\src\components\TicketDetailPage.tsx ---
 
 
@@ -13594,8 +13689,21 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to the Target:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+          });
+        },
       }
     }
   }

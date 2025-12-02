@@ -371,9 +371,9 @@
                     <span>👥</span>
                     <span>Users</span>
                 </a>
-                <a href="/admin/assistants" class="nav-item active">
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
-                    <span>Assistants</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -408,7 +408,6 @@
                     <h2>Quản lý Phụ xe</h2>
                     <p>Quản lý tất cả phụ xe trong hệ thống</p>
                 </div>
-                <a href="/admin/assistants/new" class="btn btn-primary">➕ Thêm Phụ xe</a>
             </div>
             
             <div class="stats-grid">
@@ -451,8 +450,13 @@
             </div>
             
             <div class="content-card">
-                <h2>Danh sách Phụ xe</h2>
-                <% if (assistants.length === 0) { %>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">Danh sách Phụ xe</h2>
+                <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
+                    ➕ Thêm Phụ xe
+                </a>
+            </div>
+            <% if (assistants.length === 0) { %>
                     <div class="empty-state">
                         <div class="empty-state-icon">👷</div>
                         <h3>Chưa có phụ xe nào</h3>

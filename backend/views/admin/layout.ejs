@@ -153,7 +153,7 @@
         <nav>
             <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Dashboard</a>
             <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Users</a>
-            <a href="/admin/users?role=assistant" class="<%= page === 'users' && typeof roleFilter !== 'undefined' && roleFilter === 'assistant' ? 'active' : '' %>">🧑‍✈️ Lơ xe</a>
+            <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>"><span>🧑‍✈️</span> <span>Phụ xe</span></a>
             <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Buses</a>
             <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Routes</a>
             <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Trips</a>
