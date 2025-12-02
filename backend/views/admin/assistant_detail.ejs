@@ -398,7 +398,7 @@
                                         </td>
                                         <td>
                                             <%= route.total_distance_km ? route.total_distance_km + ' km' : 'N/A' %>
-                                        </td>
+                                    </td>
                                         <td>
                                             <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'N/A' %>
                                         </td>
@@ -460,89 +460,49 @@
                 <div class="info-card">
                     <h3>Danh sách Hành khách - Quản lý Lên/Xuống xe (<%= allBookings.length %>)</h3>
                     <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Hành khách</th>
-                                    <th>Ghế</th>
-                                    <th>Chuyến</th>
-                                    <th>Thời gian</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hành khách</th>
+                                <th>Ghế</th>
+                                <th>Chuyến</th>
+                                <th>Thời gian</th>
+                                <th>Trạng thái</th>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <% allBookings.forEach(function(item) { %>
-                                    <tr>
-                                        <td>
-                                            <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'N/A') %></strong><br>
-                                            <small style="color: var(--gray);">
-                                                <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'N/A' %>
-                                        </td>
-                                        <td>
-                                            <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'N/A' %>
-                                        </td>
-                                        <td>
-                                            <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
-                                        </td>
-                                        <td>
-                                            <% if (item.checkin) { %>
-                                                <% if (item.checkin.status === 'checked_in') { %>
-                                                    <span class="badge badge-success">✅ Đã lên xe</span><br>
-                                                    <small style="color: var(--gray);">
-                                                        <%= new Date(item.checkin.checkin_time).toLocaleString('vi-VN') %>
-                                                    </small>
-                                                <% } else { %>
-                                                    <span class="badge badge-danger">❌ Không đến</span>
-                                                <% } %>
-                                            <% } else { %>
-                                                <span class="badge badge-warning">⏳ Chờ check-in</span>
-                                            <% } %>
-                                        </td>
-                                        <td>
-                                            <% if (!item.checkin) { %>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: var(--success); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'checked_in')"
-                                                >
-                                                    ✅ Đã lên xe
-                                                </button>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; background: var(--danger); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'no_show')"
-                                                >
-                                                    ❌ Không đến
-                                                </button>
-                                            <% } else { %>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: var(--success); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'checked_in')"
-                                                    <%= item.checkin.status === 'checked_in' ? 'disabled' : '' %>
-                                                >
-                                                    ✅ Đã lên xe
-                                                </button>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; background: var(--danger); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'no_show')"
-                                                    <%= item.checkin.status === 'no_show' ? 'disabled' : '' %>
-                                                >
-                                                    ❌ Không đến
-                                                </button>
-                                            <% } %>
-                                        </td>
-                                    </tr>
-                                <% }); %>
-                            </tbody>
-                        </table>
-                    </div>
+                        </thead>
+                        <tbody>
+                            <% allBookings.forEach(function(item) { %>
+                                <tr>
+                                    <td>
+                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'N/A') %></strong><br>
+                                        <small style="color: var(--gray);">
+                                            <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'N/A' %>
+                                    </td>
+                                    <td>
+                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'N/A' %>
+                                    </td>
+                                    <td>
+                                        <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <% if (item.checkin && item.checkin.status === 'checked_in') { %>
+                                            <span class="badge badge-success">✅ Đã lên xe</span>
+                                            <br><small><%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
+                                        <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
+                                            <span class="badge badge-danger">❌ Vắng mặt</span>
+                                        <% } else { %>
+                                            <span class="badge badge-warning">⏳ Chưa đón</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
                 </div>
             <% } else { %>
                 <div class="info-card">

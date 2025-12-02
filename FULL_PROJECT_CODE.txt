@@ -3981,9 +3981,9 @@ main();
                     <span>👥</span>
                     <span>Users</span>
                 </a>
-                <a href="/admin/assistants" class="nav-item active">
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
-                    <span>Assistants</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -4018,7 +4018,6 @@ main();
                     <h2>Quản lý Phụ xe</h2>
                     <p>Quản lý tất cả phụ xe trong hệ thống</p>
                 </div>
-                <a href="/admin/assistants/new" class="btn btn-primary">➕ Thêm Phụ xe</a>
             </div>
             
             <div class="stats-grid">
@@ -4061,8 +4060,13 @@ main();
             </div>
             
             <div class="content-card">
-                <h2>Danh sách Phụ xe</h2>
-                <% if (assistants.length === 0) { %>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">Danh sách Phụ xe</h2>
+                <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
+                    ➕ Thêm Phụ xe
+                </a>
+            </div>
+            <% if (assistants.length === 0) { %>
                     <div class="empty-state">
                         <div class="empty-state-icon">👷</div>
                         <h3>Chưa có phụ xe nào</h3>
@@ -4423,9 +4427,9 @@ main();
                     <span>👥</span>
                     <span>Users</span>
                 </a>
-                <a href="/admin/assistants" class="nav-item active">
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
-                    <span>Assistants</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -4545,8 +4549,8 @@ main();
                                             <strong><%= (route.origin || route.from_city) + ' → ' + (route.destination || route.to_city) %></strong>
                                         </td>
                                         <td>
-                                            <%= route.distance ? route.distance + ' km' : 'N/A' %>
-                                        </td>
+                                            <%= route.total_distance_km ? route.total_distance_km + ' km' : 'N/A' %>
+                                    </td>
                                         <td>
                                             <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'N/A' %>
                                         </td>
@@ -4608,89 +4612,49 @@ main();
                 <div class="info-card">
                     <h3>Danh sách Hành khách - Quản lý Lên/Xuống xe (<%= allBookings.length %>)</h3>
                     <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Hành khách</th>
-                                    <th>Ghế</th>
-                                    <th>Chuyến</th>
-                                    <th>Thời gian</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hành khách</th>
+                                <th>Ghế</th>
+                                <th>Chuyến</th>
+                                <th>Thời gian</th>
+                                <th>Trạng thái</th>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <% allBookings.forEach(function(item) { %>
-                                    <tr>
-                                        <td>
-                                            <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'N/A') %></strong><br>
-                                            <small style="color: var(--gray);">
-                                                <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'N/A' %>
-                                        </td>
-                                        <td>
-                                            <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'N/A' %>
-                                        </td>
-                                        <td>
-                                            <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
-                                        </td>
-                                        <td>
-                                            <% if (item.checkin) { %>
-                                                <% if (item.checkin.status === 'checked_in') { %>
-                                                    <span class="badge badge-success">✅ Đã lên xe</span><br>
-                                                    <small style="color: var(--gray);">
-                                                        <%= new Date(item.checkin.checkin_time).toLocaleString('vi-VN') %>
-                                                    </small>
-                                                <% } else { %>
-                                                    <span class="badge badge-danger">❌ Không đến</span>
-                                                <% } %>
-                                            <% } else { %>
-                                                <span class="badge badge-warning">⏳ Chờ check-in</span>
-                                            <% } %>
-                                        </td>
-                                        <td>
-                                            <% if (!item.checkin) { %>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: var(--success); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'checked_in')"
-                                                >
-                                                    ✅ Đã lên xe
-                                                </button>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; background: var(--danger); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'no_show')"
-                                                >
-                                                    ❌ Không đến
-                                                </button>
-                                            <% } else { %>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; margin-right: 0.5rem; background: var(--success); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'checked_in')"
-                                                    <%= item.checkin.status === 'checked_in' ? 'disabled' : '' %>
-                                                >
-                                                    ✅ Đã lên xe
-                                                </button>
-                                                <button 
-                                                    class="btn" 
-                                                    style="padding: 0.5rem 1rem; background: var(--danger); color: white; font-size: 0.75rem;"
-                                                    onclick="checkinPassenger('<%= assistant._id %>', '<%= item.booking._id %>', 'no_show')"
-                                                    <%= item.checkin.status === 'no_show' ? 'disabled' : '' %>
-                                                >
-                                                    ❌ Không đến
-                                                </button>
-                                            <% } %>
-                                        </td>
-                                    </tr>
-                                <% }); %>
-                            </tbody>
-                        </table>
-                    </div>
+                        </thead>
+                        <tbody>
+                            <% allBookings.forEach(function(item) { %>
+                                <tr>
+                                    <td>
+                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'N/A') %></strong><br>
+                                        <small style="color: var(--gray);">
+                                            <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'N/A' %>
+                                    </td>
+                                    <td>
+                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'N/A' %>
+                                    </td>
+                                    <td>
+                                        <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <% if (item.checkin && item.checkin.status === 'checked_in') { %>
+                                            <span class="badge badge-success">✅ Đã lên xe</span>
+                                            <br><small><%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
+                                        <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
+                                            <span class="badge badge-danger">❌ Vắng mặt</span>
+                                        <% } else { %>
+                                            <span class="badge badge-warning">⏳ Chưa đón</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
                 </div>
             <% } else { %>
                 <div class="info-card">
@@ -4796,16 +4760,24 @@ main();
     .container{max-width:800px;margin:3rem auto;background:white;padding:2rem;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.05)}
     h2{margin-bottom:1.5rem;color:#1e3a8a}
     label{display:block;margin-top:1rem;font-weight:600;color:#374151}
-    input[type=text], input[type=email], input[type=tel], input[type=number], input[type=password], select{width:100%;padding:0.75rem;border:1px solid #e5e7eb;border-radius:6px;font-size:0.95rem}
+    
+    input[type=text], input[type=email], input[type=tel], input[type=number], select {
+      width:100%; padding:0.75rem; border:1px solid #e5e7eb; border-radius:6px; font-size:0.95rem; margin-top: 0.25rem;
+    }
+    
     input:focus, select:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
+    
+    /* Style cho thông báo lỗi */
+    .error-msg { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+    .input-error { border-color: #dc2626 !important; background-color: #fef2f2; }
+
     .form-group{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-    .checkbox-group{margin-top:1rem;display:flex;align-items:center;gap:0.5rem}
-    .checkbox-group input[type=checkbox]{width:auto}
     .trips-section{margin-top:2rem;padding-top:2rem;border-top:2px solid #e5e7eb}
     .trips-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:0.75rem;margin-top:1rem;max-height:300px;overflow-y:auto;padding:1rem;background:#f9fafb;border-radius:6px}
     .trip-item{display:flex;align-items:center;gap:0.5rem}
     .trip-item input[type=checkbox]{width:auto}
     .actions{margin-top:2rem;display:flex;gap:0.75rem}
+    
     .btn{padding:0.75rem 1.5rem;border-radius:6px;border:none;cursor:pointer;font-weight:600;text-decoration:none;display:inline-block}
     .btn-primary{background:#6366f1;color:white}
     .btn-primary:hover{background:#4f46e5}
@@ -4817,28 +4789,35 @@ main();
 <body>
   <div class="container">
     <h2><%= assistant ? 'Sửa thông tin phụ xe' : 'Thêm phụ xe mới' %></h2>
-    <form method="post" action="<%= assistant ? ('/admin/assistants/' + assistant._id) : '/admin/assistants' %>">
+    
+    <form id="assistantForm" method="post" action="<%= assistant ? ('/admin/assistants/' + assistant._id) : '/admin/assistants' %>">
       
       <div class="form-group">
         <div>
           <label>Họ tên *</label>
-          <input type="text" name="name" value="<%= assistant ? assistant.name : '' %>" required />
+          <input type="text" id="name" name="name" value="<%= assistant ? assistant.name : '' %>" placeholder="Nhập họ tên" />
+          <div class="error-msg" id="error-name">Vui lòng nhập họ tên</div>
         </div>
         <div>
-          <label>Email *</label>
-          <input type="email" name="email" value="<%= assistant ? assistant.email : '' %>" required />
+          <label>Email (Tùy chọn)</label>
+          <input type="email" id="email" name="email" value="<%= assistant ? assistant.email : '' %>" placeholder="email@example.com" />
+          <div class="error-msg" id="error-email">Email không hợp lệ</div>
         </div>
       </div>
 
       <div class="form-group">
         <div>
           <label>Số điện thoại *</label>
-          <input type="tel" name="phone" value="<%= assistant ? assistant.phone : '' %>" required />
+          <input type="tel" id="phone" name="phone" 
+                 value="<%= assistant ? assistant.phone : '' %>" 
+                 placeholder="09xx..." 
+                 maxlength="10"
+                 oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+          <div class="error-msg" id="error-phone">Số điện thoại không hợp lệ (Phải có 10 số)</div>
         </div>
         <div>
           <label>Mã nhân viên</label>
           <input type="text" name="employee_id" value="<%= assistant ? assistant.employee_id : '' %>" placeholder="VD: PX001" />
-          <div class="help-text">Mã định danh phụ xe</div>
         </div>
       </div>
 
@@ -4864,7 +4843,7 @@ main();
       <% if (routes) { %>
         <div class="trips-section">
           <h3 style="margin-bottom:1rem;color:#1e3a8a">Gán tuyến cho phụ xe</h3>
-          <div class="help-text">Chọn các tuyến mà phụ xe này sẽ phụ trách. Phụ xe sẽ check-in hành khách cho tất cả các chuyến thuộc tuyến được chọn.</div>
+          <div class="help-text">Chọn các tuyến mà phụ xe này sẽ phụ trách.</div>
           <div class="trips-grid">
             <% routes.forEach(function(route) { 
               const isAssigned = assistant && assistant.assigned_routes && assistant.assigned_routes.some(r => {
@@ -4876,19 +4855,10 @@ main();
                 <input type="checkbox" name="assigned_routes" value="<%= route._id %>" <%= isAssigned ? 'checked' : '' %> />
                 <label style="font-weight:normal;margin:0;cursor:pointer;">
                   <%= (route.origin || route.from_city) + ' → ' + (route.destination || route.to_city) %>
-                  <% if (route.distance) { %>
-                    <br>
-                    <small style="color:#6b7280">
-                      Khoảng cách: <%= route.distance %> km
-                    </small>
-                  <% } %>
                 </label>
               </div>
             <% }); %>
           </div>
-          <% if (routes.length === 0) { %>
-            <p style="color:#6b7280;margin-top:1rem;">Chưa có tuyến nào trong hệ thống</p>
-          <% } %>
         </div>
       <% } %>
 
@@ -4898,6 +4868,74 @@ main();
       </div>
     </form>
   </div>
+
+  <script>
+    const form = document.getElementById('assistantForm');
+    const nameInput = document.getElementById('name');
+    const phoneInput = document.getElementById('phone');
+    const emailInput = document.getElementById('email');
+
+    // Hàm hiển thị lỗi
+    function showError(input, errorId, show) {
+        const errorDiv = document.getElementById(errorId);
+        if (show) {
+            errorDiv.style.display = 'block';
+            input.classList.add('input-error');
+        } else {
+            errorDiv.style.display = 'none';
+            input.classList.remove('input-error');
+        }
+    }
+
+    // Bắt sự kiện khi bấm Lưu
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+
+        // 1. Kiểm tra Tên
+        if (!nameInput.value.trim()) {
+            showError(nameInput, 'error-name', true);
+            isValid = false;
+        } else {
+            showError(nameInput, 'error-name', false);
+        }
+
+        // 2. Kiểm tra SĐT (Phải là số, bắt đầu bằng 0, độ dài 10 ký tự)
+        const phoneRegex = /^(0)[0-9]{9}$/;
+        if (!phoneInput.value.match(phoneRegex)) {
+            showError(phoneInput, 'error-phone', true);
+            isValid = false;
+        } else {
+            showError(phoneInput, 'error-phone', false);
+        }
+
+        // 3. Kiểm tra Email (Nếu có nhập thì phải đúng định dạng)
+        if (emailInput.value.trim()) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailInput.value.match(emailRegex)) {
+                showError(emailInput, 'error-email', true);
+                isValid = false;
+            } else {
+                showError(emailInput, 'error-email', false);
+            }
+        }
+
+        // Nếu có lỗi thì chặn gửi form
+        if (!isValid) {
+            e.preventDefault(); 
+        }
+    });
+
+    // Tự động xóa lỗi khi người dùng bắt đầu gõ lại
+    [nameInput, phoneInput, emailInput].forEach(input => {
+        input.addEventListener('input', function() {
+            this.classList.remove('input-error');
+            // Tìm div lỗi ngay sau input (hoặc dùng ID tương ứng)
+            if(this.id === 'name') document.getElementById('error-name').style.display = 'none';
+            if(this.id === 'phone') document.getElementById('error-phone').style.display = 'none';
+            if(this.id === 'email') document.getElementById('error-email').style.display = 'none';
+        });
+    });
+  </script>
 </body>
 </html>
 
@@ -5281,6 +5319,10 @@ main();
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
                     <span>Users</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -5857,6 +5899,10 @@ main();
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
                     <span>Users</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item active">
                     <span>🚌</span>
@@ -6478,6 +6524,10 @@ main();
                     <span>👥</span>
                     <span>Users</span>
                 </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -6879,7 +6929,7 @@ main();
         <nav>
             <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Dashboard</a>
             <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Users</a>
-            <a href="/admin/users?role=assistant" class="<%= page === 'users' && typeof roleFilter !== 'undefined' && roleFilter === 'assistant' ? 'active' : '' %>">🧑‍✈️ Lơ xe</a>
+            <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>"><span>🧑‍✈️</span> <span>Phụ xe</span></a>
             <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Buses</a>
             <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Routes</a>
             <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Trips</a>
@@ -7285,6 +7335,10 @@ main();
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
                     <span>Users</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -7815,6 +7869,10 @@ main();
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
                     <span>Users</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
@@ -8467,6 +8525,10 @@ main();
                     <span>👥</span>
                     <span>Users</span>
                 </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
+                </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
                     <span>Buses</span>
@@ -9055,8 +9117,8 @@ main();
                     <span>👥</span>
                     <span>Users</span>
                 </a>
-                <a href="/admin/users?role=assistant" class="nav-item <%= page === 'users' && roleFilter === 'assistant' ? 'active' : '' %>">
-                    <span>🧑‍✈️</span>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
                     <span>Lơ xe</span>
                 </a>
                 <a href="/admin/buses" class="nav-item <%= page === 'buses' ? 'active' : '' %>">
