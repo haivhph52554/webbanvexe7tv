@@ -142,7 +142,7 @@ const PaymentPage: React.FC = () => {
                   <span className="ml-2 font-medium">{fmtTime(st.times?.departureTime)}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Giờ đến:</span>
+                  <span className="text-gray-600">Giờ dự kiến đến:</span>
                   <span className="ml-2 font-medium">{fmtTime(st.times?.arrivalTime || null)}</span>
                 </div>
                 <div>

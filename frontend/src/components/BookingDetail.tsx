@@ -359,6 +359,29 @@ const BookingDetail: React.FC = () => {
     return price;
   }, [tripDetail?.stops, tripDetail?.trip?.base_price, selectedPickupId, selectedDropoffId, selectedTrip?.base_price]);
 
+  // Tính thời gian đến dự kiến cho điểm trả đã chọn (nếu có)
+  const computedArrivalIso = React.useMemo(() => {
+    if (!selectedTrip) return selectedTrip?.end_time || null;
+    if (selectedDropoffId && tripDetail?.stops && tripDetail.stops.length > 0) {
+      const stops = tripDetail.stops;
+      const orders = stops.map(s => (typeof s.order === 'number' ? s.order : 0));
+      const minOrder = Math.min(...orders);
+      const maxOrder = Math.max(...orders);
+      const totalSegments = (maxOrder - minOrder) || 1;
+      const dropoff = stops.find(s => s._id === selectedDropoffId);
+      const estMin = (selectedTrip.route && (selectedTrip.route as any).estimated_duration_min) || (tripDetail.trip.route && (tripDetail.trip.route as any).estimated_duration_min) || 0;
+      if (dropoff && typeof dropoff.order === 'number' && estMin) {
+        const segmentsBetween = Math.max(0, dropoff.order - minOrder);
+        const frac = Math.min(1, segmentsBetween / totalSegments);
+        const mins = Math.round(estMin * frac);
+        const d = new Date(selectedTrip.start_time);
+        d.setMinutes(d.getMinutes() + mins);
+        return d.toISOString();
+      }
+    }
+    return selectedTrip.end_time || null;
+  }, [selectedTrip, tripDetail?.stops, selectedDropoffId]);
+
   const computedTotalAmount = React.useMemo(() => {
     return (computedPricePerSeat || 0) * (selectedSeats.length || 0);
   }, [computedPricePerSeat, selectedSeats.length]);
@@ -473,11 +496,11 @@ const BookingDetail: React.FC = () => {
                     <p className="text-gray-600">{fmtTime(selectedTrip.start_time)}</p>
                   </div>
                   
-                  {/* Ô 2: Giờ đến */}
+                  {/* Ô 2: Giờ dự kiến đến */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-900">Giờ đến</p>
-                    <p className="text-gray-600">{fmtTime(selectedTrip.end_time || undefined)}</p>
+                    <p className="font-semibold text-gray-900">Giờ dự kiến đến</p>
+                    <p className="text-gray-600">{fmtTime(computedArrivalIso || undefined)}</p>
                   </div>
 
                   {/* Ô 3: BIỂN SỐ XE  */}
