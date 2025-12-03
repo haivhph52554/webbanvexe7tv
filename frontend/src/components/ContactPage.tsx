@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, Phone, Mail, MapPin, Clock, MessageCircle, Send, CheckCircle } from 'lucide-react';
 
@@ -12,6 +12,39 @@ const ContactPage: React.FC = () => {
     message: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [publicView, setPublicView] = useState<{ contactId: string; token: string } | null>(null);
+  const [contactDetails, setContactDetails] = useState<any>(null);
+  const [pollingId, setPollingId] = useState<number | null>(null);
+
+  // Khi component mount, nếu có lastContactId trong localStorage thì tự load và bắt polling
+  useEffect(() => {
+    try {
+      const lastId = localStorage.getItem('lastContactId');
+      if (lastId) {
+        const token = localStorage.getItem(`contactToken:${lastId}`);
+        if (token) {
+          const pv = { contactId: lastId, token };
+          setPublicView(pv);
+          fetchPublicContact(pv.contactId, pv.token);
+          const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
+          setPollingId(id);
+        }
+      }
+    } catch (e) {
+      console.warn('ContactPage mount load token error', e);
+    }
+
+    // cleanup when unmount
+    return () => {
+      if (pollingId) { window.clearInterval(pollingId); }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // clear interval if pollingId changes (ensure no duplicate timers)
+  useEffect(() => {
+    return () => { if (pollingId) { window.clearInterval(pollingId); } };
+  }, [pollingId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -23,19 +56,61 @@ const ContactPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate form submission
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        message: ''
-      });
-    }, 3000);
+  
+    (async () => {
+      try {
+        const apiUrl = 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setIsSubmitted(true);
+          // store token so user can view replies on site
+          if (data.contactId && data.token) {
+            const pv = { contactId: data.contactId, token: data.token };
+            setPublicView(pv);
+            try { 
+              localStorage.setItem(`contactToken:${data.contactId}`, data.token);
+              localStorage.setItem('lastContactId', data.contactId);
+            } catch(e){}
+            // start polling for replies
+            fetchPublicContact(pv.contactId, pv.token);
+            const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
+            setPollingId(id);
+          }
+
+          setTimeout(() => setIsSubmitted(false), 3000);
+          setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+        } else {
+          alert(data.error || 'Có lỗi khi gửi liên hệ');
+        }
+      } catch (err) {
+        console.error('Contact submit error', err);
+        alert('Lỗi khi gửi liên hệ. Vui lòng thử lại sau.');
+      }
+    })();
   };
+
+  async function fetchPublicContact(contactId: string, token: string) {
+    try {
+      const apiUrl = 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/public/contacts/${contactId}?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setContactDetails(data.contact);
+      } else {
+        // if token invalid or expired, stop polling
+        if (res.status === 403 || res.status === 404) {
+          if (pollingId) { window.clearInterval(pollingId); setPollingId(null); }
+        }
+      }
+    } catch (e) {
+      console.error('fetchPublicContact error', e);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,7 +154,7 @@ const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-1">Hotline</h4>
-                    <p className="text-gray-600 mb-1">1900 1234</p>
+                    <p className="text-gray-600 mb-1">1900 6886</p>
                     <p className="text-sm text-gray-500">Hỗ trợ 24/7</p>
                   </div>
                 </div>
@@ -90,7 +165,7 @@ const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-1">Email</h4>
-                    <p className="text-gray-600 mb-1">support@vexe7tv.com</p>
+                    <p className="text-gray-600 mb-1">vexe7tv@gmail.com</p>
                     <p className="text-sm text-gray-500">Phản hồi trong 24h</p>
                   </div>
                 </div>
@@ -253,6 +328,29 @@ const ContactPage: React.FC = () => {
                   Gửi tin nhắn
                 </button>
               </form>
+            )}
+            {/* Public view: nếu có publicView hiển thị thread và replies */}
+            {publicView && contactDetails && (
+              <div className="mt-6 border-t pt-6">
+                <h4 className="text-lg font-semibold mb-2">Lịch sử liên hệ</h4>
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-sm text-gray-600 mb-2"><strong>Chủ đề:</strong> {contactDetails.subject}</div>
+                  <div className="mb-3"><strong>Nội dung bạn gửi:</strong>
+                    <div className="mt-2 p-3 bg-white rounded border">{contactDetails.message}</div>
+                  </div>
+                  <div className="mb-2"><strong>Phản hồi:</strong></div>
+                  {contactDetails.replies && contactDetails.replies.length > 0 ? (
+                    contactDetails.replies.map((r: any, idx: number) => (
+                      <div key={idx} className="mb-3 p-3 bg-white rounded border">
+                        <div className="text-sm text-gray-500 mb-1">{new Date(r.createdAt).toLocaleString()}</div>
+                        <div className="text-gray-800">{r.message}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500">Hiện chưa có phản hồi. Vui lòng kiểm tra lại sau hoặc kiểm tra email.</div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
