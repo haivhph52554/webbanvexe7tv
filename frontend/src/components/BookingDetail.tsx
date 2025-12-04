@@ -336,7 +336,7 @@ const BookingDetail: React.FC = () => {
       stops: { pickupId: selectedPickupId, dropoffId: selectedDropoffId, pickupName: pickup.stop_name, dropoffName: dropoff.stop_name },
       route: { from: tripDetail.trip.route?.from_city || '', to: tripDetail.trip.route?.to_city || '', durationMin: tripDetail.trip.route?.estimated_duration_min || null },
       bus: { busType: tripDetail.trip.bus?.bus_type || '', licensePlate: tripDetail.trip.bus?.license_plate || '', seatCount: tripDetail.trip.bus?.seat_count || 0 },
-      times: { departureTime: tripDetail.trip.start_time, arrivalTime: tripDetail.trip.end_time || null },
+      times: { departureTime: tripDetail.trip.start_time, arrivalTime: computedArrivalIso || tripDetail.trip.end_time || null },
       pricePerSeat: computedPricePerSeat
     } });
   };

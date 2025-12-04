@@ -235,8 +235,6 @@ const PaymentPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ĐÃ XÓA PHẦN THANH TOÁN TẠI XE Ở ĐÂY */}
-
             </div>
 
             {/* Tóm tắt */}
