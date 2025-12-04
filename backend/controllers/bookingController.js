@@ -204,21 +204,48 @@ exports.checkout = async (req, res) => {
       );
 
       // 10) Chuẩn bị payload trả về FE (seats trả về dạng SỐ cho UI)
+      // --- BẮT ĐẦU ĐOẠN CODE CẦN THAY THẾ ---
+      
+      // Tính toán lại giờ đến dự kiến dựa trên tỷ lệ quãng đường (fraction)
+      // (Biến fraction đã được tính ở đoạn code bên trên của m rồi)
+      // Đoạn này phải nằm NGAY TRÊN cái const payload của m
+      let calculatedArrivalTime = booking.end_time;
+      if (trip.start_time && trip.end_time && typeof fraction === 'number') {
+          const startTime = new Date(trip.start_time).getTime();
+          const endTime = new Date(trip.end_time).getTime();
+          const totalDuration = endTime - startTime;
+          const passengerDuration = totalDuration * fraction;
+          calculatedArrivalTime = new Date(startTime + passengerDuration);
+      }
+
+      // 10) Chuẩn bị payload trả về FE (Sửa lại để ưu tiên lấy tên điểm dừng)
       const payload = {
         bookingId: String(booking._id),
         paymentId: String(payment._id),
         route: {
-          from: booking.route_snapshot.from,
-          to: booking.route_snapshot.to,
+          // QUAN TRỌNG: Nếu có điểm đón/trả cụ thể thì lấy tên đó, nếu không mới lấy tên TP gốc
+          from: (stops && stops.pickupName) ? stops.pickupName : booking.route_snapshot.from,
+          to: (stops && stops.dropoffName) ? stops.dropoffName : booking.route_snapshot.to,
           durationMin: booking.route_snapshot.estimated_duration_min
         },
-        times: { departureTime: booking.start_time, arrivalTime: booking.end_time },
-        bus: { busType: booking.bus_snapshot.bus_type, seatCount: booking.bus_snapshot.seat_count, licensePlate: booking.bus_snapshot.license_plate },
+        times: { 
+            departureTime: booking.start_time, 
+            arrivalTime: calculatedArrivalTime // <-- QUAN TRỌNG: Trả về giờ đến Bến xe Huế
+        },
+        bus: { 
+            busType: booking.bus_snapshot.bus_type, 
+            seatCount: booking.bus_snapshot.seat_count, 
+            licensePlate: booking.bus_snapshot.license_plate 
+        },
         seats: requestedNums,
         passenger: booking.passenger || null,
         pricePerSeat,
         totalAmount: computedTotal,
-        paymentMethod: payment.method
+        paymentMethod: payment.method,
+        stops: stops ? {
+          pickupName: stops.pickupName,
+          dropoffName: stops.dropoffName
+        } : null
       };
 
       // Include selected stops info if present
