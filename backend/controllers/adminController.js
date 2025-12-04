@@ -681,7 +681,8 @@ exports.assistantDetail = async (req, res) => {
       stats, 
       upcomingBookings: upcomingBookings.slice(0, 50),
       allBookings: allBookings.slice(0, 100),
-      page: 'assistants' 
+      page: 'assistants',
+      currentUserRole: req.user ? req.user.role : null
     });
   } catch (err) {
     console.error('Error loading assistant detail:', err);
@@ -693,7 +694,7 @@ exports.assistantDetail = async (req, res) => {
 exports.checkinPassenger = async (req, res) => {
   try {
     const Checkin = require('../models/Checkin');
-    const { bookingId, status } = req.body; // status: 'checked_in' hoặc 'no_show'
+    const { bookingId, status } = req.body;
     const assistantId = req.params.id;
     
     if (!bookingId || !status) {
@@ -703,7 +704,7 @@ exports.checkinPassenger = async (req, res) => {
       });
     }
     
-    if (!['checked_in', 'no_show'].includes(status)) {
+    if (!['checked_in', 'checked_out', 'no_show'].includes(status)) {
       return res.status(400).json({ 
         success: false,
         message: 'Status không hợp lệ' 
@@ -732,24 +733,35 @@ exports.checkinPassenger = async (req, res) => {
     const existingCheckin = await Checkin.findOne({ booking: bookingId });
     
     if (existingCheckin) {
-      // Cập nhật check-in hiện có
       existingCheckin.status = status;
-      existingCheckin.checkin_time = new Date();
+      if (status === 'checked_out') {
+        existingCheckin.checkout_time = new Date();
+      } else {
+        existingCheckin.checkin_time = new Date();
+      }
       existingCheckin.assistant = assistantId;
       await existingCheckin.save();
     } else {
-      // Tạo check-in mới
-      await Checkin.create({
+      const payload = {
         booking: bookingId,
         assistant: assistantId,
-        checkin_time: new Date(),
         status: status
-      });
+      };
+      if (status === 'checked_out') {
+        payload.checkout_time = new Date();
+      } else {
+        payload.checkin_time = new Date();
+      }
+      await Checkin.create(payload);
     }
     
     res.json({ 
       success: true, 
-      message: status === 'checked_in' ? 'Đã đánh dấu hành khách đã lên xe' : 'Đã đánh dấu hành khách không đến'
+      message: status === 'checked_in' 
+        ? 'Đã đánh dấu hành khách đã lên xe' 
+        : status === 'checked_out' 
+          ? 'Đã đánh dấu hành khách đã xuống xe' 
+          : 'Đã đánh dấu hành khách không đến'
     });
   } catch (err) {
     console.error('Error checking in passenger:', err);
@@ -802,11 +814,26 @@ exports.routes = async (req, res) => {
 // Trang Trips Management
 exports.trips = async (req, res) => {
   try {
-    const trips = await Trip.find()
+    await exports.cleanupPastTrips();
+
+    const { route, bus, status, direction, date_from, date_to } = req.query;
+    const filter = {};
+    if (route) filter.route = route;
+    if (bus) filter.bus = bus;
+    if (status) filter.status = status;
+    if (direction) filter.direction = direction;
+    if (date_from || date_to) {
+      const range = {};
+      if (date_from) { const df = new Date(date_from); df.setHours(0,0,0,0); range.$gte = df; }
+      if (date_to) { const dt = new Date(date_to); dt.setHours(23,59,59,999); range.$lte = dt; }
+      filter.start_time = range;
+    }
+
+    const trips = await Trip.find(filter)
       .populate('route')
       .populate('bus')
-      .sort({ createdAt: -1 });
-    
+      .sort({ start_time: 1 });
+
     const recurringTrips = trips.filter(t => t.is_recurring);
     const singleTrips = trips.filter(t => !t.is_recurring);
 
@@ -818,8 +845,22 @@ exports.trips = async (req, res) => {
       recurring: recurringTrips.length,
       nonRecurring: singleTrips.length
     };
-    
-    res.render('admin/trips', { trips, recurringTrips, singleTrips, stats, page: 'trips' });
+
+    const [routes, buses] = await Promise.all([
+      Route.find().sort({ origin: 1 }),
+      Bus.find().sort({ license_plate: 1 })
+    ]);
+
+    res.render('admin/trips', { 
+      trips, 
+      recurringTrips, 
+      singleTrips, 
+      stats, 
+      routes,
+      buses,
+      filters: { route: route || '', bus: bus || '', status: status || '', direction: direction || '', date_from: date_from || '', date_to: date_to || '' },
+      page: 'trips' 
+    });
   } catch (err) {
     console.error('Error loading trips:', err);
     res.status(500).send('Lỗi khi tải trang trips: ' + err.message);
@@ -951,20 +992,75 @@ exports.newTrip = async (req, res) => {
 
 exports.createTrip = async (req, res) => {
   try {
+    const RouteModel = Route;
+    const BusModel = Bus;
+
+    const routeId = req.body.route;
+    const busId = req.body.bus;
+    const startStr = req.body.start_time;
+    const endStr = req.body.end_time;
+    const basePrice = Number(req.body.base_price) || 0;
+    const direction = req.body.direction || 'go';
+    const status = req.body.status || 'scheduled';
+
+    const routes = await RouteModel.find().sort({ origin: 1 });
+    const buses = await BusModel.find().sort({ license_plate: 1 });
+
+    if (!routeId || !busId || !startStr) {
+      return res.render('admin/trip_form', { 
+        trip: null,
+        routes,
+        buses,
+        page: 'trips',
+        errors: 'Vui lòng chọn tuyến, xe và thời gian bắt đầu'
+      });
+    }
+
+    const start = new Date(startStr);
+    const now = new Date();
+    if (isNaN(start.getTime())) {
+      return res.render('admin/trip_form', { 
+        trip: null,
+        routes,
+        buses,
+        page: 'trips',
+        errors: 'Thời gian bắt đầu không hợp lệ'
+      });
+    }
+    if (start < now) {
+      return res.render('admin/trip_form', { 
+        trip: null,
+        routes,
+        buses,
+        page: 'trips',
+        errors: 'Không thể tạo chuyến với thời gian bắt đầu trong quá khứ'
+      });
+    }
+
+    let end = endStr ? new Date(endStr) : null;
+    if (endStr && isNaN(end.getTime())) end = null;
+    if (!end) {
+      const routeDoc = await RouteModel.findById(routeId);
+      const durationMin = Number(routeDoc?.estimated_duration_min) || 0;
+      if (durationMin > 0) {
+        end = new Date(start.getTime() + durationMin * 60000);
+      }
+    }
+
     const payload = {
-      route: req.body.route,
-      bus: req.body.bus,
-      start_time: req.body.start_time ? new Date(req.body.start_time) : null,
-      end_time: req.body.end_time ? new Date(req.body.end_time) : null,
-      base_price: Number(req.body.base_price) || 0,
-      direction: req.body.direction || 'go',
-      status: req.body.status || 'scheduled'
+      route: routeId,
+      bus: busId,
+      start_time: start,
+      end_time: end,
+      base_price: basePrice,
+      direction,
+      status
     };
 
     const trip = await Trip.create(payload);
 
-    const bus = await Bus.findById(trip.bus);
-    const seatCount = bus?.seat_count || 0;
+    const busDoc = await BusModel.findById(trip.bus);
+    const seatCount = busDoc?.seat_count || 0;
     const seatDocs = [];
     for (let i = 1; i <= seatCount; i++) {
       seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
@@ -974,7 +1070,13 @@ exports.createTrip = async (req, res) => {
     res.redirect('/admin/trips');
   } catch (err) {
     console.error('Error creating trip:', err);
-    res.status(500).send('Lỗi khi tạo chuyến: ' + err.message);
+    try {
+      const routes = await Route.find().sort({ origin: 1 });
+      const buses = await Bus.find().sort({ license_plate: 1 });
+      return res.render('admin/trip_form', { trip: null, routes, buses, page: 'trips', errors: 'Lỗi khi tạo chuyến: ' + err.message });
+    } catch (e2) {
+      return res.status(500).send('Lỗi khi tạo chuyến: ' + err.message);
+    }
   }
 };
 
@@ -1008,6 +1110,49 @@ exports.updateTrip = async (req, res) => {
   } catch (err) {
     console.error('Error updating trip:', err);
     res.status(500).send('Lỗi khi cập nhật chuyến: ' + err.message);
+  }
+};
+
+exports.updateTripStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const trip = await Trip.findById(req.params.id);
+    if (!trip) {
+      return res.status(404).json({ success: false, message: 'Chuyến không tồn tại' });
+    }
+
+    const allowed = ['scheduled', 'departed', 'completed', 'cancelled'];
+    if (!status || !allowed.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Trạng thái không hợp lệ' });
+    }
+
+  if (status === 'departed') {
+    if (trip.status !== 'scheduled') {
+      return res.status(400).json({ success: false, message: 'Chỉ có thể bắt đầu từ trạng thái đã lên lịch' });
+    }
+    const now = new Date();
+    const st = new Date(trip.start_time);
+    const sameDay = now.getFullYear() === st.getFullYear() && now.getMonth() === st.getMonth() && now.getDate() === st.getDate();
+    if (!sameDay) {
+      return res.status(400).json({ success: false, message: 'Chỉ được bắt đầu chuyến trong ngày khởi hành' });
+    }
+    trip.status = 'departed';
+  } else if (status === 'completed') {
+      if (trip.status !== 'departed' && trip.status !== 'scheduled') {
+        return res.status(400).json({ success: false, message: 'Chỉ có thể kết thúc chuyến đang chạy hoặc đã lên lịch' });
+      }
+      trip.status = 'completed';
+      if (!trip.end_time) {
+        trip.end_time = new Date();
+      }
+    } else {
+      trip.status = status;
+    }
+
+    await trip.save();
+    return res.json({ success: true, trip });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -1116,11 +1261,37 @@ exports.drivers = async (req, res) => {
 // 2. Form thêm tài xế mới
 exports.newDriver = async (req, res) => {
   try {
-    // Lấy danh sách các chuyến "Sắp chạy" để admin có thể gán luôn lúc tạo (nếu muốn)
-    const trips = await Trip.find({ status: 'scheduled' })
-        .populate('route').populate('bus');
-    
-    res.render('admin/driver_form', { driver: null, trips, page: 'drivers' });
+    await exports.cleanupPastTrips();
+
+    const { route, bus, date, status } = req.query;
+    const now = new Date();
+    const query = {};
+    query.status = status || 'scheduled';
+    if (route) query.route = route;
+    if (bus) query.bus = bus;
+    if (date) {
+      const day = new Date(date);
+      const startDay = new Date(day); startDay.setHours(0,0,0,0);
+      const endDay = new Date(day); endDay.setHours(23,59,59,999);
+      query.start_time = { $gte: startDay, $lte: endDay };
+    } else {
+      query.start_time = { $gte: now };
+    }
+
+    const [trips, routes, buses] = await Promise.all([
+      Trip.find(query).populate('route').populate('bus').sort({ start_time: 1 }),
+      Route.find().sort({ origin: 1 }),
+      Bus.find().sort({ license_plate: 1 })
+    ]);
+
+    res.render('admin/driver_form', { 
+      driver: null, 
+      trips, 
+      routes,
+      buses,
+      filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') },
+      page: 'drivers' 
+    });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -1170,11 +1341,56 @@ exports.createDriver = async (req, res) => {
 // 4. Form sửa tài xế
 exports.editDriver = async (req, res) => {
   try {
+    await exports.cleanupPastTrips();
     const driver = await Driver.findById(req.params.id);
-    const trips = await Trip.find({ status: 'scheduled' }).populate('route').populate('bus');
-    res.render('admin/driver_form', { driver, trips, page: 'drivers' });
+    const { route, bus, date, status } = req.query;
+    const now = new Date();
+    const query = {};
+    query.status = status || 'scheduled';
+    if (route) query.route = route;
+    if (bus) query.bus = bus;
+    if (date) {
+      const day = new Date(date);
+      const startDay = new Date(day); startDay.setHours(0,0,0,0);
+      const endDay = new Date(day); endDay.setHours(23,59,59,999);
+      query.start_time = { $gte: startDay, $lte: endDay };
+    } else {
+      query.start_time = { $gte: now };
+    }
+
+    const [trips, routes, buses] = await Promise.all([
+      Trip.find(query).populate('route').populate('bus').sort({ start_time: 1 }),
+      Route.find().sort({ origin: 1 }),
+      Bus.find().sort({ license_plate: 1 })
+    ]);
+
+    res.render('admin/driver_form', { 
+      driver, 
+      trips,
+      routes,
+      buses,
+      filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') },
+      page: 'drivers' 
+    });
   } catch (err) {
     res.status(500).send(err.message);
+  }
+};
+
+exports.cleanupPastTrips = async () => {
+  try {
+    const now = new Date();
+    const pastScheduled = await Trip.find({ status: 'scheduled', start_time: { $lt: now } });
+    for (const trip of pastScheduled) {
+      const bookingCount = await Booking.countDocuments({ trip: trip._id });
+      if (bookingCount > 0) {
+        await Trip.updateOne({ _id: trip._id }, { $set: { status: 'cancelled' } });
+      } else {
+        await Trip.deleteOne({ _id: trip._id });
+      }
+    }
+  } catch (e) {
+    console.warn('cleanupPastTrips error:', e.message);
   }
 };
 
@@ -1230,7 +1446,7 @@ exports.driverDetail = async (req, res) => {
         completed: trips.filter(t => t.status === 'completed').length  // Đã xong
     };
 
-    res.render('admin/driver_detail', { driver, trips, stats, page: 'drivers' });
+    res.render('admin/driver_detail', { driver, trips, stats, page: 'drivers', currentUserRole: req.user ? req.user.role : null });
   } catch (err) {
     res.status(500).send(err.message);
   }

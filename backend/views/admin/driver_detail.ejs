@@ -24,28 +24,35 @@
 	</style>
 </head>
 <body>
-	<div class="admin-wrapper">
-		<aside class="sidebar">
+    <div class="admin-wrapper">
+        <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+        <aside class="sidebar">
 			<div style="padding:1.5rem;background:linear-gradient(90deg,#6366f1,#4f46e5);color:white">
 				<h2 style="margin:0">🚌 VeXe7TV</h2>
 				<div style="opacity:0.9;font-size:0.9rem">Trang quản trị</div>
 			</div>
-			<nav style="padding:1rem">
-				<a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Dashboard</a>
-				<a href="/admin/drivers" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none;font-weight:600">🚐 Tài xế</a>
-			</nav>
-		</aside>
+            <nav style="padding:1rem">
+                <a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Dashboard</a>
+                <a href="/admin/drivers" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none;font-weight:600">🚐 Tài xế</a>
+            </nav>
+        </aside>
+        <% } %>
 
-		<main class="main-content">
+        <main class="main-content">
+            <% if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin') { %>
+            <style>.main-content{margin-left:0}</style>
+            <% } %>
 			<div class="page-header">
 				<div>
 					<h1 style="color:white;margin:0 0 6px 0">Chi tiết tài xế</h1>
 					<div style="color:rgba(255,255,255,0.9)"><%= driver.name %></div>
 				</div>
-				<div class="actions">
-					<a href="/admin/drivers" class="btn" style="background:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">← Quay lại</a>
-					<a href="/admin/drivers/<%= driver._id %>/edit" class="btn" style="background:#6366f1;color:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">✏️ Sửa</a>
-				</div>
+                <div class="actions">
+                    <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+                        <a href="/admin/drivers" class="btn" style="background:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">← Quay lại</a>
+                        <a href="/admin/drivers/<%= driver._id %>/edit" class="btn" style="background:#6366f1;color:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">✏️ Sửa</a>
+                    <% } %>
+                </div>
 			</div>
 
 			<div class="info-card">
@@ -70,12 +77,13 @@
 									<th>Tuyến</th>
 									<th>Xe</th>
 									<th>Khởi hành</th>
-									<th>Trạng thái</th>
-								</tr>
-							</thead>
-							<tbody>
-								<% trips.forEach(function(trip){ %>
-									<tr>
+                                    <th>Trạng thái</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% trips.forEach(function(trip){ %>
+                                    <tr>
 										<td>
 											<strong>
 												<%= trip.route ? ((trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city)) : 'N/A' %>
@@ -83,22 +91,55 @@
 										</td>
 										<td><%= trip.bus ? trip.bus.license_plate : 'N/A' %></td>
 										<td><%= trip.start_time ? new Date(trip.start_time).toLocaleString('vi-VN') : 'N/A' %></td>
-										<td>
-											<span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : 'badge-warning' %>">
-												<%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đang chạy' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status %>
-											</span>
-										</td>
-									</tr>
-								<% }); %>
-							</tbody>
-						</table>
-					</div>
+                                        <td>
+                                            <span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : 'badge-warning' %>">
+                                                <%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đang chạy' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status %>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <% if (trip.status === 'scheduled') { %>
+                                                <% const _now = new Date(); const _st = new Date(trip.start_time); const _sameDay = _now.getFullYear() === _st.getFullYear() && _now.getMonth() === _st.getMonth() && _now.getDate() === _st.getDate(); %>
+                                                <% if (_sameDay) { %>
+                                                    <button class="btn" style="background:#6366f1;color:#fff;padding:0.4rem 0.8rem;border-radius:6px" onclick="updateTripStatus('<%= trip._id %>','departed')">Bắt đầu chuyến</button>
+                                                <% } else { %>
+                                                    <button class="btn" style="background:#cbd5e1;color:#0f172a;padding:0.4rem 0.8rem;border-radius:6px" disabled>Chỉ bắt đầu trong ngày khởi hành</button>
+                                                <% } %>
+                                            <% } else if (trip.status === 'departed') { %>
+                                                <button class="btn" style="background:#10b981;color:#fff;padding:0.4rem 0.8rem;border-radius:6px" onclick="updateTripStatus('<%= trip._id %>','completed')">Kết thúc chuyến</button>
+                                            <% } else { %>
+                                                
+                                            <% } %>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
 				<% } else { %>
 					<p style="color:#475569;margin:1rem 0">Chưa có chuyến nào được gán cho tài xế này.</p>
 				<% } %>
 			</div>
 
 		</main>
-	</div>
+    </div>
+    <script>
+    async function updateTripStatus(tripId, status) {
+        try {
+            const res = await fetch(`/admin/trips/${tripId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data && data.message ? data.message : 'Không thể cập nhật trạng thái'));
+            }
+        } catch (e) {
+            alert('Lỗi kết nối');
+        }
+    }
+    </script>
 </body>
 </html>

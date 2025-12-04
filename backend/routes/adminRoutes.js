@@ -57,6 +57,8 @@ router.post('/trips', ensureAuthUI, requireRolesUI('admin'), adminController.cre
 router.post('/trips/recurring', ensureAuthUI, requireRolesUI('admin'), adminController.createRecurringTrips);
 router.get('/trips/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editTrip);
 router.post('/trips/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateTrip);
+// Cập nhật trạng thái chuyến (cho admin và tài xế)
+router.put('/trips/:id/status', ensureAuthUI, requireRolesUI('admin','driver'), adminController.updateTripStatus);
 router.get('/trips', ensureAuthUI, requireRolesUI('admin'), adminController.trips);
 router.get('/bookings', ensureAuthUI, requireRolesUI('admin'), adminController.bookings);
 router.get('/statistics', ensureAuthUI, requireRolesUI('admin'), adminController.statistics);

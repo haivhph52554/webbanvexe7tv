@@ -33,6 +33,51 @@
 	<div class="container">
 		<h2><%= driver ? 'Sửa thông tin tài xế' : 'Thêm tài xế mới' %></h2>
 
+		<form method="get" action="<%= driver ? ('/admin/drivers/' + driver._id + '/edit') : '/admin/drivers/new' %>" style="margin:1rem 0; padding:0.75rem; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px">
+			<div class="form-group">
+				<div>
+					<label>Lọc theo tuyến</label>
+					<select name="route">
+						<option value="">-- Tất cả --</option>
+						<% if (routes) { routes.forEach(function(r){ %>
+							<option value="<%= r._id %>" <%= (filters && filters.route === (r._id.toString())) ? 'selected' : '' %>>
+								<%= (r.from_city || r.origin || '---') %> → <%= (r.to_city || r.destination || '---') %>
+							</option>
+						<% }) } %>
+					</select>
+				</div>
+				<div>
+					<label>Lọc theo xe</label>
+					<select name="bus">
+						<option value="">-- Tất cả --</option>
+						<% if (buses) { buses.forEach(function(b){ %>
+							<option value="<%= b._id %>" <%= (filters && filters.bus === (b._id.toString())) ? 'selected' : '' %>><%= b.license_plate %></option>
+						<% }) } %>
+					</select>
+				</div>
+			</div>
+			<div class="form-group">
+				<div>
+					<label>Ngày khởi hành</label>
+					<input type="date" name="date" value="<%= filters && filters.date ? filters.date : '' %>" />
+					<div class="help-text">Mặc định hiển thị các chuyến từ hiện tại trở về sau</div>
+				</div>
+				<div>
+					<label>Trạng thái</label>
+					<select name="status">
+						<option value="scheduled" <%= (filters && filters.status === 'scheduled') ? 'selected' : '' %>>Đã lên lịch</option>
+						<option value="departed" <%= (filters && filters.status === 'departed') ? 'selected' : '' %>>Đang chạy</option>
+						<option value="completed" <%= (filters && filters.status === 'completed') ? 'selected' : '' %>>Đã hoàn thành</option>
+						<option value="cancelled" <%= (filters && filters.status === 'cancelled') ? 'selected' : '' %>>Đã hủy</option>
+					</select>
+				</div>
+			</div>
+			<div class="actions">
+				<button class="btn btn-secondary" type="submit">Áp dụng lọc</button>
+				<a class="btn btn-secondary" href="<%= driver ? ('/admin/drivers/' + driver._id + '/edit') : '/admin/drivers/new' %>">Xóa lọc</a>
+			</div>
+		</form>
+
 		<form id="driverForm" method="post" action="<%= driver ? ('/admin/drivers/' + driver._id) : '/admin/drivers' %>">
 
 			<div class="form-group">
@@ -83,8 +128,8 @@
 				<div class="trips-section">
 					<h3 style="margin-bottom:1rem;color:#1e3a8a">Gán chuyến cho tài xế</h3>
 					<div class="help-text">Chọn các chuyến mà tài xế này sẽ phụ trách (tuỳ chọn).</div>
-					<div class="trips-grid">
-						<% trips.forEach(function(trip) { 
+				<div class="trips-grid">
+					<% trips.forEach(function(trip) { 
 							const isAssigned = driver && driver.assigned_trips && driver.assigned_trips.some(t => {
 								const tid = typeof t === 'object' ? (t._id ? t._id.toString() : '') : t.toString();
 								return tid === trip._id.toString();
@@ -100,10 +145,13 @@
 										<% if (trip.bus && trip.bus.license_plate) { %> · <%= trip.bus.license_plate %> <% } %>
 									</span>
 								</label>
-							</div>
-						<% }); %>
 					</div>
+					<% }); %>
 				</div>
+				<% if (!trips || trips.length === 0) { %>
+					<div class="help-text" style="margin-top:0.75rem">Không có chuyến phù hợp bộ lọc</div>
+				<% } %>
+			</div>
 			<% } %>
 
 			<div class="actions">

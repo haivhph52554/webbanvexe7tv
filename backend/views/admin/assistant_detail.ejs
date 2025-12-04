@@ -261,6 +261,7 @@
 </head>
 <body>
     <div class="admin-wrapper">
+        <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h1>🚌 VeXe7TV</h1>
@@ -309,16 +310,22 @@
                 </a>
             </nav>
         </aside>
+        <% } %>
         
         <main class="main-content">
+            <% if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin') { %>
+            <style>.main-content{margin-left:0}</style>
+            <% } %>
             <div class="page-header">
                 <div>
                     <h2>Chi tiết Phụ xe</h2>
                     <p style="color: rgba(255, 255, 255, 0.9);"><%= assistant.name %></p>
                 </div>
                 <div>
-                    <a href="/admin/assistants" class="btn btn-secondary">← Quay lại</a>
-                    <a href="/admin/assistants/<%= assistant._id %>/edit" class="btn btn-primary">✏️ Sửa</a>
+                    <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+                        <a href="/admin/assistants" class="btn btn-secondary">← Quay lại</a>
+                        <a href="/admin/assistants/<%= assistant._id %>/edit" class="btn btn-primary">✏️ Sửa</a>
+                    <% } %>
                 </div>
             </div>
             
@@ -472,6 +479,7 @@
                                 <th>Chuyến</th>
                                 <th>Thời gian</th>
                                 <th>Trạng thái</th>
+                                <th>Hành động</th>
                                 </tr>
                         </thead>
                         <tbody>
@@ -496,10 +504,23 @@
                                         <% if (item.checkin && item.checkin.status === 'checked_in') { %>
                                             <span class="badge badge-success">✅ Đã lên xe</span>
                                             <br><small><%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
+                                        <% } else if (item.checkin && item.checkin.status === 'checked_out') { %>
+                                            <span class="badge badge-info">⬇️ Đã xuống xe</span>
+                                            <br><small><%= item.checkin.checkout_time ? new Date(item.checkin.checkout_time).toLocaleTimeString('vi-VN') : '' %></small>
                                         <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
                                             <span class="badge badge-danger">❌ Vắng mặt</span>
                                         <% } else { %>
                                             <span class="badge badge-warning">⏳ Chưa đón</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (!item.checkin) { %>
+                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_in')">Đã lên xe</button>
+                                            <button class="btn btn-secondary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','no_show')">Vắng mặt</button>
+                                        <% } else if (item.checkin.status === 'checked_in') { %>
+                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_out')">Đánh dấu xuống xe</button>
+                                        <% } else { %>
+                                            
                                         <% } %>
                                     </td>
                                 </tr>

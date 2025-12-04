@@ -428,6 +428,61 @@
                 <h2>Quản lý Chuyến xe</h2>
                 <p>Quản lý tất cả chuyến xe trong hệ thống</p>
             </div>
+            <div class="content-card" style="margin-top:-1rem;margin-bottom:1rem">
+                <form method="get" action="/admin/trips">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem">
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Tuyến</label>
+                            <select name="route" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px">
+                                <option value="">-- Tất cả --</option>
+                                <% if (typeof routes !== 'undefined' && routes) { routes.forEach(function(r){ %>
+                                    <option value="<%= r._id %>" <%= (filters && filters.route === (r._id.toString())) ? 'selected' : '' %>><%= (r.from_city || r.origin || '---') %> → <%= (r.to_city || r.destination || '---') %></option>
+                                <% }) } %>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Xe</label>
+                            <select name="bus" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px">
+                                <option value="">-- Tất cả --</option>
+                                <% if (typeof buses !== 'undefined' && buses) { buses.forEach(function(b){ %>
+                                    <option value="<%= b._id %>" <%= (filters && filters.bus === (b._id.toString())) ? 'selected' : '' %>><%= b.license_plate %></option>
+                                <% }) } %>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Trạng thái</label>
+                            <select name="status" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px">
+                                <option value="">-- Tất cả --</option>
+                                <option value="scheduled" <%= (filters && filters.status === 'scheduled') ? 'selected' : '' %>>Đã lên lịch</option>
+                                <option value="departed" <%= (filters && filters.status === 'departed') ? 'selected' : '' %>>Đã khởi hành</option>
+                                <option value="completed" <%= (filters && filters.status === 'completed') ? 'selected' : '' %>>Đã hoàn thành</option>
+                                <option value="cancelled" <%= (filters && filters.status === 'cancelled') ? 'selected' : '' %>>Đã hủy</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Hướng</label>
+                            <select name="direction" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px">
+                                <option value="">-- Tất cả --</option>
+                                <option value="go" <%= (filters && filters.direction === 'go') ? 'selected' : '' %>>Đi</option>
+                                <option value="return" <%= (filters && filters.direction === 'return') ? 'selected' : '' %>>Về</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Từ ngày</label>
+                            <input type="date" name="date_from" value="<%= filters && filters.date_from ? filters.date_from : '' %>" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px" />
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">Đến ngày</label>
+                            <input type="date" name="date_to" value="<%= filters && filters.date_to ? filters.date_to : '' %>" style="width:100%;padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px" />
+                        </div>
+                    </div>
+                    <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
+                        <button class="btn btn-secondary" type="submit">Áp dụng lọc</button>
+                        <a class="btn btn-secondary" href="/admin/trips">Xóa lọc</a>
+                        <a class="btn btn-success" href="/admin/trips/new" style="margin-left:auto">➕ Thêm chuyến mới</a>
+                    </div>
+                </form>
+            </div>
             
         <div class="stats-grid">
             <div class="stat-card">

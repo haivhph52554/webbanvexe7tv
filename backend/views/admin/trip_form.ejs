@@ -34,13 +34,13 @@
       </select>
 
       <label>Thời gian bắt đầu</label>
-      <input type="datetime-local" name="start_time" value="<%= trip && trip.start_time ? new Date(trip.start_time).toISOString().slice(0,16) : '' %>" />
+      <input type="datetime-local" name="start_time" required value="<%= trip && trip.start_time ? new Date(trip.start_time).toISOString().slice(0,16) : '' %>" />
 
       <label>Thời gian kết thúc</label>
       <input type="datetime-local" name="end_time" value="<%= trip && trip.end_time ? new Date(trip.end_time).toISOString().slice(0,16) : '' %>" />
 
       <label>Giá cơ bản (VND)</label>
-      <input type="number" name="base_price" value="<%= trip ? trip.base_price : 0 %>" min="0" />
+      <input type="number" name="base_price" value="<%= trip ? trip.base_price : 0 %>" min="0" required />
 
       <label>Hướng</label>
       <select name="direction">
@@ -56,6 +56,9 @@
         <option value="cancelled" <%= trip && trip.status==='cancelled' ? 'selected' : '' %>>Đã hủy</option>
       </select>
 
+      <% if (typeof errors !== 'undefined' && errors) { %>
+        <div style="margin-top:0.75rem;padding:0.75rem;border:1px solid #fecaca;background:#fee2e2;color:#991b1b;border-radius:6px"><%= errors %></div>
+      <% } %>
       <div class="actions">
         <button type="submit" class="btn btn-primary">Lưu</button>
         <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
