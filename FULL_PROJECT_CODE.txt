@@ -16,6 +16,7 @@ backend\models\Assistant.js
 backend\models\Booking.js
 backend\models\Bus.js
 backend\models\Checkin.js
+backend\models\Contact.js
 backend\models\Driver.js
 backend\models\Feedback.js
 backend\models\Payment.js
@@ -49,10 +50,11 @@ backend\views\admin\bookings.ejs
 backend\views\admin\buses.ejs
 backend\views\admin\bus_form.ejs
 backend\views\admin\dashboard.ejs
-backend\views\admin\driver.ejs
+backend\views\admin\drivers.ejs
 backend\views\admin\driver_detail.ejs
 backend\views\admin\driver_form.ejs
 backend\views\admin\layout.ejs
+backend\views\admin\login.ejs
 backend\views\admin\routes.ejs
 backend\views\admin\route_form.ejs
 backend\views\admin\statistics.ejs
@@ -93,6 +95,7 @@ const Bus = require('../models/Bus');
 const User = require('../models/User');
 const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
+const jwt = require('jsonwebtoken');
 
 // --- Buses CRUD helpers for admin UI --- 12345
 exports.newBus = async (req, res) => {
@@ -203,6 +206,105 @@ exports.updateRoute = async (req, res) => {
     res.status(500).send('Lỗi khi cập nhật tuyến: ' + err.message);
   }
 };
+
+exports.adminLoginPage = async (req, res) => {
+  try {
+    // Bootstrap đảm bảo admin mặc định đúng email/mật khẩu
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@basevexe.com';
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || '123456';
+    let adminUser = await User.findOne({ email: adminEmail });
+    if (!adminUser) {
+      adminUser = await User.create({
+        name: 'Admin Hệ Thống',
+        email: adminEmail,
+        phone: '0900000000',
+        password: adminPassword,
+        role: 'admin'
+      });
+    } else {
+      let changed = false;
+      if (adminUser.role !== 'admin') { adminUser.role = 'admin'; changed = true; }
+      if (!adminUser.password) { adminUser.password = adminPassword; changed = true; }
+      if (changed) await adminUser.save();
+    }
+    res.render('admin/login', { error: null });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+exports.adminLoginPost = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.render('admin/login', { error: 'Vui lòng nhập email và mật khẩu' });
+    }
+    const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@basevexe.com';
+    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || '123456';
+
+    let user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      // Nếu là email admin mặc định, khởi tạo ngay và cho đăng nhập
+      if (email === defaultEmail) {
+        user = await User.create({
+          name: 'Admin Hệ Thống',
+          email: defaultEmail,
+          phone: '0900000000',
+          password: defaultPassword,
+          role: 'admin'
+        });
+        user = await User.findOne({ email: defaultEmail }).select('+password');
+      } else {
+        return res.render('admin/login', { error: 'Email hoặc mật khẩu không đúng' });
+      }
+    }
+    const bcrypt = require('bcryptjs');
+    let isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch && email === defaultEmail) {
+      // Cưỡng chế đặt lại mật khẩu admin mặc định nếu khác
+      user.password = defaultPassword;
+      user.role = 'admin';
+      await user.save();
+      user = await User.findOne({ email: defaultEmail }).select('+password');
+      isMatch = await bcrypt.compare(password, user.password);
+    }
+    if (!isMatch) {
+      return res.render('admin/login', { error: 'Email hoặc mật khẩu không đúng' });
+    }
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secretkey', { expiresIn: '30d' });
+    res.cookie('token', token, {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production'
+    });
+    if (user.role === 'admin') return res.redirect('/admin');
+    if (user.role === 'driver') {
+      const Driver = require('../models/Driver');
+      const driver = await Driver.findOne({ $or: [{ userId: user._id }, { email: user.email }] });
+      if (driver) return res.redirect(`/admin/drivers/${driver._id}`);
+      return res.redirect('/admin/drivers');
+    }
+    if (user.role === 'assistant') {
+      const Assistant = require('../models/Assistant');
+      const assistant = await Assistant.findOne({ $or: [{ userId: user._id }, { email: user.email }] });
+      if (assistant) return res.redirect(`/admin/assistants/${assistant._id}`);
+      return res.redirect('/admin/assistants');
+    }
+    return res.redirect('/admin');
+  } catch (err) {
+    res.render('admin/login', { error: 'Đã xảy ra lỗi. Vui lòng thử lại.' });
+  }
+};
+
+exports.adminLogout = async (req, res) => {
+  try {
+    res.cookie('token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true });
+    res.redirect('/admin/login');
+  } catch (err) {
+    res.redirect('/admin/login');
+  }
+};
+
 
 
 // Hiển thị admin dashboard
@@ -414,6 +516,24 @@ exports.newAssistant = async (req, res) => {
 // Tạo assistant mới
 exports.createAssistant = async (req, res) => {
   try {
+    // Tạo User cho phụ xe nếu chưa có
+    let assistantUser = null;
+    if (req.body.email) {
+      assistantUser = await User.findOne({ email: req.body.email });
+      if (!assistantUser) {
+        assistantUser = await User.create({
+          name: req.body.name || 'Phụ xe',
+          email: req.body.email,
+          phone: req.body.phone || '0900000000',
+          password: '123456',
+          role: 'assistant'
+        });
+      } else {
+        assistantUser.role = 'assistant';
+        await assistantUser.save();
+      }
+    }
+
     const payload = {
       name: req.body.name,
       email: req.body.email,
@@ -423,7 +543,8 @@ exports.createAssistant = async (req, res) => {
       experience_years: Number(req.body.experience_years) || 0,
       status: 'active',
       assigned_trips: [],
-      assigned_routes: []
+      assigned_routes: [],
+      userId: assistantUser ? assistantUser._id : undefined
     };
     
     // Xử lý assigned_routes nếu có
@@ -775,14 +896,19 @@ exports.trips = async (req, res) => {
       .populate('bus')
       .sort({ createdAt: -1 });
     
+    const recurringTrips = trips.filter(t => t.is_recurring);
+    const singleTrips = trips.filter(t => !t.is_recurring);
+
     const stats = {
       total: trips.length,
       scheduled: trips.filter(t => t.status === 'scheduled').length,
       departed: trips.filter(t => t.status === 'departed').length,
-      completed: trips.filter(t => t.status === 'completed').length
+      completed: trips.filter(t => t.status === 'completed').length,
+      recurring: recurringTrips.length,
+      nonRecurring: singleTrips.length
     };
     
-    res.render('admin/trips', { trips, stats, page: 'trips' });
+    res.render('admin/trips', { trips, recurringTrips, singleTrips, stats, page: 'trips' });
   } catch (err) {
     console.error('Error loading trips:', err);
     res.status(500).send('Lỗi khi tải trang trips: ' + err.message);
@@ -974,6 +1100,91 @@ exports.updateTrip = async (req, res) => {
   }
 };
 
+exports.createRecurringTrips = async (req, res) => {
+  try {
+    const routeId = req.body.route;
+    const busId = req.body.bus;
+    const basePrice = Number(req.body.base_price) || 0;
+    const direction = req.body.direction || 'go';
+    const frequency = req.body.frequency || 'daily';
+    const daysOfWeek = req.body.days_of_week;
+    const timeOfDay = req.body.time_of_day;
+    const startDateStr = req.body.start_date;
+    const endDateStr = req.body.end_date;
+
+    const today = new Date();
+    const startDate = startDateStr ? new Date(startDateStr) : new Date(today);
+    startDate.setHours(0, 0, 0, 0);
+    let endDate = endDateStr ? new Date(endDateStr) : new Date(startDate);
+    if (!endDateStr) {
+      endDate.setDate(endDate.getDate() + 180);
+    }
+    endDate.setHours(23, 59, 59, 999);
+
+    let hours = 8;
+    let minutes = 0;
+    if (timeOfDay && typeof timeOfDay === 'string') {
+      const parts = timeOfDay.split(':');
+      hours = parseInt(parts[0], 10) || 8;
+      minutes = parseInt(parts[1], 10) || 0;
+    }
+
+    const route = await Route.findById(routeId);
+    const bus = await Bus.findById(busId);
+    if (!route || !bus) {
+      return res.status(400).send('Route hoặc Bus không hợp lệ');
+    }
+
+    const durationMin = Number(route.estimated_duration_min) || null;
+
+    const dows = Array.isArray(daysOfWeek)
+      ? daysOfWeek.map(x => parseInt(x, 10))
+      : (typeof daysOfWeek === 'string' ? [parseInt(daysOfWeek, 10)] : []);
+    const isWeekly = frequency === 'weekly' && dows.length > 0;
+
+    let created = 0;
+    let skipped = 0;
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (frequency === 'daily' || (isWeekly && dows.includes(dow))) {
+        const start = new Date(d);
+        start.setHours(hours, minutes, 0, 0);
+
+        const existed = await Trip.findOne({ route: routeId, bus: busId, start_time: start });
+        if (existed) { skipped++; continue; }
+
+        const payload = {
+          route: routeId,
+          bus: busId,
+          start_time: start,
+          end_time: durationMin ? new Date(start.getTime() + durationMin * 60000) : null,
+          base_price: basePrice,
+          direction,
+          status: 'scheduled',
+          is_recurring: true
+        };
+
+        const trip = await Trip.create(payload);
+
+        const seatDocs = [];
+        const seatCount = bus.seat_count || 0;
+        for (let i = 1; i <= seatCount; i++) {
+          seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
+        }
+        if (seatDocs.length) await TripSeatStatus.insertMany(seatDocs);
+
+        created++;
+      }
+    }
+
+    res.redirect('/admin/trips');
+  } catch (err) {
+    console.error('Error creating recurring trips:', err);
+    res.status(500).send('Lỗi khi tạo chuyến cố định: ' + err.message);
+  }
+};
+
 const Driver = require('../models/Driver'); // Nhớ import model
 
 // 1. Hiển thị danh sách tài xế
@@ -1113,6 +1324,7 @@ exports.driverDetail = async (req, res) => {
     res.status(500).send(err.message);
   }
 };
+
 --- END OF FILE: backend\controllers\adminController.js ---
 
 
@@ -1590,21 +1802,48 @@ exports.checkout = async (req, res) => {
       );
 
       // 10) Chuẩn bị payload trả về FE (seats trả về dạng SỐ cho UI)
+      // --- BẮT ĐẦU ĐOẠN CODE CẦN THAY THẾ ---
+      
+      // Tính toán lại giờ đến dự kiến dựa trên tỷ lệ quãng đường (fraction)
+      // (Biến fraction đã được tính ở đoạn code bên trên của m rồi)
+      // Đoạn này phải nằm NGAY TRÊN cái const payload của m
+      let calculatedArrivalTime = booking.end_time;
+      if (trip.start_time && trip.end_time && typeof fraction === 'number') {
+          const startTime = new Date(trip.start_time).getTime();
+          const endTime = new Date(trip.end_time).getTime();
+          const totalDuration = endTime - startTime;
+          const passengerDuration = totalDuration * fraction;
+          calculatedArrivalTime = new Date(startTime + passengerDuration);
+      }
+
+      // 10) Chuẩn bị payload trả về FE (Sửa lại để ưu tiên lấy tên điểm dừng)
       const payload = {
         bookingId: String(booking._id),
         paymentId: String(payment._id),
         route: {
-          from: booking.route_snapshot.from,
-          to: booking.route_snapshot.to,
+          // QUAN TRỌNG: Nếu có điểm đón/trả cụ thể thì lấy tên đó, nếu không mới lấy tên TP gốc
+          from: (stops && stops.pickupName) ? stops.pickupName : booking.route_snapshot.from,
+          to: (stops && stops.dropoffName) ? stops.dropoffName : booking.route_snapshot.to,
           durationMin: booking.route_snapshot.estimated_duration_min
         },
-        times: { departureTime: booking.start_time, arrivalTime: booking.end_time },
-        bus: { busType: booking.bus_snapshot.bus_type, seatCount: booking.bus_snapshot.seat_count, licensePlate: booking.bus_snapshot.license_plate },
+        times: { 
+            departureTime: booking.start_time, 
+            arrivalTime: calculatedArrivalTime // <-- QUAN TRỌNG: Trả về giờ đến Bến xe Huế
+        },
+        bus: { 
+            busType: booking.bus_snapshot.bus_type, 
+            seatCount: booking.bus_snapshot.seat_count, 
+            licensePlate: booking.bus_snapshot.license_plate 
+        },
         seats: requestedNums,
         passenger: booking.passenger || null,
         pricePerSeat,
         totalAmount: computedTotal,
-        paymentMethod: payment.method
+        paymentMethod: payment.method,
+        stops: stops ? {
+          pickupName: stops.pickupName,
+          dropoffName: stops.dropoffName
+        } : null
       };
 
       // Include selected stops info if present
@@ -2616,6 +2855,38 @@ module.exports = mongoose.model('Checkin', checkinSchema);
 --- END OF FILE: backend\models\Checkin.js ---
 
 
+--- START OF FILE: backend\models\Contact.js ---
+const mongoose = require('mongoose');
+
+const ReplySchema = new mongoose.Schema({
+  adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  adminName: { type: String },
+  message: { type: String },
+  messageId: { type: String },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
+
+const ContactSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  phone: { type: String },
+  subject: { type: String },
+  message: { type: String },
+  // public token so non-authenticated users can view their thread
+  publicToken: { type: String },
+  tokenExpires: { type: Date },
+  sent: { type: Boolean, default: false },
+  sentAt: { type: Date },
+  sendError: { type: String },
+  messageId: { type: String },
+  replies: [ReplySchema]
+}, { timestamps: true });
+
+module.exports = mongoose.model('Contact', ContactSchema);
+
+--- END OF FILE: backend\models\Contact.js ---
+
+
 --- START OF FILE: backend\models\Driver.js ---
 const mongoose = require('mongoose');
 
@@ -2782,7 +3053,8 @@ const tripSchema = new mongoose.Schema({
   end_time: { type: Date },
   base_price: Number,
   direction: { type: String, enum: ['go','return'], default: 'go' },
-  status: { type: String, enum: ['scheduled','departed','completed','cancelled'], default: 'scheduled' }
+  status: { type: String, enum: ['scheduled','departed','completed','cancelled'], default: 'scheduled' },
+  is_recurring: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Trip', tripSchema);
@@ -2917,37 +3189,72 @@ module.exports = mongoose.model('User', userSchema);
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const ensureAuthUI = async (req, res, next) => {
+  try {
+    let token;
+    const authHeader = req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer')) {
+      token = authHeader.replace('Bearer ', '');
+    } else if (req.cookies.token) {
+      token = req.cookies.token;
+    }
+    if (!token) return res.redirect('/admin/login');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) return res.redirect('/admin/login');
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.redirect('/admin/login');
+  }
+};
+
+const requireRolesUI = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) return res.redirect('/admin/login');
+    if (!roles.includes(req.user.role)) return res.status(403).send('Không có quyền truy cập');
+    next();
+  };
+};
 
 // Trang admin dashboard
-router.get('/', adminController.dashboard);
-router.get('/users', adminController.users);
-router.get('/buses', adminController.buses);
+router.get('/login', adminController.adminLoginPage);
+router.post('/login', adminController.adminLoginPost);
+router.get('/logout', adminController.adminLogout);
+
+router.get('/', ensureAuthUI, requireRolesUI('admin'), adminController.dashboard);
+router.get('/users', ensureAuthUI, requireRolesUI('admin'), adminController.users);
+router.get('/buses', ensureAuthUI, requireRolesUI('admin'), adminController.buses);
 // Buses create/edit
-router.get('/buses/new', adminController.newBus);
-router.post('/buses', adminController.createBus);
-router.get('/buses/:id/edit', adminController.editBus);
-router.post('/buses/:id', adminController.updateBus);
-router.get('/routes', adminController.routes);
+router.get('/buses/new', ensureAuthUI, requireRolesUI('admin'), adminController.newBus);
+router.post('/buses', ensureAuthUI, requireRolesUI('admin'), adminController.createBus);
+router.get('/buses/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editBus);
+router.post('/buses/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateBus);
+router.get('/routes', ensureAuthUI, requireRolesUI('admin'), adminController.routes);
 // Routes create/edit
-router.get('/routes/new', adminController.newRoute);
-router.post('/routes', adminController.createRouteAdmin || adminController.createRoute);
-router.get('/routes/:id/edit', adminController.editRoute);
-router.post('/routes/:id', adminController.updateRoute);
+router.get('/routes/new', ensureAuthUI, requireRolesUI('admin'), adminController.newRoute);
+router.post('/routes', ensureAuthUI, requireRolesUI('admin'), adminController.createRouteAdmin || adminController.createRoute);
+router.get('/routes/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editRoute);
+router.post('/routes/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateRoute);
 // Trips create/edit (admin)
-router.get('/trips/new', adminController.newTrip);
-router.post('/trips', adminController.createTrip);
-router.get('/trips/:id/edit', adminController.editTrip);
-router.post('/trips/:id', adminController.updateTrip);
-router.get('/trips', adminController.trips);
-router.get('/bookings', adminController.bookings);
-router.get('/statistics', adminController.statistics);
+router.get('/trips/new', ensureAuthUI, requireRolesUI('admin'), adminController.newTrip);
+router.post('/trips', ensureAuthUI, requireRolesUI('admin'), adminController.createTrip);
+router.post('/trips/recurring', ensureAuthUI, requireRolesUI('admin'), adminController.createRecurringTrips);
+router.get('/trips/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editTrip);
+router.post('/trips/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateTrip);
+router.get('/trips', ensureAuthUI, requireRolesUI('admin'), adminController.trips);
+router.get('/bookings', ensureAuthUI, requireRolesUI('admin'), adminController.bookings);
+router.get('/statistics', ensureAuthUI, requireRolesUI('admin'), adminController.statistics);
 // Assistants create/edit
-router.get('/assistants/new', adminController.newAssistant);
-router.get('/assistants/:id/edit', adminController.editAssistant);
-router.get('/assistants/:id', adminController.assistantDetail);
-router.get('/assistants', adminController.assistants);
-router.post('/assistants', adminController.createAssistant);
-router.post('/assistants/:id', adminController.updateAssistant);
+router.get('/assistants/new', ensureAuthUI, requireRolesUI('admin'), adminController.newAssistant);
+router.get('/assistants/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editAssistant);
+router.get('/assistants/:id', ensureAuthUI, requireRolesUI('admin','assistant'), adminController.assistantDetail);
+router.get('/assistants', ensureAuthUI, requireRolesUI('admin'), adminController.assistants);
+router.post('/assistants', ensureAuthUI, requireRolesUI('admin'), adminController.createAssistant);
+router.post('/assistants/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateAssistant);
 
 // API để xóa booking
 router.delete('/bookings/:id', adminController.deleteBooking);
@@ -2974,13 +3281,15 @@ router.post('/assistants/:id/checkin', adminController.checkinPassenger);
 router.put('/bookings/:id/status', adminController.updateBookingStatus);
 
 // --- QUẢN LÝ TÀI XẾ (DRIVER) ---
-router.get('/drivers', adminController.drivers);           // Danh sách
-router.get('/drivers/new', adminController.newDriver);     // Form tạo
-router.post('/drivers', adminController.createDriver);     // Lưu mới
-router.get('/drivers/:id', adminController.driverDetail);  // Xem chi tiết & Lịch trình (Quan trọng)
-router.get('/drivers/:id/edit', adminController.editDriver); // Form sửa
-router.post('/drivers/:id', adminController.updateDriver); // Lưu sửa
-router.delete('/drivers/:id', adminController.deleteDriver); // Xóa
+router.get('/drivers', ensureAuthUI, requireRolesUI('admin'), adminController.drivers);
+router.get('/drivers/new', ensureAuthUI, requireRolesUI('admin'), adminController.newDriver);
+router.post('/drivers', ensureAuthUI, requireRolesUI('admin'), adminController.createDriver);
+router.get('/drivers/:id', ensureAuthUI, requireRolesUI('admin','driver'), adminController.driverDetail);
+router.get('/drivers/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editDriver);
+router.post('/drivers/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateDriver);
+router.delete('/drivers/:id', ensureAuthUI, requireRolesUI('admin'), adminController.deleteDriver);
+
+// Bootstrap sample drivers & assistants
 
 module.exports = router;
 
@@ -3610,7 +3919,7 @@ const assistantRoutes = require('./routes/assistantRoutes');
 
 const app = express();
 
-// CORS configuration
+
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true
@@ -3618,19 +3927,21 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
-// parse application/x-www-form-urlencoded for form submissions from admin EJS
+
 app.use(express.urlencoded({ extended: true }));
 
-// Set EJS as view engine
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // connect
 connectDB();
 
-// ensure certain models are compiled early
-require('./models/RouteStop');        // collection: route_stops
-require('./models/TripSeatStatus');   // collection: trip_seat_status
+
+require('./models/RouteStop');        
+require('./models/TripSeatStatus');   
+// Contact model
+const Contact = require('./models/Contact');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -3639,6 +3950,118 @@ app.use('/api/routes', routeRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/assistant', assistantRoutes);
+
+
+const crypto = require('crypto');
+const { sendContactEmail } = require('./utils/mailer');
+app.post('/contact', async (req, res) => {
+  try {
+    const { name, email, phone, subject, message } = req.body || {};
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ success: false, error: 'Thiếu dữ liệu bắt buộc' });
+    }
+
+    // Tạo token công khai để khách có thể xem thread sau khi gửi
+    const token = crypto.randomBytes(24).toString('hex');
+    const tokenExpires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
+
+    // Lưu contact vào DB trước
+    const contact = new Contact({ name, email, phone, subject, message, publicToken: token, tokenExpires });
+    await contact.save();
+
+    // gửi email tới support (không block nếu lỗi gửi)
+    try {
+      const info = await sendContactEmail({
+        fromName: name,
+        fromEmail: email,
+        fromPhone: phone,
+        subject,
+        message,
+        to: process.env.SUPPORT_EMAIL || 'vexe7tv@gmail.com',
+        contactId: contact._id,
+        token
+      });
+      if (info && info.messageId) {
+        contact.sent = true;
+        contact.sentAt = new Date();
+        contact.messageId = info.messageId;
+      }
+      await contact.save();
+    } catch (sendErr) {
+      console.error('Contact saved but mail send failed:', sendErr && sendErr.message ? sendErr.message : sendErr);
+      contact.sendError = (sendErr && sendErr.message) ? sendErr.message : String(sendErr);
+      await contact.save();
+    }
+
+    // trả về contactId và token cho frontend để khách truy cập trang xem
+    return res.json({ success: true, message: 'Đã gửi liên hệ thành công', contactId: contact._id, token });
+  } catch (err) {
+    console.error('Error /contact:', err);
+    return res.status(500).json({ success: false, error: 'Lỗi khi gửi liên hệ' });
+  }
+});
+
+// Public endpoint: lấy contact theo id + token (dùng cho khách không đăng nhập)
+app.get('/public/contacts/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const token = req.query.token;
+    if (!id || !token) return res.status(400).json({ success: false, error: 'Missing id or token' });
+    const contact = await Contact.findById(id).lean();
+    if (!contact) return res.status(404).json({ success: false, error: 'Not found' });
+    if (!contact.publicToken || contact.publicToken !== token) return res.status(403).json({ success: false, error: 'Invalid token' });
+    if (contact.tokenExpires && new Date(contact.tokenExpires) < new Date()) return res.status(403).json({ success: false, error: 'Token expired' });
+
+    // trả về thông tin cần thiết (loại trừ sendError nếu bạn muốn)
+    return res.json({ success: true, contact: {
+      _id: contact._id,
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      subject: contact.subject,
+      message: contact.message,
+      sent: contact.sent,
+      sentAt: contact.sentAt,
+      messageId: contact.messageId,
+      replies: contact.replies || [],
+      createdAt: contact.createdAt
+    }});
+  } catch (e) {
+    console.error('Error GET /public/contacts/:id', e);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// Public endpoint: mark contact as replied (clicked from support Gmail link)
+app.get('/public/contacts/:id/mark-replied', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const token = req.query.token;
+    if (!id || !token) return res.status(400).send('Missing id or token');
+    const contact = await Contact.findById(id);
+    if (!contact) return res.status(404).send('Not found');
+    if (!contact.publicToken || contact.publicToken !== token) return res.status(403).send('Invalid token');
+    if (contact.tokenExpires && new Date(contact.tokenExpires) < new Date()) return res.status(403).send('Token expired');
+
+    // Push a generic reply entry indicating admin replied via Gmail
+    const reply = {
+      adminName: 'Hỗ trợ VeXe7TV',
+      message: 'Phản hồi đã được gửi qua Gmail. Vui lòng kiểm tra hộp thư của bạn.',
+      createdAt: new Date()
+    };
+    contact.replies = contact.replies || [];
+    contact.replies.push(reply);
+    contact.sent = true;
+    contact.sentAt = new Date();
+    await contact.save();
+
+    // Simple HTML response for admin who clicked the link
+    return res.send('<html><body><h3>Ghi nhận phản hồi thành công</h3><p>Phản hồi đã được ghi nhận trên hệ thống. Khách hàng sẽ thấy thông báo trên trang Liên hệ.</p></body></html>');
+  } catch (e) {
+    console.error('Error mark-replied:', e);
+    return res.status(500).send('Server error');
+  }
+});
 
 // Admin EJS routes
 app.use('/admin', adminRoutes);
@@ -3704,14 +4127,23 @@ function getTransporter() {
   return transporterPromise;
 }
 
-async function sendMail({ to, subject, html, text }) {
+async function sendMail({ to, subject, html, text, replyTo }) {
   const transporter = await getTransporter();
   if (!transporter) {
     console.log('[mailer] Transporter not configured. Skip sending to:', to);
     return { skipped: true };
   }
   const from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  const info = await transporter.sendMail({ from, to, subject, html, text });
+  const mailOptions = { from, to, subject, html, text };
+  if (replyTo) mailOptions.replyTo = replyTo;
+  const info = await transporter.sendMail(mailOptions);
+  // Log messageId and SMTP response for easier delivery verification
+  try {
+    if (info && info.messageId) console.log('[mailer] Sent messageId:', info.messageId);
+    if (info && info.response) console.log('[mailer] SMTP response:', info.response);
+  } catch (e) {
+    console.warn('[mailer] Warning logging send result:', e && e.message ? e.message : e);
+  }
   const preview = nodemailer.getTestMessageUrl(info);
   if (preview) {
     console.log('[mailer] Preview URL:', preview);
@@ -3765,6 +4197,89 @@ async function sendBookingConfirmationEmail(to, bookingSummary) {
 module.exports = {
   sendBookingConfirmationEmail,
 };
+
+// Gửi email từ form liên hệ (contact)
+async function sendContactEmail({ fromName, fromEmail, fromPhone, subject, message, to, contactId, token }) {
+  if (!to) to = process.env.SUPPORT_EMAIL || 'vexe7tv@gmail.com';
+  const fullSubject = `[Liên hệ khách hàng] ${subject || '(Không có chủ đề)'} `;
+  const serverUrl = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
+  const markLink = contactId && token ? `${serverUrl}/public/contacts/${contactId}/mark-replied?token=${encodeURIComponent(token)}` : null;
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6">
+      <h2>Thông báo Liên hệ mới</h2>
+      <p><strong>Người gửi:</strong> ${fromName || '-'} &lt;${fromEmail || '-'}&gt;</p>
+      <p><strong>Số điện thoại:</strong> ${fromPhone || '-'}</p>
+      <p><strong>Chủ đề:</strong> ${subject || '-'}</p>
+      <hr />
+      <div>${(message || '').replace(/\n/g, '<br/>')}</div>
+      ${markLink ? `<hr/><p><a href="${markLink}">Đã trả lời qua Gmail? Nhấn vào đây để ghi nhận trên website</a></p>` : ''}
+    </div>
+  `;
+  const text = `Liên hệ mới từ ${fromName || '-'} <${fromEmail || '-'}>\n\n${message || ''}`;
+  try {
+    return await sendMail({ to, subject: fullSubject, html, text, replyTo: fromEmail });
+  } catch (e) {
+    console.error('[mailer] sendContactEmail error:', e.message || e);
+    throw e;
+  }
+}
+
+module.exports.sendContactEmail = sendContactEmail;
+
+// Gửi reply (admin -> khách) với template HTML đẹp hơn
+async function sendReplyEmail({ to, subject, replyFromName, replyFromEmail, message, original }) {
+  if (!to) throw new Error('Missing recipient');
+  const from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  const headerName = replyFromName || (from && from.split('<')[0].trim()) || 'VeXe7TV';
+  const safeSubject = subject || 'Trả lời từ VeXe7TV';
+
+  const html = `
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:#f6f8fb;margin:0;padding:20px}
+        .container{max-width:680px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 6px 20px rgba(18,38,63,0.08)}
+        .header{background:linear-gradient(90deg,#6366f1,#4f46e5);color:#fff;padding:18px}
+        .header h1{margin:0;font-size:18px}
+        .content{padding:20px;color:#0f172a}
+        .greeting{font-size:16px;margin-bottom:12px}
+        .reply-box{background:#f8fafc;border:1px solid #eef2ff;padding:16px;border-radius:6px;color:#0f172a;margin-bottom:16px}
+        .original{border-left:4px solid #e6edf8;padding:12px 16px;background:#fbfdff;color:#334155;border-radius:6px}
+        .meta{font-size:13px;color:#64748b;margin-bottom:6px}
+        .footer{padding:16px;background:#fafafa;border-top:1px solid #f1f5f9;font-size:13px;color:#475569}
+        a.button{display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none}
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>${headerName} trả lời bạn</h1>
+        </div>
+        <div class="content">
+          <div class="greeting">Xin chào,</div>
+          <div class="meta">Nội dung trả lời từ <strong>${headerName}</strong> — <em>${new Date().toLocaleString('vi-VN')}</em></div>
+          <div class="reply-box">${(message || '').replace(/\n/g, '<br/>')}</div>
+
+          ${original ? `<div style="margin-bottom:8px;color:#64748b;font-size:13px">Nội dung gốc:</div>
+            <div class="original">${original.replace(/\n/g, '<br/>')}</div>` : ''}
+
+          <div style="margin-top:18px">Trân trọng,<br/><strong>${headerName}</strong></div>
+        </div>
+        <div class="footer">Bạn đang nhận mail từ VeXe7TV — vui lòng không trả lời vào địa chỉ này nếu bạn không thấy phần trả lời; thay vào đó hãy gửi tới email hỗ trợ: <a href="mailto:${process.env.SUPPORT_EMAIL || process.env.SMTP_USER}">${process.env.SUPPORT_EMAIL || process.env.SMTP_USER}</a></div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = (message || '') + (original ? '\n\n----Original message----\n' + original : '');
+
+  // gửi với Reply-To là replyFromEmail nếu có
+  return await sendMail({ to, subject: safeSubject, html, text, replyTo: replyFromEmail || process.env.MAIL_FROM });
+}
+
+module.exports.sendReplyEmail = sendReplyEmail;
 
 
 
@@ -4267,9 +4782,11 @@ main();
             <div class="content-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                 <h2 style="margin: 0;">Danh sách Phụ xe</h2>
-                <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
-                    ➕ Thêm Phụ xe
-                </a>
+                <div>
+                    <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
+                        ➕ Thêm Phụ xe
+                    </a>
+                </div>
             </div>
             <% if (assistants.length === 0) { %>
                     <div class="empty-state">
@@ -6425,6 +6942,9 @@ main();
             margin-left: 280px;
             padding: 2rem;
             min-height: 100vh;
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
         }
         
         .page-header {
@@ -6993,230 +7513,791 @@ main();
 --- END OF FILE: backend\views\admin\dashboard.ejs ---
 
 
---- START OF FILE: backend\views\admin\driver.ejs ---
-<%- include('layout') %>
-<div class="main-content">
-    <div class="page-header">
-        <div>
-            <h2>Quản lý Tài xế</h2>
-            <p>Danh sách tài xế trong hệ thống</p>
-        </div>
-        <a href="/admin/drivers/new" class="btn btn-success" style="text-decoration:none; color:white;">+ Thêm Tài xế</a>
+--- START OF FILE: backend\views\admin\drivers.ejs ---
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Tài xế - VeXe7TV Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #3b82f6;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --gray-light: #e2e8f0;
+            --white: #ffffff;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--dark);
+        }
+        
+        .admin-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-xl);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 0.875rem 1.5rem;
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            margin: 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .page-header {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #d97706;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: var(--white);
+            padding: 1.75rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--warning), #fbbf24);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--warning), #fbbf24);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .stat-card h3 {
+            color: var(--gray);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1;
+        }
+        
+        .content-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
+        
+        .content-card h2 {
+            margin: 0 0 1.5rem 0;
+            color: var(--dark);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: var(--light);
+        }
+        
+        th {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-light);
+        }
+        
+        td {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--gray-light);
+            color: var(--dark);
+        }
+        
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        tbody tr:hover {
+            background: var(--light);
+            transform: scale(1.01);
+        }
+        
+        .badge {
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+        
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--gray);
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+        
+        .empty-state p {
+            color: var(--gray);
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚌 VeXe7TV</h1>
+                <p>Trang quản trị</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin" class="nav-item">
+                    <span>📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/admin/users" class="nav-item">
+                    <span>👥</span>
+                    <span>Users</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
+                <a href="/admin/buses" class="nav-item">
+                    <span>🚌</span>
+                    <span>Buses</span>
+                </a>
+                <a href="/admin/routes" class="nav-item">
+                    <span>📍</span>
+                    <span>Routes</span>
+                </a>
+                <a href="/admin/trips" class="nav-item">
+                    <span>🕐</span>
+                    <span>Trips</span>
+                </a>
+                <a href="/admin/bookings" class="nav-item">
+                    <span>🎫</span>
+                    <span>Bookings</span>
+                </a>
+                <a href="/admin/statistics" class="nav-item">
+                    <span>📈</span>
+                    <span>Statistics</span>
+                </a>
+                <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
+                    <span>🏠</span>
+                    <span>Về trang chủ</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h2>Quản lý Tài xế</h2>
+                    <p>Danh sách tài xế trong hệ thống</p>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Tổng số tài xế</h3>
+                    <div class="value"><%= stats.total %></div>
+                </div>
+                <div class="stat-card" style="border-left-color: var(--success);">
+                    <h3>Đang hoạt động</h3>
+                    <div class="value"><%= stats.active %></div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
+                    <a href="/admin/drivers/new" class="btn btn-primary">➕ Thêm Tài xế</a>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Họ tên</th>
+                                <th>SĐT / Email</th>
+                                <th>Bằng lái</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (drivers.length === 0) { %>
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #999;">Chưa có tài xế nào.</td>
+                                </tr>
+                            <% } %>
+                            
+                            <% drivers.forEach(d => { %>
+                                <tr>
+                                    <td>
+                                        <strong><%= d.name %></strong><br>
+                                        <small style="color: #64748b;"><%= d.employee_id || 'Mã: N/A' %></small>
+                                    </td>
+                                    <td>
+                                        <%= d.phone %><br>
+                                        <small style="color: #64748b;"><%= d.email %></small>
+                                    </td>
+                                    <td><span class="badge badge-info"><%= d.license_number %></span></td>
+                                    <td>
+                                        <span class="badge <%= d.status==='active'?'badge-success':'badge-danger' %>">
+                                            <%= d.status==='active'?'Đang làm':'Đã nghỉ' %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="/admin/drivers/<%= d._id %>" class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Chi tiết</a>
+                                        <a href="/admin/drivers/<%= d._id %>/edit" class="btn btn-warning" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Sửa</a>
+                                        <button onclick="deleteDriver('<%= d._id %>')" class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Xóa</button>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <div class="stats-grid">
-        <div class="stat-card">
-            <h3>Tổng số</h3>
-            <div class="value"><%= stats.total %></div>
-        </div>
-        <div class="stat-card">
-            <h3>Đang hoạt động</h3>
-            <div class="value"><%= stats.active %></div>
-        </div>
-    </div>
+    <script>
+        async function deleteDriver(id) {
+            if(!confirm('Xóa tài xế này sẽ xóa luôn tài khoản đăng nhập tương ứng. Tiếp tục?')) return;
+            try {
+                const res = await fetch('/admin/drivers/' + id, {method:'DELETE'});
+                const data = await res.json();
+                if(data.success) {
+                    alert('Đã xóa thành công!');
+                    location.reload();
+                } else {
+                    alert('Lỗi: ' + data.error);
+                }
+            } catch(e) {
+                alert('Lỗi kết nối server');
+            }
+        }
+    </script>
+</body>
+</html>
 
-    <div class="content-card">
-        <div class="table-wrapper">
-            <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr style="background:#f8f9fa; border-bottom:2px solid #eee;">
-                        <th style="padding:15px; text-align:left;">Họ tên</th>
-                        <th style="padding:15px; text-align:left;">SĐT / Email</th>
-                        <th style="padding:15px; text-align:left;">Bằng lái</th>
-                        <th style="padding:15px; text-align:left;">Trạng thái</th>
-                        <th style="padding:15px; text-align:left;">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% drivers.forEach(d => { %>
-                        <tr style="border-bottom:1px solid #eee;">
-                            <td style="padding:15px;"><strong><%= d.name %></strong><br><small class="text-muted"><%= d.employee_id %></small></td>
-                            <td style="padding:15px;"><%= d.phone %><br><small><%= d.email %></small></td>
-                            <td style="padding:15px;"><span class="badge badge-info"><%= d.license_number %></span></td>
-                            <td style="padding:15px;">
-                                <span class="badge <%= d.status==='active'?'badge-success':'badge-danger' %>">
-                                    <%= d.status==='active'?'Đang làm':'Đã nghỉ' %>
-                                </span>
-                            </td>
-                            <td style="padding:15px;">
-                                <a href="/admin/drivers/<%= d._id %>" class="btn btn-primary" style="padding:5px 10px; text-decoration:none; font-size:12px;">Chi tiết</a>
-                                <a href="/admin/drivers/<%= d._id %>/edit" class="btn btn-warning" style="padding:5px 10px; text-decoration:none; font-size:12px;">Sửa</a>
-                                <button onclick="deleteDriver('<%= d._id %>')" class="btn btn-danger" style="padding:5px 10px; font-size:12px;">Xóa</button>
-                            </td>
-                        </tr>
-                    <% }) %>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script>
-    async function deleteDriver(id) {
-        if(!confirm('Xóa tài xế này?')) return;
-        const res = await fetch('/admin/drivers/' + id, {method:'DELETE'});
-        const data = await res.json();
-        if(data.success) location.reload();
-        else alert('Lỗi: ' + data.error);
-    }
-</script>
---- END OF FILE: backend\views\admin\driver.ejs ---
+--- END OF FILE: backend\views\admin\drivers.ejs ---
 
 
 --- START OF FILE: backend\views\admin\driver_detail.ejs ---
-<%- include('layout') %>
-<div class="main-content">
-    <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-            <h2>Hồ sơ: <%= driver.name %></h2>
-            <p>Bằng lái: <strong><%= driver.license_number %></strong> | Email: <%= driver.email %></p>
-        </div>
-        <a href="/admin/drivers" class="btn btn-secondary" style="text-decoration:none; background:#ddd; padding:8px 15px; border-radius:5px; color:#333;">Quay lại</a>
-    </div>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Chi tiết Tài xế - VeXe7TV Admin</title>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+	<style>
+		body{font-family:Inter,Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#1e293b;margin:0}
+		.admin-wrapper{display:flex;min-height:100vh}
+		.sidebar{width:260px;background:rgba(255,255,255,0.95);position:fixed;height:100vh;padding-bottom:2rem;overflow:auto}
+		.main-content{flex:1;margin-left:260px;padding:2rem}
+		.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+		.info-card{background:#fff;padding:1.5rem;border-radius:12px;box-shadow:0 8px 20px rgba(2,6,23,0.08);margin-bottom:1rem}
+		.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}
+		table{width:100%;border-collapse:collapse}
+		th,td{padding:0.75rem;text-align:left;border-bottom:1px solid #eef2f7}
+		thead{background:#f8fafc}
+		.badge{padding:0.35rem 0.7rem;border-radius:999px;font-weight:600;font-size:0.85rem}
+		.badge-success{background:rgba(16,185,129,0.1);color:#059669}
+		.badge-info{background:rgba(59,130,246,0.08);color:#2563eb}
+		.badge-warning{background:rgba(245,158,11,0.08);color:#b45309}
+		.actions a{margin-left:0.5rem;text-decoration:none}
+	</style>
+</head>
+<body>
+	<div class="admin-wrapper">
+		<aside class="sidebar">
+			<div style="padding:1.5rem;background:linear-gradient(90deg,#6366f1,#4f46e5);color:white">
+				<h2 style="margin:0">🚌 VeXe7TV</h2>
+				<div style="opacity:0.9;font-size:0.9rem">Trang quản trị</div>
+			</div>
+			<nav style="padding:1rem">
+				<a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Dashboard</a>
+				<a href="/admin/drivers" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none;font-weight:600">🚐 Tài xế</a>
+			</nav>
+		</aside>
 
-    <div class="stats-grid" style="margin-bottom:30px;">
-        <div class="stat-card" style="border-left:4px solid #3b82f6; background:white; padding:15px; border-radius:8px;">
-            <div style="color:#666; font-size:12px;">TỔNG CHUYẾN</div>
-            <div style="font-size:24px; font-weight:bold;"><%= stats.total %></div>
-        </div>
-        <div class="stat-card" style="border-left:4px solid #eab308; background:white; padding:15px; border-radius:8px;">
-            <div style="color:#666; font-size:12px;">ĐANG CHẠY</div>
-            <div style="font-size:24px; font-weight:bold; color:#eab308;"><%= stats.departed %></div>
-        </div>
-        <div class="stat-card" style="border-left:4px solid #22c55e; background:white; padding:15px; border-radius:8px;">
-            <div style="color:#666; font-size:12px;">ĐÃ HOÀN THÀNH</div>
-            <div style="font-size:24px; font-weight:bold; color:#166534;"><%= stats.completed %></div>
-        </div>
-    </div>
+		<main class="main-content">
+			<div class="page-header">
+				<div>
+					<h1 style="color:white;margin:0 0 6px 0">Chi tiết tài xế</h1>
+					<div style="color:rgba(255,255,255,0.9)"><%= driver.name %></div>
+				</div>
+				<div class="actions">
+					<a href="/admin/drivers" class="btn" style="background:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">← Quay lại</a>
+					<a href="/admin/drivers/<%= driver._id %>/edit" class="btn" style="background:#6366f1;color:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">✏️ Sửa</a>
+				</div>
+			</div>
 
-    <div class="content-card">
-        <h3>📋 Lịch trình & Trạng thái hoạt động</h3>
-        <% if (trips.length === 0) { %>
-            <p style="padding:20px; text-align:center; color:#999;">Tài xế này chưa được gán chuyến nào.</p>
-        <% } else { %>
-            <div class="table-wrapper">
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead>
-                        <tr style="background:#f8f9fa; border-bottom:2px solid #eee;">
-                            <th style="padding:15px; text-align:left;">Ngày giờ</th>
-                            <th style="padding:15px; text-align:left;">Tuyến đường</th>
-                            <th style="padding:15px; text-align:left;">Biển số xe</th>
-                            <th style="padding:15px; text-align:left;">Trạng thái hiện tại</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <% trips.forEach(t => { %>
-                            <tr style="border-bottom:1px solid #eee;">
-                                <td style="padding:15px;">
-                                    <strong><%= new Date(t.start_time).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'}) %></strong><br>
-                                    <%= new Date(t.start_time).toLocaleDateString('vi-VN') %>
-                                </td>
-                                <td style="padding:15px;"><%= t.route ? t.route.name : 'Tuyến đã xóa' %></td>
-                                <td style="padding:15px;"><strong><%= t.bus ? t.bus.license_plate : '...' %></strong></td>
-                                <td style="padding:15px;">
-                                    <% if (t.status === 'scheduled') { %>
-                                        <span class="badge" style="background:#dbeafe; color:#1e40af; padding:5px 10px; border-radius:15px;">📅 Sắp chạy</span>
-                                    <% } else if (t.status === 'departed') { %>
-                                        <span class="badge" style="background:#fef9c3; color:#854d0e; padding:5px 10px; border-radius:15px;">🚍 Đang chạy</span>
-                                    <% } else if (t.status === 'completed') { %>
-                                        <span class="badge" style="background:#dcfce7; color:#166534; padding:5px 10px; border-radius:15px;">✅ Đã xong</span>
-                                    <% } else { %>
-                                        <span class="badge" style="background:#fee2e2; color:#991b1b; padding:5px 10px; border-radius:15px;">❌ Đã hủy</span>
-                                    <% } %>
-                                </td>
-                            </tr>
-                        <% }) %>
-                    </tbody>
-                </table>
-            </div>
-        <% } %>
-    </div>
-</div>
+			<div class="info-card">
+				<h3>Thông tin cơ bản</h3>
+				<div class="info-grid" style="margin-top:0.75rem">
+					<div><strong>Họ tên:</strong> <div><%= driver.name %></div></div>
+					<div><strong>Email:</strong> <div><%= driver.email %></div></div>
+					<div><strong>Số điện thoại:</strong> <div><%= driver.phone %></div></div>
+					<div><strong>Mã nhân viên:</strong> <div><%= driver.employee_id || 'N/A' %></div></div>
+					<div><strong>Bằng lái:</strong> <div><%= driver.license_number || 'N/A' %></div></div>
+					<div><strong>Kinh nghiệm:</strong> <div><%= driver.experience_years || 0 %> năm</div></div>
+				</div>
+			</div>
+
+			<div class="info-card">
+				<h3>Chuyến được gán (<%= trips ? trips.length : 0 %>)</h3>
+				<% if (trips && trips.length > 0) { %>
+					<div style="margin-top:1rem">
+						<table>
+							<thead>
+								<tr>
+									<th>Tuyến</th>
+									<th>Xe</th>
+									<th>Khởi hành</th>
+									<th>Trạng thái</th>
+								</tr>
+							</thead>
+							<tbody>
+								<% trips.forEach(function(trip){ %>
+									<tr>
+										<td>
+											<strong>
+												<%= trip.route ? ((trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city)) : 'N/A' %>
+											</strong>
+										</td>
+										<td><%= trip.bus ? trip.bus.license_plate : 'N/A' %></td>
+										<td><%= trip.start_time ? new Date(trip.start_time).toLocaleString('vi-VN') : 'N/A' %></td>
+										<td>
+											<span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : 'badge-warning' %>">
+												<%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đang chạy' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status %>
+											</span>
+										</td>
+									</tr>
+								<% }); %>
+							</tbody>
+						</table>
+					</div>
+				<% } else { %>
+					<p style="color:#475569;margin:1rem 0">Chưa có chuyến nào được gán cho tài xế này.</p>
+				<% } %>
+			</div>
+
+		</main>
+	</div>
+</body>
+</html>
+
 --- END OF FILE: backend\views\admin\driver_detail.ejs ---
 
 
 --- START OF FILE: backend\views\admin\driver_form.ejs ---
-<%- include('layout') %>
-<div class="main-content">
-    <div class="page-header">
-        <h2><%= driver ? 'Sửa thông tin Tài xế' : 'Thêm Tài xế mới' %></h2>
-    </div>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title><%= driver ? 'Sửa tài xế' : 'Thêm tài xế mới' %> - Admin</title>
+	<style>
+		body{font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;background:#f5f7fa;color:#333}
+		.container{max-width:900px;margin:3rem auto;background:white;padding:2rem;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.05)}
+		h2{margin-bottom:1.5rem;color:#1e3a8a}
+		label{display:block;margin-top:1rem;font-weight:600;color:#374151}
+		input[type=text], input[type=email], input[type=tel], input[type=number], select {
+			width:100%; padding:0.75rem; border:1px solid #e5e7eb; border-radius:6px; font-size:0.95rem; margin-top: 0.25rem;
+		}
+		input:focus, select:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
+		.form-group{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+		.trips-section{margin-top:2rem;padding-top:2rem;border-top:2px solid #e5e7eb}
+		.trips-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:0.75rem;margin-top:1rem;max-height:320px;overflow-y:auto;padding:1rem;background:#f9fafb;border-radius:6px}
+		.trip-item{display:flex;align-items:center;gap:0.5rem}
+		.trip-item input[type=checkbox]{width:auto}
+		.actions{margin-top:2rem;display:flex;gap:0.75rem}
+		.btn{padding:0.75rem 1.5rem;border-radius:6px;border:none;cursor:pointer;font-weight:600;text-decoration:none;display:inline-block}
+		.btn-primary{background:#6366f1;color:white}
+		.btn-primary:hover{background:#4f46e5}
+		.btn-secondary{background:#e5e7eb;color:#374151}
+		.btn-secondary:hover{background:#d1d5db}
+		.help-text{font-size:0.875rem;color:#6b7280;margin-top:0.25rem}
+		.error-msg { color: #dc2626; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+		.input-error { border-color: #dc2626 !important; background-color: #fef2f2; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h2><%= driver ? 'Sửa thông tin tài xế' : 'Thêm tài xế mới' %></h2>
 
-    <div class="content-card" style="max-width:800px;">
-        <form id="driverForm" method="POST" action="<%= driver ? '/admin/drivers/'+driver._id : '/admin/drivers' %>">
-            
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:15px;">
-                <div>
-                    <label>Họ tên *</label>
-                    <input type="text" name="name" id="name" class="form-control" value="<%= driver ? driver.name : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                    <div id="err-name" style="color:red; font-size:12px; display:none;">Vui lòng nhập tên</div>
-                </div>
-                <div>
-                    <label>Email (Bắt buộc) *</label>
-                    <input type="email" name="email" id="email" class="form-control" value="<%= driver ? driver.email : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                    <div id="err-email" style="color:red; font-size:12px; display:none;">Email bắt buộc và phải đúng định dạng</div>
-                </div>
-            </div>
+		<form id="driverForm" method="post" action="<%= driver ? ('/admin/drivers/' + driver._id) : '/admin/drivers' %>">
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:15px;">
-                <div>
-                    <label>Số điện thoại *</label>
-                    <input type="text" name="phone" id="phone" value="<%= driver ? driver.phone : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                    <div id="err-phone" style="color:red; font-size:12px; display:none;">SĐT phải có 10 số</div>
-                </div>
-                <div>
-                    <label>Bằng lái xe (Hạng) *</label>
-                    <input type="text" name="license_number" id="license" value="<%= driver ? driver.license_number : '' %>" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                    <div id="err-license" style="color:red; font-size:12px; display:none;">Vui lòng nhập bằng lái</div>
-                </div>
-            </div>
+			<div class="form-group">
+				<div>
+					<label>Họ tên *</label>
+					<input type="text" id="name" name="name" value="<%= driver ? driver.name : '' %>" placeholder="Nhập họ tên" />
+					<div class="error-msg" id="error-name">Vui lòng nhập họ tên</div>
+				</div>
+				<div>
+					<label>Email *</label>
+					<input type="email" id="email" name="email" value="<%= driver ? driver.email : '' %>" placeholder="email@example.com" />
+					<div class="error-msg" id="error-email">Email không hợp lệ</div>
+				</div>
+			</div>
 
-            <div style="margin-bottom:15px;">
-                <label>Phân công chuyến xe (Có thể chọn nhiều)</label>
-                <div style="max-height:200px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:5px;">
-                    <% trips.forEach(t => { 
-                        const checked = driver && driver.assigned_trips && driver.assigned_trips.some(at => at.toString() === t._id.toString());
-                    %>
-                    <div style="margin-bottom:5px;">
-                        <input type="checkbox" name="assigned_trips" value="<%= t._id %>" <%= checked ? 'checked' : '' %>>
-                        <strong><%= new Date(t.start_time).toLocaleString('vi-VN') %></strong>: 
-                        <%= t.route ? t.route.name : 'Unknown' %> 
-                        (<%= t.bus ? t.bus.license_plate : 'No Bus' %>)
-                    </div>
-                    <% }) %>
-                </div>
-            </div>
+			<div class="form-group">
+				<div>
+					<label>Số điện thoại *</label>
+					<input type="tel" id="phone" name="phone" value="<%= driver ? driver.phone : '' %>" placeholder="09xx..." maxlength="11" oninput="this.value = this.value.replace(/[^0-9\+]/g, '')" />
+					<div class="error-msg" id="error-phone">Số điện thoại không hợp lệ</div>
+				</div>
+				<div>
+					<label>Mã nhân viên</label>
+					<input type="text" name="employee_id" value="<%= driver ? driver.employee_id : '' %>" placeholder="VD: TX001" />
+				</div>
+			</div>
 
-            <button type="submit" class="btn btn-primary" style="padding:10px 20px; border:none; background:#4f46e5; color:white; border-radius:5px; cursor:pointer;">Lưu lại</button>
-        </form>
-    </div>
-</div>
+			<div class="form-group">
+				<div>
+					<label>Số giấy phép lái xe</label>
+					<input type="text" name="license_number" value="<%= driver ? driver.license_number : '' %>" placeholder="VD: BKS-12345" />
+				</div>
+				<div>
+					<label>Số năm kinh nghiệm</label>
+					<input type="number" name="experience_years" value="<%= driver ? driver.experience_years : 0 %>" min="0" />
+				</div>
+			</div>
 
-<script>
-    document.getElementById('driverForm').addEventListener('submit', function(e) {
-        let valid = true;
-        const email = document.getElementById('email').value.trim();
-        const phone = document.getElementById('phone').value.trim();
-        
-        // Validate Email
-        if(!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-            document.getElementById('err-email').style.display = 'block';
-            valid = false;
-        } else {
-            document.getElementById('err-email').style.display = 'none';
-        }
+			<div>
+				<label>Trạng thái</label>
+				<select name="status">
+					<option value="active" <%= driver && driver.status === 'active' ? 'selected' : '' %>>Đang hoạt động</option>
+					<option value="inactive" <%= driver && driver.status === 'inactive' ? 'selected' : '' %>>Không hoạt động</option>
+				</select>
+			</div>
 
-        // Validate Phone
-        if(!phone.match(/^0\d{9}$/)) {
-            document.getElementById('err-phone').style.display = 'block';
-            valid = false;
-        } else {
-            document.getElementById('err-phone').style.display = 'none';
-        }
+			<% if (trips) { %>
+				<div class="trips-section">
+					<h3 style="margin-bottom:1rem;color:#1e3a8a">Gán chuyến cho tài xế</h3>
+					<div class="help-text">Chọn các chuyến mà tài xế này sẽ phụ trách (tuỳ chọn).</div>
+					<div class="trips-grid">
+						<% trips.forEach(function(trip) { 
+							const isAssigned = driver && driver.assigned_trips && driver.assigned_trips.some(t => {
+								const tid = typeof t === 'object' ? (t._id ? t._id.toString() : '') : t.toString();
+								return tid === trip._id.toString();
+							});
+						%>
+							<div class="trip-item">
+								<input type="checkbox" name="assigned_trips" value="<%= trip._id %>" <%= isAssigned ? 'checked' : '' %> />
+								<label style="font-weight:normal;margin:0;cursor:pointer;">
+									<%= (trip.route && (trip.route.from_city || trip.route.origin) ? (trip.route.from_city || trip.route.origin) : '---') %> → 
+									<%= (trip.route && (trip.route.to_city || trip.route.destination) ? (trip.route.to_city || trip.route.destination) : '---') %>
+									<span style="color:#6b7280;font-size:0.85rem;display:block;margin-top:0.25rem;">
+										<%= trip.start_time ? (new Date(trip.start_time)).toLocaleString() : 'Thời gian chưa đặt' %>
+										<% if (trip.bus && trip.bus.license_plate) { %> · <%= trip.bus.license_plate %> <% } %>
+									</span>
+								</label>
+							</div>
+						<% }); %>
+					</div>
+				</div>
+			<% } %>
 
-        if(!valid) e.preventDefault();
-    });
-</script>
+			<div class="actions">
+				<button type="submit" class="btn btn-primary"><%= driver ? 'Cập nhật' : 'Tạo mới' %></button>
+				<a href="/admin/drivers" class="btn btn-secondary">Hủy</a>
+			</div>
+		</form>
+	</div>
+
+	<script>
+		const form = document.getElementById('driverForm');
+		const nameInput = document.getElementById('name');
+		const phoneInput = document.getElementById('phone');
+		const emailInput = document.getElementById('email');
+
+		function showError(input, errorId, show) {
+				const errorDiv = document.getElementById(errorId);
+				if (show) {
+						errorDiv.style.display = 'block';
+						input.classList.add('input-error');
+				} else {
+						errorDiv.style.display = 'none';
+						input.classList.remove('input-error');
+				}
+		}
+
+		form.addEventListener('submit', function(e) {
+				let isValid = true;
+
+				if (!nameInput.value.trim()) {
+						showError(nameInput, 'error-name', true);
+						isValid = false;
+				} else {
+						showError(nameInput, 'error-name', false);
+				}
+
+				const phoneRegex = /^(0|\+84)[0-9]{9,10}$/;
+				if (!phoneInput.value.match(phoneRegex)) {
+						showError(phoneInput, 'error-phone', true);
+						isValid = false;
+				} else {
+						showError(phoneInput, 'error-phone', false);
+				}
+
+				const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+				if (!emailInput.value.trim() || !emailInput.value.match(emailRegex)) {
+						showError(emailInput, 'error-email', true);
+						isValid = false;
+				} else {
+						showError(emailInput, 'error-email', false);
+				}
+
+				if (!isValid) e.preventDefault();
+		});
+
+		[nameInput, phoneInput, emailInput].forEach(input => {
+				input.addEventListener('input', function() {
+						this.classList.remove('input-error');
+						if(this.id === 'name') document.getElementById('error-name').style.display = 'none';
+						if(this.id === 'phone') document.getElementById('error-phone').style.display = 'none';
+						if(this.id === 'email') document.getElementById('error-email').style.display = 'none';
+				});
+		});
+	</script>
+</body>
+</html>
+
 --- END OF FILE: backend\views\admin\driver_form.ejs ---
 
 
@@ -7396,6 +8477,54 @@ main();
 </html>
 // ...existing code...
 --- END OF FILE: backend\views\admin\layout.ejs ---
+
+
+--- START OF FILE: backend\views\admin\login.ejs ---
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng nhập Admin</title>
+  <style>
+    body{font-family:Inter,Segoe UI,Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;margin:0;display:flex;align-items:center;justify-content:center}
+    .card{background:#fff;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.15);width:100%;max-width:420px;padding:2rem}
+    h1{margin:0 0 1rem 0;font-size:1.5rem;color:#1e293b;text-align:center}
+    .field{margin-bottom:1rem}
+    label{display:block;margin-bottom:0.5rem;font-weight:600;color:#334155}
+    input{width:100%;padding:0.75rem;border:1px solid #e5e7eb;border-radius:8px;font-size:0.95rem}
+    .btn{width:100%;padding:0.75rem;border:none;border-radius:8px;background:#1e3a8a;color:#fff;font-weight:600;cursor:pointer}
+    .btn:hover{background:#172f6b}
+    .error{background:#fee2e2;color:#991b1b;padding:0.75rem;border-radius:8px;margin-bottom:1rem;text-align:center}
+    .note{margin-top:1rem;color:#64748b;font-size:0.9rem;text-align:center}
+    .links{margin-top:1rem;text-align:center}
+    .links a{color:#1e3a8a;text-decoration:none;font-weight:600}
+  </style>
+  </head>
+<body>
+  <div class="card">
+    <h1>Đăng nhập hệ thống</h1>
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+    <form method="post" action="/admin/login">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="you@example.com" required />
+      </div>
+      <div class="field">
+        <label>Mật khẩu</label>
+        <input type="password" name="password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn">Đăng nhập</button>
+    </form>
+    <div class="note">Admin → vào trang quản trị. Tài xế/Lơ xe → vào trang riêng.</div>
+    <div class="links"><a href="/">Về trang chủ</a></div>
+  </div>
+</body>
+</html>
+
+--- END OF FILE: backend\views\admin\login.ejs ---
 
 
 --- START OF FILE: backend\views\admin\routes.ejs ---
@@ -9063,14 +10192,14 @@ main();
             
             <div class="content-card">
                 <div class="content-card-header">
-                    <h2>Danh sách Chuyến xe</h2>
+                    <h2>Chuyến cố định</h2>
                     <a href="/admin/trips/new" class="btn btn-success">➕ Thêm chuyến mới</a>
                 </div>
-                <% if (trips.length === 0) { %>
+                <% if (!recurringTrips || recurringTrips.length === 0) { %>
                     <div class="empty-state">
-                        <div class="empty-state-icon">🕐</div>
-                        <h3>Chưa có chuyến xe nào</h3>
-                        <p>Vui lòng thêm chuyến xe mới</p>
+                        <div class="empty-state-icon">📅</div>
+                        <h3>Chưa có chuyến cố định</h3>
+                        <p>Hãy dùng mục "Tạo chuyến cố định theo lịch" trong form Thêm chuyến mới</p>
                     </div>
                 <% } else { %>
                     <div class="table-wrapper">
@@ -9089,7 +10218,62 @@ main();
                     </tr>
                 </thead>
                 <tbody>
-                    <% trips.forEach(function(trip) { %>
+                    <% recurringTrips.forEach(function(trip) { %>
+                        <tr>
+                                        <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
+                            <td><%= trip.route?.name || 'N/A' %></td>
+                            <td><%= trip.bus?.license_plate || 'N/A' %></td>
+                            <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
+                            <td><%= trip.end_time ? new Date(trip.end_time).toLocaleString('vi-VN') : 'N/A' %></td>
+                                        <td><strong><%= (trip.base_price || 0).toLocaleString('vi-VN') %> ₫</strong></td>
+                            <td>
+                                <span class="badge <%= trip.direction === 'go' ? 'badge-success' : 'badge-warning' %>">
+                                    <%= trip.direction === 'go' ? 'Đi' : 'Về' %>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-primary"><%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đã khởi hành' : trip.status === 'completed' ? 'Hoàn thành' : trip.status === 'cancelled' ? 'Đã hủy' : trip.status || 'Đã lên lịch' %></span>
+                            </td>
+                            <td>
+                                            <button class="btn btn-secondary" onclick="location.href='/admin/trips/<%= trip._id %>/edit'" style="margin-right: 0.5rem; padding: 0.5rem 1rem;">✏️ Sửa</button>
+                                            <button class="btn btn-danger" onclick="deleteTrip('<%= trip._id %>')" style="padding: 0.5rem 1rem;">🗑️ Xóa</button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+                <% } %>
+            </div>
+
+            <div class="content-card">
+                <div class="content-card-header">
+                    <h2>Chuyến không cố định</h2>
+                </div>
+                <% if (!singleTrips || singleTrips.length === 0) { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🕐</div>
+                        <h3>Chưa có chuyến không cố định</h3>
+                        <p>Vui lòng thêm chuyến lẻ bằng form Thêm chuyến mới</p>
+                    </div>
+                <% } else { %>
+                    <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tuyến</th>
+                        <th>Xe</th>
+                        <th>Thời gian bắt đầu</th>
+                        <th>Thời gian kết thúc</th>
+                        <th>Giá</th>
+                        <th>Hướng</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% singleTrips.forEach(function(trip) { %>
                         <tr>
                                         <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
                             <td><%= trip.route?.name || 'N/A' %></td>
@@ -9204,9 +10388,68 @@ main();
         <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
       </div>
     </form>
+
+    <hr style="margin:2rem 0;border:none;border-top:1px solid #e5e7eb" />
+    <h2>Tạo chuyến cố định theo lịch</h2>
+    <form method="post" action="/admin/trips/recurring">
+      <label>Tuyến</label>
+      <select name="route" required>
+        <% routes.forEach(function(r){ %>
+          <option value="<%= r._id %>"><%= r.name %> — <%= r.from_city %> → <%= r.to_city %></option>
+        <% }) %>
+      </select>
+
+      <label>Xe</label>
+      <select name="bus" required>
+        <% buses.forEach(function(b){ %>
+          <option value="<%= b._id %>"><%= b.license_plate %> — <%= b.bus_type %></option>
+        <% }) %>
+      </select>
+
+      <label>Giá cơ bản (VND)</label>
+      <input type="number" name="base_price" value="0" min="0" />
+
+      <label>Hướng</label>
+      <select name="direction">
+        <option value="go">Đi</option>
+        <option value="return">Về</option>
+      </select>
+
+      <label>Loại lặp</label>
+      <select name="frequency">
+        <option value="daily">Hằng ngày</option>
+        <option value="weekly">Theo tuần</option>
+      </select>
+
+      <label>Ngày bắt đầu</label>
+      <input type="date" name="start_date" />
+
+      <label>Ngày kết thúc (mặc định 6 tháng)</label>
+      <input type="date" name="end_date" />
+
+      <label>Giờ khởi hành cố định</label>
+      <input type="time" name="time_of_day" value="08:00" />
+
+      <label>Thứ trong tuần (khi chọn theo tuần)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        <label><input type="checkbox" name="days_of_week" value="1" /> Thứ 2</label>
+        <label><input type="checkbox" name="days_of_week" value="2" /> Thứ 3</label>
+        <label><input type="checkbox" name="days_of_week" value="3" /> Thứ 4</label>
+        <label><input type="checkbox" name="days_of_week" value="4" /> Thứ 5</label>
+        <label><input type="checkbox" name="days_of_week" value="5" /> Thứ 6</label>
+        <label><input type="checkbox" name="days_of_week" value="6" /> Thứ 7</label>
+        <label><input type="checkbox" name="days_of_week" value="0" /> Chủ nhật</label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Tạo chuyến cố định</button>
+        <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
+      </div>
+    </form>
   </div>
 </body>
 </html>
+
 --- END OF FILE: backend\views\admin\trip_form.ejs ---
 
 
@@ -10768,7 +12011,7 @@ const BookingDetail: React.FC = () => {
       stops: { pickupId: selectedPickupId, dropoffId: selectedDropoffId, pickupName: pickup.stop_name, dropoffName: dropoff.stop_name },
       route: { from: tripDetail.trip.route?.from_city || '', to: tripDetail.trip.route?.to_city || '', durationMin: tripDetail.trip.route?.estimated_duration_min || null },
       bus: { busType: tripDetail.trip.bus?.bus_type || '', licensePlate: tripDetail.trip.bus?.license_plate || '', seatCount: tripDetail.trip.bus?.seat_count || 0 },
-      times: { departureTime: tripDetail.trip.start_time, arrivalTime: tripDetail.trip.end_time || null },
+      times: { departureTime: tripDetail.trip.start_time, arrivalTime: computedArrivalIso || tripDetail.trip.end_time || null },
       pricePerSeat: computedPricePerSeat
     } });
   };
@@ -10790,6 +12033,29 @@ const BookingDetail: React.FC = () => {
     if (price <= 0) price = Math.max(1, Math.floor(base * 0.2));
     return price;
   }, [tripDetail?.stops, tripDetail?.trip?.base_price, selectedPickupId, selectedDropoffId, selectedTrip?.base_price]);
+
+  // Tính thời gian đến dự kiến cho điểm trả đã chọn (nếu có)
+  const computedArrivalIso = React.useMemo(() => {
+    if (!selectedTrip) return selectedTrip?.end_time || null;
+    if (selectedDropoffId && tripDetail?.stops && tripDetail.stops.length > 0) {
+      const stops = tripDetail.stops;
+      const orders = stops.map(s => (typeof s.order === 'number' ? s.order : 0));
+      const minOrder = Math.min(...orders);
+      const maxOrder = Math.max(...orders);
+      const totalSegments = (maxOrder - minOrder) || 1;
+      const dropoff = stops.find(s => s._id === selectedDropoffId);
+      const estMin = (selectedTrip.route && (selectedTrip.route as any).estimated_duration_min) || (tripDetail.trip.route && (tripDetail.trip.route as any).estimated_duration_min) || 0;
+      if (dropoff && typeof dropoff.order === 'number' && estMin) {
+        const segmentsBetween = Math.max(0, dropoff.order - minOrder);
+        const frac = Math.min(1, segmentsBetween / totalSegments);
+        const mins = Math.round(estMin * frac);
+        const d = new Date(selectedTrip.start_time);
+        d.setMinutes(d.getMinutes() + mins);
+        return d.toISOString();
+      }
+    }
+    return selectedTrip.end_time || null;
+  }, [selectedTrip, tripDetail?.stops, selectedDropoffId]);
 
   const computedTotalAmount = React.useMemo(() => {
     return (computedPricePerSeat || 0) * (selectedSeats.length || 0);
@@ -10905,11 +12171,11 @@ const BookingDetail: React.FC = () => {
                     <p className="text-gray-600">{fmtTime(selectedTrip.start_time)}</p>
                   </div>
                   
-                  {/* Ô 2: Giờ đến */}
+                  {/* Ô 2: Giờ dự kiến đến */}
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-900">Giờ đến</p>
-                    <p className="text-gray-600">{fmtTime(selectedTrip.end_time || undefined)}</p>
+                    <p className="font-semibold text-gray-900">Giờ dự kiến đến</p>
+                    <p className="text-gray-600">{fmtTime(computedArrivalIso || undefined)}</p>
                   </div>
 
                   {/* Ô 3: BIỂN SỐ XE  */}
@@ -11226,7 +12492,7 @@ export default BookingDetail;
 
 
 --- START OF FILE: frontend\src\components\ContactPage.tsx ---
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, Phone, Mail, MapPin, Clock, MessageCircle, Send, CheckCircle } from 'lucide-react';
 
@@ -11240,6 +12506,39 @@ const ContactPage: React.FC = () => {
     message: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [publicView, setPublicView] = useState<{ contactId: string; token: string } | null>(null);
+  const [contactDetails, setContactDetails] = useState<any>(null);
+  const [pollingId, setPollingId] = useState<number | null>(null);
+
+  // Khi component mount, nếu có lastContactId trong localStorage thì tự load và bắt polling
+  useEffect(() => {
+    try {
+      const lastId = localStorage.getItem('lastContactId');
+      if (lastId) {
+        const token = localStorage.getItem(`contactToken:${lastId}`);
+        if (token) {
+          const pv = { contactId: lastId, token };
+          setPublicView(pv);
+          fetchPublicContact(pv.contactId, pv.token);
+          const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
+          setPollingId(id);
+        }
+      }
+    } catch (e) {
+      console.warn('ContactPage mount load token error', e);
+    }
+
+    // cleanup when unmount
+    return () => {
+      if (pollingId) { window.clearInterval(pollingId); }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // clear interval if pollingId changes (ensure no duplicate timers)
+  useEffect(() => {
+    return () => { if (pollingId) { window.clearInterval(pollingId); } };
+  }, [pollingId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -11251,19 +12550,61 @@ const ContactPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate form submission
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        message: ''
-      });
-    }, 3000);
+  
+    (async () => {
+      try {
+        const apiUrl = 'http://localhost:5000';
+        const res = await fetch(`${apiUrl}/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setIsSubmitted(true);
+          // store token so user can view replies on site
+          if (data.contactId && data.token) {
+            const pv = { contactId: data.contactId, token: data.token };
+            setPublicView(pv);
+            try { 
+              localStorage.setItem(`contactToken:${data.contactId}`, data.token);
+              localStorage.setItem('lastContactId', data.contactId);
+            } catch(e){}
+            // start polling for replies
+            fetchPublicContact(pv.contactId, pv.token);
+            const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
+            setPollingId(id);
+          }
+
+          setTimeout(() => setIsSubmitted(false), 3000);
+          setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+        } else {
+          alert(data.error || 'Có lỗi khi gửi liên hệ');
+        }
+      } catch (err) {
+        console.error('Contact submit error', err);
+        alert('Lỗi khi gửi liên hệ. Vui lòng thử lại sau.');
+      }
+    })();
   };
+
+  async function fetchPublicContact(contactId: string, token: string) {
+    try {
+      const apiUrl = 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/public/contacts/${contactId}?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setContactDetails(data.contact);
+      } else {
+        // if token invalid or expired, stop polling
+        if (res.status === 403 || res.status === 404) {
+          if (pollingId) { window.clearInterval(pollingId); setPollingId(null); }
+        }
+      }
+    } catch (e) {
+      console.error('fetchPublicContact error', e);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -11307,7 +12648,7 @@ const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-1">Hotline</h4>
-                    <p className="text-gray-600 mb-1">1900 1234</p>
+                    <p className="text-gray-600 mb-1">1900 6886</p>
                     <p className="text-sm text-gray-500">Hỗ trợ 24/7</p>
                   </div>
                 </div>
@@ -11318,7 +12659,7 @@ const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-1">Email</h4>
-                    <p className="text-gray-600 mb-1">support@vexe7tv.com</p>
+                    <p className="text-gray-600 mb-1">vexe7tv@gmail.com</p>
                     <p className="text-sm text-gray-500">Phản hồi trong 24h</p>
                   </div>
                 </div>
@@ -11481,6 +12822,29 @@ const ContactPage: React.FC = () => {
                   Gửi tin nhắn
                 </button>
               </form>
+            )}
+            {/* Public view: nếu có publicView hiển thị thread và replies */}
+            {publicView && contactDetails && (
+              <div className="mt-6 border-t pt-6">
+                <h4 className="text-lg font-semibold mb-2">Lịch sử liên hệ</h4>
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-sm text-gray-600 mb-2"><strong>Chủ đề:</strong> {contactDetails.subject}</div>
+                  <div className="mb-3"><strong>Nội dung bạn gửi:</strong>
+                    <div className="mt-2 p-3 bg-white rounded border">{contactDetails.message}</div>
+                  </div>
+                  <div className="mb-2"><strong>Phản hồi:</strong></div>
+                  {contactDetails.replies && contactDetails.replies.length > 0 ? (
+                    contactDetails.replies.map((r: any, idx: number) => (
+                      <div key={idx} className="mb-3 p-3 bg-white rounded border">
+                        <div className="text-sm text-gray-500 mb-1">{new Date(r.createdAt).toLocaleString()}</div>
+                        <div className="text-gray-800">{r.message}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500">Hiện chưa có phản hồi. Vui lòng kiểm tra lại sau hoặc kiểm tra email.</div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -12082,6 +13446,8 @@ type BookingDoc = {
   _id: string;
   user?: any;
   trip?: any;
+  pickup_name?: string;
+  dropoff_name?: string;
   route_snapshot?: {
     from: string;
     to: string;
@@ -12165,8 +13531,8 @@ const MyTicketsPage: React.FC = () => {
             id: booking._id,
             bookingId: booking._id.substring(0, 8).toUpperCase(),
             route: {
-              from: booking.route_snapshot?.from || '-',
-              to: booking.route_snapshot?.to || '-',
+              from: booking.route_snapshot?.from || booking.route_snapshot?.from || '-',
+              to: booking.route_snapshot?.to || booking.route_snapshot?.to || '-',
               price: String(booking.total_amount || booking.total_price || 0),
               duration,
               departureTime: fmtTime(booking.start_time),
@@ -12701,7 +14067,7 @@ const PaymentPage: React.FC = () => {
                   <span className="ml-2 font-medium">{fmtTime(st.times?.departureTime)}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Giờ đến:</span>
+                  <span className="text-gray-600">Giờ dự kiến đến:</span>
                   <span className="ml-2 font-medium">{fmtTime(st.times?.arrivalTime || null)}</span>
                 </div>
                 <div>
@@ -12793,8 +14159,6 @@ const PaymentPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* ĐÃ XÓA PHẦN THANH TOÁN TẠI XE Ở ĐÂY */}
 
             </div>
 
