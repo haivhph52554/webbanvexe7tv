@@ -456,9 +456,11 @@
             <div class="content-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                 <h2 style="margin: 0;">Danh sách Phụ xe</h2>
-                <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
-                    ➕ Thêm Phụ xe
-                </a>
+                <div>
+                    <a href="/admin/assistants/new" class="btn btn-primary" style="padding: 0.5rem 1rem; text-decoration: none;">
+                        ➕ Thêm Phụ xe
+                    </a>
+                </div>
             </div>
             <% if (assistants.length === 0) { %>
                     <div class="empty-state">

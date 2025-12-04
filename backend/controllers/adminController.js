@@ -6,6 +6,7 @@ const Bus = require('../models/Bus');
 const User = require('../models/User');
 const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
+const jwt = require('jsonwebtoken');
 
 // --- Buses CRUD helpers for admin UI --- 12345
 exports.newBus = async (req, res) => {
@@ -116,6 +117,105 @@ exports.updateRoute = async (req, res) => {
     res.status(500).send('Lỗi khi cập nhật tuyến: ' + err.message);
   }
 };
+
+exports.adminLoginPage = async (req, res) => {
+  try {
+    // Bootstrap đảm bảo admin mặc định đúng email/mật khẩu
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@basevexe.com';
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || '123456';
+    let adminUser = await User.findOne({ email: adminEmail });
+    if (!adminUser) {
+      adminUser = await User.create({
+        name: 'Admin Hệ Thống',
+        email: adminEmail,
+        phone: '0900000000',
+        password: adminPassword,
+        role: 'admin'
+      });
+    } else {
+      let changed = false;
+      if (adminUser.role !== 'admin') { adminUser.role = 'admin'; changed = true; }
+      if (!adminUser.password) { adminUser.password = adminPassword; changed = true; }
+      if (changed) await adminUser.save();
+    }
+    res.render('admin/login', { error: null });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+exports.adminLoginPost = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.render('admin/login', { error: 'Vui lòng nhập email và mật khẩu' });
+    }
+    const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@basevexe.com';
+    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || '123456';
+
+    let user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      // Nếu là email admin mặc định, khởi tạo ngay và cho đăng nhập
+      if (email === defaultEmail) {
+        user = await User.create({
+          name: 'Admin Hệ Thống',
+          email: defaultEmail,
+          phone: '0900000000',
+          password: defaultPassword,
+          role: 'admin'
+        });
+        user = await User.findOne({ email: defaultEmail }).select('+password');
+      } else {
+        return res.render('admin/login', { error: 'Email hoặc mật khẩu không đúng' });
+      }
+    }
+    const bcrypt = require('bcryptjs');
+    let isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch && email === defaultEmail) {
+      // Cưỡng chế đặt lại mật khẩu admin mặc định nếu khác
+      user.password = defaultPassword;
+      user.role = 'admin';
+      await user.save();
+      user = await User.findOne({ email: defaultEmail }).select('+password');
+      isMatch = await bcrypt.compare(password, user.password);
+    }
+    if (!isMatch) {
+      return res.render('admin/login', { error: 'Email hoặc mật khẩu không đúng' });
+    }
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secretkey', { expiresIn: '30d' });
+    res.cookie('token', token, {
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production'
+    });
+    if (user.role === 'admin') return res.redirect('/admin');
+    if (user.role === 'driver') {
+      const Driver = require('../models/Driver');
+      const driver = await Driver.findOne({ $or: [{ userId: user._id }, { email: user.email }] });
+      if (driver) return res.redirect(`/admin/drivers/${driver._id}`);
+      return res.redirect('/admin/drivers');
+    }
+    if (user.role === 'assistant') {
+      const Assistant = require('../models/Assistant');
+      const assistant = await Assistant.findOne({ $or: [{ userId: user._id }, { email: user.email }] });
+      if (assistant) return res.redirect(`/admin/assistants/${assistant._id}`);
+      return res.redirect('/admin/assistants');
+    }
+    return res.redirect('/admin');
+  } catch (err) {
+    res.render('admin/login', { error: 'Đã xảy ra lỗi. Vui lòng thử lại.' });
+  }
+};
+
+exports.adminLogout = async (req, res) => {
+  try {
+    res.cookie('token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true });
+    res.redirect('/admin/login');
+  } catch (err) {
+    res.redirect('/admin/login');
+  }
+};
+
 
 
 // Hiển thị admin dashboard
@@ -327,6 +427,24 @@ exports.newAssistant = async (req, res) => {
 // Tạo assistant mới
 exports.createAssistant = async (req, res) => {
   try {
+    // Tạo User cho phụ xe nếu chưa có
+    let assistantUser = null;
+    if (req.body.email) {
+      assistantUser = await User.findOne({ email: req.body.email });
+      if (!assistantUser) {
+        assistantUser = await User.create({
+          name: req.body.name || 'Phụ xe',
+          email: req.body.email,
+          phone: req.body.phone || '0900000000',
+          password: '123456',
+          role: 'assistant'
+        });
+      } else {
+        assistantUser.role = 'assistant';
+        await assistantUser.save();
+      }
+    }
+
     const payload = {
       name: req.body.name,
       email: req.body.email,
@@ -336,7 +454,8 @@ exports.createAssistant = async (req, res) => {
       experience_years: Number(req.body.experience_years) || 0,
       status: 'active',
       assigned_trips: [],
-      assigned_routes: []
+      assigned_routes: [],
+      userId: assistantUser ? assistantUser._id : undefined
     };
     
     // Xử lý assigned_routes nếu có
