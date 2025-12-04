@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chi tiết đặt chỗ - <%= booking._id.toString().substring(0,8) %>...</title>
+  <style>
+    body{font-family:Inter,Segoe UI,Arial;background:#f3f4f6;color:#111;margin:0}
+    .container{max-width:900px;margin:40px auto;padding:24px;background:white;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.08)}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .badge{display:inline-block;padding:6px 10px;border-radius:8px;background:#eef2ff;color:#3730a3}
+    .row{display:flex;gap:16px;margin-bottom:12px}
+    .col{flex:1}
+    .label{color:#6b7280;font-size:13px}
+    .value{font-weight:600;font-size:15px}
+    .back{display:inline-block;margin-top:12px;padding:8px 12px;background:#e6e6e6;border-radius:8px;text-decoration:none;color:#111}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h2 style="margin:0">Chi tiết đặt chỗ</h2>
+        <div style="margin-top:6px;color:#6b7280">Mã vé: <strong><%= booking._id.toString() %></strong></div>
+      </div>
+      <div>
+        <span class="badge"><%= booking.status %></span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Hành khách</div>
+        <div class="value"><%= (booking.user && booking.user.full_name) || (booking.passenger && booking.passenger.name) || 'N/A' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Số điện thoại</div>
+        <div class="value"><%= (booking.user && booking.user.phone) || (booking.passenger && booking.passenger.phone) || 'N/A' %></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Ghế</div>
+        <div class="value"><%= (booking.seat_numbers && booking.seat_numbers.length) ? booking.seat_numbers.join(', ') : 'N/A' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Tổng tiền</div>
+        <div class="value"><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Chuyến</div>
+        <div class="value"><%= booking.trip && booking.trip.route ? (booking.trip.route.name || (booking.trip.route.from + ' → ' + booking.trip.route.to)) : 'N/A' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Biển số xe</div>
+        <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'N/A' %></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Ngày khởi hành (start_time)</div>
+        <div class="value"><%= booking.start_time ? new Date(booking.start_time).toLocaleString('vi-VN') : 'N/A' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Ngày đặt</div>
+        <div class="value"><%= booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'N/A' %></div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <div class="label">Ghi chú hành khách</div>
+      <div style="margin-top:6px"><%= booking.passenger && booking.passenger.note ? booking.passenger.note : '-' %></div>
+    </div>
+
+    <div style="margin-top:18px; display:flex; gap:8px; align-items:center">
+      <a class="back" href="/admin/bookings">← Quay lại danh sách</a>
+      <a class="back" href="/admin/bookings/<%= booking._id %>/edit" style="background:#dbeafe">Chỉnh sửa</a>
+    </div>
+  </div>
+</body>
+</html>

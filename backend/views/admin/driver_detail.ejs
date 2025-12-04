@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Chi tiết Tài xế - VeXe7TV Admin</title>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+	<style>
+		body{font-family:Inter,Segoe UI,Arial;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#1e293b;margin:0}
+		.admin-wrapper{display:flex;min-height:100vh}
+		.sidebar{width:260px;background:rgba(255,255,255,0.95);position:fixed;height:100vh;padding-bottom:2rem;overflow:auto}
+		.main-content{flex:1;margin-left:260px;padding:2rem}
+		.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+		.info-card{background:#fff;padding:1.5rem;border-radius:12px;box-shadow:0 8px 20px rgba(2,6,23,0.08);margin-bottom:1rem}
+		.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}
+		table{width:100%;border-collapse:collapse}
+		th,td{padding:0.75rem;text-align:left;border-bottom:1px solid #eef2f7}
+		thead{background:#f8fafc}
+		.badge{padding:0.35rem 0.7rem;border-radius:999px;font-weight:600;font-size:0.85rem}
+		.badge-success{background:rgba(16,185,129,0.1);color:#059669}
+		.badge-info{background:rgba(59,130,246,0.08);color:#2563eb}
+		.badge-warning{background:rgba(245,158,11,0.08);color:#b45309}
+		.actions a{margin-left:0.5rem;text-decoration:none}
+	</style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+        <aside class="sidebar">
+			<div style="padding:1.5rem;background:linear-gradient(90deg,#6366f1,#4f46e5);color:white">
+				<h2 style="margin:0">🚌 VeXe7TV</h2>
+				<div style="opacity:0.9;font-size:0.9rem">Trang quản trị</div>
+			</div>
+            <nav style="padding:1rem">
+                <a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Dashboard</a>
+                <a href="/admin/drivers" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none;font-weight:600">🚐 Tài xế</a>
+            </nav>
+        </aside>
+        <% } %>
+
+        <main class="main-content">
+            <% if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin') { %>
+            <style>.main-content{margin-left:0}</style>
+            <% } %>
+			<div class="page-header">
+				<div>
+					<h1 style="color:white;margin:0 0 6px 0">Chi tiết tài xế</h1>
+					<div style="color:rgba(255,255,255,0.9)"><%= driver.name %></div>
+				</div>
+                <div class="actions">
+                    <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+                        <a href="/admin/drivers" class="btn" style="background:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">← Quay lại</a>
+                        <a href="/admin/drivers/<%= driver._id %>/edit" class="btn" style="background:#6366f1;color:#fff;padding:0.6rem 1rem;border-radius:8px;text-decoration:none">✏️ Sửa</a>
+                    <% } %>
+                </div>
+			</div>
+
+			<div class="info-card">
+				<h3>Thông tin cơ bản</h3>
+				<div class="info-grid" style="margin-top:0.75rem">
+					<div><strong>Họ tên:</strong> <div><%= driver.name %></div></div>
+					<div><strong>Email:</strong> <div><%= driver.email %></div></div>
+					<div><strong>Số điện thoại:</strong> <div><%= driver.phone %></div></div>
+					<div><strong>Mã nhân viên:</strong> <div><%= driver.employee_id || 'N/A' %></div></div>
+					<div><strong>Bằng lái:</strong> <div><%= driver.license_number || 'N/A' %></div></div>
+					<div><strong>Kinh nghiệm:</strong> <div><%= driver.experience_years || 0 %> năm</div></div>
+				</div>
+			</div>
+
+			<div class="info-card">
+				<h3>Chuyến được gán (<%= trips ? trips.length : 0 %>)</h3>
+				<% if (trips && trips.length > 0) { %>
+					<div style="margin-top:1rem">
+						<table>
+							<thead>
+								<tr>
+									<th>Tuyến</th>
+									<th>Xe</th>
+									<th>Khởi hành</th>
+                                    <th>Trạng thái</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% trips.forEach(function(trip){ %>
+                                    <tr>
+										<td>
+											<strong>
+												<%= trip.route ? ((trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city)) : 'N/A' %>
+											</strong>
+										</td>
+										<td><%= trip.bus ? trip.bus.license_plate : 'N/A' %></td>
+										<td><%= trip.start_time ? new Date(trip.start_time).toLocaleString('vi-VN') : 'N/A' %></td>
+                                        <td>
+                                            <span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : 'badge-warning' %>">
+                                                <%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đang chạy' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status %>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <% if (trip.status === 'scheduled') { %>
+                                                <% const _now = new Date(); const _st = new Date(trip.start_time); const _sameDay = _now.getFullYear() === _st.getFullYear() && _now.getMonth() === _st.getMonth() && _now.getDate() === _st.getDate(); %>
+                                                <% if (_sameDay) { %>
+                                                    <button class="btn" style="background:#6366f1;color:#fff;padding:0.4rem 0.8rem;border-radius:6px" onclick="updateTripStatus('<%= trip._id %>','departed')">Bắt đầu chuyến</button>
+                                                <% } else { %>
+                                                    <button class="btn" style="background:#cbd5e1;color:#0f172a;padding:0.4rem 0.8rem;border-radius:6px" disabled>Chỉ bắt đầu trong ngày khởi hành</button>
+                                                <% } %>
+                                            <% } else if (trip.status === 'departed') { %>
+                                                <button class="btn" style="background:#10b981;color:#fff;padding:0.4rem 0.8rem;border-radius:6px" onclick="updateTripStatus('<%= trip._id %>','completed')">Kết thúc chuyến</button>
+                                            <% } else { %>
+                                                
+                                            <% } %>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+				<% } else { %>
+					<p style="color:#475569;margin:1rem 0">Chưa có chuyến nào được gán cho tài xế này.</p>
+				<% } %>
+			</div>
+
+		</main>
+    </div>
+    <script>
+    async function updateTripStatus(tripId, status) {
+        try {
+            const res = await fetch(`/admin/trips/${tripId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data && data.message ? data.message : 'Không thể cập nhật trạng thái'));
+            }
+        } catch (e) {
+            alert('Lỗi kết nối');
+        }
+    }
+    </script>
+</body>
+</html>

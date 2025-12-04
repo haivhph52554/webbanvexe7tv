@@ -1,0 +1,155 @@
+[
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d0e"
+    },
+    "name": "Nguyễn Thị Lan",
+    "email": "lan.phuxe@gmail.com",
+    "phone": "0956789012",
+    "employee_id": "PX001",
+    "license_number": "PX-LN-2024-001",
+    "experience_years": 5,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d0f"
+    },
+    "name": "Trần Thị Mai",
+    "email": "mai.phuxe@gmail.com",
+    "phone": "0967890123",
+    "employee_id": "PX002",
+    "license_number": "PX-TM-2024-002",
+    "experience_years": 3,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d10"
+    },
+    "name": "Lê Thị Hoa",
+    "email": "hoa.phuxe@gmail.com",
+    "phone": "0978901234",
+    "employee_id": "PX003",
+    "license_number": "PX-LH-2024-003",
+    "experience_years": 7,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d11"
+    },
+    "name": "Phạm Thị Nga",
+    "email": "nga.phuxe@gmail.com",
+    "phone": "0989012345",
+    "employee_id": "PX004",
+    "license_number": "PX-PN-2024-004",
+    "experience_years": 4,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d12"
+    },
+    "name": "Hoàng Thị Linh",
+    "email": "linh.phuxe@gmail.com",
+    "phone": "0990123456",
+    "employee_id": "PX005",
+    "license_number": "PX-HL-2024-005",
+    "experience_years": 6,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d13"
+    },
+    "name": "Vũ Thị Hương",
+    "email": "huong.phuxe@gmail.com",
+    "phone": "0901234567",
+    "employee_id": "PX006",
+    "license_number": "PX-VH-2024-006",
+    "experience_years": 2,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d14"
+    },
+    "name": "Đỗ Thị Thu",
+    "email": "thu.phuxe@gmail.com",
+    "phone": "0912345678",
+    "employee_id": "PX007",
+    "license_number": "PX-DT-2024-007",
+    "experience_years": 8,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "670a1b2c3d4e5f6a7b8c9d15"
+    },
+    "name": "Bùi Thị Anh",
+    "email": "anh.phuxe@gmail.com",
+    "phone": "0923456789",
+    "employee_id": "PX008",
+    "license_number": "PX-BA-2024-008",
+    "experience_years": 3,
+    "status": "active",
+    "assigned_trips": [],
+    "createdAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-15T08:00:00.000Z"
+    }
+  }
+]
+
