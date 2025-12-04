@@ -470,14 +470,14 @@
             
             <div class="content-card">
                 <div class="content-card-header">
-                    <h2>Danh sách Chuyến xe</h2>
+                    <h2>Chuyến cố định</h2>
                     <a href="/admin/trips/new" class="btn btn-success">➕ Thêm chuyến mới</a>
                 </div>
-                <% if (trips.length === 0) { %>
+                <% if (!recurringTrips || recurringTrips.length === 0) { %>
                     <div class="empty-state">
-                        <div class="empty-state-icon">🕐</div>
-                        <h3>Chưa có chuyến xe nào</h3>
-                        <p>Vui lòng thêm chuyến xe mới</p>
+                        <div class="empty-state-icon">📅</div>
+                        <h3>Chưa có chuyến cố định</h3>
+                        <p>Hãy dùng mục "Tạo chuyến cố định theo lịch" trong form Thêm chuyến mới</p>
                     </div>
                 <% } else { %>
                     <div class="table-wrapper">
@@ -496,7 +496,62 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <% trips.forEach(function(trip) { %>
+                    <% recurringTrips.forEach(function(trip) { %>
+                        <tr>
+                                        <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
+                            <td><%= trip.route?.name || 'N/A' %></td>
+                            <td><%= trip.bus?.license_plate || 'N/A' %></td>
+                            <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
+                            <td><%= trip.end_time ? new Date(trip.end_time).toLocaleString('vi-VN') : 'N/A' %></td>
+                                        <td><strong><%= (trip.base_price || 0).toLocaleString('vi-VN') %> ₫</strong></td>
+                            <td>
+                                <span class="badge <%= trip.direction === 'go' ? 'badge-success' : 'badge-warning' %>">
+                                    <%= trip.direction === 'go' ? 'Đi' : 'Về' %>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-primary"><%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đã khởi hành' : trip.status === 'completed' ? 'Hoàn thành' : trip.status === 'cancelled' ? 'Đã hủy' : trip.status || 'Đã lên lịch' %></span>
+                            </td>
+                            <td>
+                                            <button class="btn btn-secondary" onclick="location.href='/admin/trips/<%= trip._id %>/edit'" style="margin-right: 0.5rem; padding: 0.5rem 1rem;">✏️ Sửa</button>
+                                            <button class="btn btn-danger" onclick="deleteTrip('<%= trip._id %>')" style="padding: 0.5rem 1rem;">🗑️ Xóa</button>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+                <% } %>
+            </div>
+
+            <div class="content-card">
+                <div class="content-card-header">
+                    <h2>Chuyến không cố định</h2>
+                </div>
+                <% if (!singleTrips || singleTrips.length === 0) { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🕐</div>
+                        <h3>Chưa có chuyến không cố định</h3>
+                        <p>Vui lòng thêm chuyến lẻ bằng form Thêm chuyến mới</p>
+                    </div>
+                <% } else { %>
+                    <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tuyến</th>
+                        <th>Xe</th>
+                        <th>Thời gian bắt đầu</th>
+                        <th>Thời gian kết thúc</th>
+                        <th>Giá</th>
+                        <th>Hướng</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% singleTrips.forEach(function(trip) { %>
                         <tr>
                                         <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
                             <td><%= trip.route?.name || 'N/A' %></td>

@@ -7,7 +7,8 @@ const tripSchema = new mongoose.Schema({
   end_time: { type: Date },
   base_price: Number,
   direction: { type: String, enum: ['go','return'], default: 'go' },
-  status: { type: String, enum: ['scheduled','departed','completed','cancelled'], default: 'scheduled' }
+  status: { type: String, enum: ['scheduled','departed','completed','cancelled'], default: 'scheduled' },
+  is_recurring: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Trip', tripSchema);

@@ -20,6 +20,7 @@ router.post('/routes/:id', adminController.updateRoute);
 // Trips create/edit (admin)
 router.get('/trips/new', adminController.newTrip);
 router.post('/trips', adminController.createTrip);
+router.post('/trips/recurring', adminController.createRecurringTrips);
 router.get('/trips/:id/edit', adminController.editTrip);
 router.post('/trips/:id', adminController.updateTrip);
 router.get('/trips', adminController.trips);

@@ -61,6 +61,64 @@
         <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
       </div>
     </form>
+
+    <hr style="margin:2rem 0;border:none;border-top:1px solid #e5e7eb" />
+    <h2>Tạo chuyến cố định theo lịch</h2>
+    <form method="post" action="/admin/trips/recurring">
+      <label>Tuyến</label>
+      <select name="route" required>
+        <% routes.forEach(function(r){ %>
+          <option value="<%= r._id %>"><%= r.name %> — <%= r.from_city %> → <%= r.to_city %></option>
+        <% }) %>
+      </select>
+
+      <label>Xe</label>
+      <select name="bus" required>
+        <% buses.forEach(function(b){ %>
+          <option value="<%= b._id %>"><%= b.license_plate %> — <%= b.bus_type %></option>
+        <% }) %>
+      </select>
+
+      <label>Giá cơ bản (VND)</label>
+      <input type="number" name="base_price" value="0" min="0" />
+
+      <label>Hướng</label>
+      <select name="direction">
+        <option value="go">Đi</option>
+        <option value="return">Về</option>
+      </select>
+
+      <label>Loại lặp</label>
+      <select name="frequency">
+        <option value="daily">Hằng ngày</option>
+        <option value="weekly">Theo tuần</option>
+      </select>
+
+      <label>Ngày bắt đầu</label>
+      <input type="date" name="start_date" />
+
+      <label>Ngày kết thúc (mặc định 6 tháng)</label>
+      <input type="date" name="end_date" />
+
+      <label>Giờ khởi hành cố định</label>
+      <input type="time" name="time_of_day" value="08:00" />
+
+      <label>Thứ trong tuần (khi chọn theo tuần)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        <label><input type="checkbox" name="days_of_week" value="1" /> Thứ 2</label>
+        <label><input type="checkbox" name="days_of_week" value="2" /> Thứ 3</label>
+        <label><input type="checkbox" name="days_of_week" value="3" /> Thứ 4</label>
+        <label><input type="checkbox" name="days_of_week" value="4" /> Thứ 5</label>
+        <label><input type="checkbox" name="days_of_week" value="5" /> Thứ 6</label>
+        <label><input type="checkbox" name="days_of_week" value="6" /> Thứ 7</label>
+        <label><input type="checkbox" name="days_of_week" value="0" /> Chủ nhật</label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Tạo chuyến cố định</button>
+        <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
+      </div>
+    </form>
   </div>
 </body>
 </html>
