@@ -32,6 +32,8 @@ type BookingDoc = {
   _id: string;
   user?: any;
   trip?: any;
+  pickup_name?: string;
+  dropoff_name?: string;
   route_snapshot?: {
     from: string;
     to: string;
@@ -115,8 +117,8 @@ const MyTicketsPage: React.FC = () => {
             id: booking._id,
             bookingId: booking._id.substring(0, 8).toUpperCase(),
             route: {
-              from: booking.route_snapshot?.from || '-',
-              to: booking.route_snapshot?.to || '-',
+              from: booking.pickup_name || booking.route_snapshot?.from || '-', 
+              to: booking.dropoff_name || booking.route_snapshot?.to || '-',
               price: String(booking.total_amount || booking.total_price || 0),
               duration,
               departureTime: fmtTime(booking.start_time),

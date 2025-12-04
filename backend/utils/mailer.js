@@ -111,8 +111,34 @@ async function sendBookingConfirmationEmail(to, bookingSummary) {
   }
 }
 
+async function sendBookingCancellationEmail(to, bookingSummary) {
+  if (!to) return;
+  const subject = 'Thông báo: Đơn hàng đã hủy do không thanh toán';
+  const { bookingId, seats, totalAmount, createdAt } = bookingSummary || {};
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+      <h2>Đơn hàng đã được hủy</h2>
+      <p>Đơn đặt chỗ <strong>${bookingId || '-'}</strong> của bạn đã được tự động hủy vì chưa thanh toán trong thời gian quy định.</p>
+      <ul>
+        <li><strong>Mã đặt chỗ:</strong> ${bookingId || '-'}</li>
+        <li><strong>Ghế:</strong> ${(seats || []).join(', ') || '-'}</li>
+        <li><strong>Tổng tiền:</strong> ${(Number(totalAmount || 0)).toLocaleString('vi-VN')}₫</li>
+        <li><strong>Thời gian đặt:</strong> ${createdAt ? new Date(createdAt).toLocaleString('vi-VN') : '-'}</li>
+      </ul>
+      <p>Nếu bạn vẫn muốn đặt vé, vui lòng thực hiện đặt mới trên website.</p>
+    </div>
+  `;
+  const text = `Đơn ${bookingId || ''} đã bị hủy vì không nhận được thanh toán.`;
+  try {
+    await sendMail({ to, subject, html, text });
+  } catch (e) {
+    console.error('[mailer] sendBookingCancellationEmail error:', e);
+  }
+}
+
 module.exports = {
   sendBookingConfirmationEmail,
+  sendBookingCancellationEmail,
 };
 
 // Gửi email từ form liên hệ (contact)

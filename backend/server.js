@@ -40,6 +40,11 @@ require('./models/TripSeatStatus');
 // Contact model
 const Contact = require('./models/Contact');
 
+// Background jobs
+const startCancelPendingBookings = require('./jobs/cancelPendingBookings');
+const bookingTtlMinutes = parseInt(process.env.BOOKING_TTL_MINUTES || '2', 10);
+const bookingCancelIntervalSeconds = parseInt(process.env.BOOKING_CANCEL_INTERVAL_SECONDS || '60', 10);
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -174,3 +179,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+
+// Start background job after server is listening
+try {
+  startCancelPendingBookings({ ttlMinutes: bookingTtlMinutes, intervalSeconds: bookingCancelIntervalSeconds });
+} catch (e) {
+  console.error('Failed to start cancelPendingBookings job:', e);
+}
