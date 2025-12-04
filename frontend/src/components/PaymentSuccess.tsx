@@ -1,5 +1,5 @@
 // components/PaymentSuccess.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, Bus, MapPin, Clock, Calendar } from 'lucide-react';
 
@@ -20,6 +20,12 @@ const PaymentSuccess: React.FC = () => {
   const { state } = useLocation();
   const navigate = useNavigate();
   const s = (state || null) as SuccessPayload | null;
+
+  const [bookingStatus, setBookingStatus] = useState<string | null>(() => {
+    if (!s) return null;
+    return (s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? 'pending' : 'paid';
+  });
+  const pollingRef = useRef<number | null>(null);
 
   if (!s) {
     // nếu F5 mất state thì quay về trang chủ (hoặc bạn có thể gọi GET /api/bookings/:id nếu truyền id qua query)
@@ -62,7 +68,7 @@ const PaymentSuccess: React.FC = () => {
         totalAmount: s.totalAmount || 0,
         paymentMethod: s.paymentMethod,
         bookingDate: new Date().toISOString(),
-        status: 'confirmed'
+        status: (s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? 'pending' : 'confirmed'
       };
 
       // avoid duplicates
@@ -75,6 +81,47 @@ const PaymentSuccess: React.FC = () => {
       console.error('Failed to save ticket to localStorage', err);
     }
   }, [s]);
+
+  // Poll backend to check booking status when payment is pending
+  useEffect(() => {
+    if (!s) return;
+    if (bookingStatus !== 'pending') return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/bookings/${s.bookingId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.status && data.status !== bookingStatus) {
+          setBookingStatus(data.status);
+
+          // update localStorage ticket if exists
+          try {
+            const key = 'vexe7tv_tickets';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const idx = existing.findIndex((t: any) => t.bookingId === s.bookingId);
+            if (idx !== -1) {
+              existing[idx].status = data.status === 'cancelled' ? 'cancelled' : existing[idx].status;
+              localStorage.setItem(key, JSON.stringify(existing));
+            }
+          } catch (e) { console.warn('Failed update localStorage after status change', e); }
+        }
+      } catch (e) {
+        // ignore network errors silently
+      }
+    };
+
+    // initial check then interval
+    checkStatus();
+    pollingRef.current = window.setInterval(checkStatus, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [s, bookingStatus]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
@@ -95,7 +142,7 @@ const PaymentSuccess: React.FC = () => {
         {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') && s.totalAmount > 0 ? (
           <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mb-8 text-center max-w-md mx-auto">
             <h3 className="text-xl font-bold text-yellow-800 mb-4 animate-pulse">
-              ⏳ Đơn hàng đang chờ thanh toán!
+              {bookingStatus === 'cancelled' ? '❌ Đặt vé không thành công' : '⏳ Đơn hàng đang chờ thanh toán!'}
             </h3>
             
             <div className="bg-white p-2 inline-block rounded-lg shadow-sm border">
@@ -117,9 +164,15 @@ const PaymentSuccess: React.FC = () => {
               </p>
             </div>
             
-            <p className="mt-4 text-red-600 text-xs italic">
-              * Vui lòng chuyển khoản đúng nội dung để hệ thống tự động xử lý.
-            </p>
+            {bookingStatus === 'cancelled' ? (
+              <p className="mt-4 text-red-600 font-semibold">
+                Đơn hàng của bạn đã bị hủy vì quá hạn thanh toán. Vui lòng đặt lại nếu cần.
+              </p>
+            ) : (
+              <p className="mt-4 text-red-600 text-xs italic">
+                * Vui lòng chuyển khoản đúng nội dung để hệ thống tự động xử lý.
+              </p>
+            )}
           </div>
         ) : (
           /* TRƯỜNG HỢP CŨ: Đã thanh toán (COD hoặc logic khác) */
@@ -141,13 +194,13 @@ const PaymentSuccess: React.FC = () => {
                 
                 {/* Logic kiểm tra: Nếu là Banking/Momo -> Hiện Chờ thanh toán (Vàng), Ngược lại -> Đã thanh toán (Xanh) */}
                 {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? (
-                   <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
-                     ⏳ Chờ thanh toán
-                   </span>
+                   bookingStatus === 'cancelled' ? (
+                     <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">❌ Đã hủy</span>
+                   ) : (
+                     <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">⏳ Chờ thanh toán</span>
+                   )
                 ) : (
-                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                     ✅ Đã thanh toán
-                   </span>
+                   <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">✅ Đã thanh toán</span>
                 )}
               </div>
 
@@ -192,9 +245,10 @@ const PaymentSuccess: React.FC = () => {
 
               <button
                 onClick={() => window.print()}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={bookingStatus === 'cancelled'}
+                className={`w-full py-2 px-4 rounded-lg transition-colors font-medium ${bookingStatus === 'cancelled' ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
               >
-                In / Tải vé điện tử
+                {bookingStatus === 'cancelled' ? 'Vé đã hủy' : 'In / Tải vé điện tử'}
               </button>
             </div>
 
