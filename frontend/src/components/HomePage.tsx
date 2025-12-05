@@ -168,8 +168,10 @@ const HomePage: React.FC = () => {
 
 
 
-            <div className="mt-12">
-              <img src="/images/13.jpg.webp" alt="" />
+            <div className="mt-12 hero-image-container">
+              <div className="hero-image-inner">
+                <img src="/images/13.jpg.webp" alt="VeXe7TV hero" className="hero-image" />
+              </div>
             </div>
 
 

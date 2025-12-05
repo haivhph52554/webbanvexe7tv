@@ -95,3 +95,40 @@ body {
   size: A4 portrait;
   margin: 10mm;
 }
+
+/* Hero image styles */
+.hero-image-container {
+  max-width: 1100px;
+  margin: 24px auto 0;
+  padding: 8px;
+}
+
+.hero-image-inner {
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(2,6,23,0.08);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.hero-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition: transform 300ms ease, filter 300ms ease;
+}
+
+/* On larger screens show a fixed-height hero crop */
+@media (min-width: 1024px) {
+  .hero-image {
+    height: 420px;
+  }
+}
+
+/* subtle hover effect on desktop */
+@media (hover: hover) and (pointer: fine) {
+  .hero-image-inner:hover .hero-image {
+    transform: scale(1.03);
+    filter: saturate(1.05) contrast(1.02);
+  }
+}
