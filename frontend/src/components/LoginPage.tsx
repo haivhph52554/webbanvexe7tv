@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../App';
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();

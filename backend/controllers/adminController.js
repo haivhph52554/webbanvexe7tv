@@ -1,4 +1,4 @@
-// ...existing code...
+
 const Trip = require('../models/Trip');
 const Booking = require('../models/Booking');
 const Route = require('../models/Route');
@@ -8,7 +8,6 @@ const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 const jwt = require('jsonwebtoken');
 
-// --- Buses CRUD helpers for admin UI --- 12345
 exports.newBus = async (req, res) => {
   try {
     res.render('admin/bus_form', { bus: null, page: 'buses', errors: null });
@@ -61,7 +60,7 @@ exports.updateBus = async (req, res) => {
   }
 };
 
-// --- Routes CRUD helpers for admin UI ---
+
 exports.newRoute = async (req, res) => {
   try {
     res.render('admin/route_form', { route: null, page: 'routes', errors: null });
@@ -183,9 +182,11 @@ exports.adminLoginPost = async (req, res) => {
       return res.render('admin/login', { error: 'Email hoặc mật khẩu không đúng' });
     }
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secretkey', { expiresIn: '30d' });
-    res.cookie('token', token, {
+
+    res.cookie('admin_token', token, {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       httpOnly: true,
+      path: '/admin',
       secure: process.env.NODE_ENV === 'production'
     });
     if (user.role === 'admin') return res.redirect('/admin');
@@ -209,7 +210,8 @@ exports.adminLoginPost = async (req, res) => {
 
 exports.adminLogout = async (req, res) => {
   try {
-    res.cookie('token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true });
+   
+    res.cookie('admin_token', 'none', { expires: new Date(Date.now() + 10 * 1000), httpOnly: true, path: '/admin' });
     res.redirect('/admin/login');
   } catch (err) {
     res.redirect('/admin/login');
@@ -264,7 +266,6 @@ exports.deleteBooking = async (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy đơn đặt chỗ' });
     }
 
-    // Bảo vệ: Không cho phép xóa booking đã thanh toán hoặc đã hoàn thành
     // Bảo vệ: Không cho phép xóa booking đã thanh toán hoặc đã hoàn thành
     if (booking.status === 'paid' || booking.status === 'completed') {
       return res.status(403).json({ 

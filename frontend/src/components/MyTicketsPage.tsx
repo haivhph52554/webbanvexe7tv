@@ -59,7 +59,7 @@ type BookingDoc = {
   createdAt: string;
 };
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
 
 const MyTicketsPage: React.FC = () => {
   const navigate = useNavigate();

@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userData) {
         try {
           // Lấy URL Backend từ biến môi trường hoặc fallback về localhost
-          const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+          const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
           
           const response = await fetch(`${API_BASE}/api/auth/me`, {
             credentials: 'include' // Quan trọng để gửi cookie token

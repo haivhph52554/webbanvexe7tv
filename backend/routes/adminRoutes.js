@@ -10,8 +10,8 @@ const ensureAuthUI = async (req, res, next) => {
     const authHeader = req.header('Authorization');
     if (authHeader && authHeader.startsWith('Bearer')) {
       token = authHeader.replace('Bearer ', '');
-    } else if (req.cookies.token) {
-      token = req.cookies.token;
+      } else if (req.cookies.admin_token) {
+        token = req.cookies.admin_token;
     }
     if (!token) return res.redirect('/admin/login');
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
