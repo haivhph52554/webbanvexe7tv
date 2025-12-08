@@ -175,14 +175,14 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-            <Route
+            {/* <Route
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminPage />
                 </ProtectedRoute>
               }
-            />
+            /> */}
           </Routes>
         </div>
       </Router>
