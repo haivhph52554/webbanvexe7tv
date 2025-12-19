@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bookings Management - VeXe7TV Admin</title>
+    <title>Quản lý Đặt chỗ - VeXe7TV Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
@@ -368,11 +368,11 @@
             <nav class="sidebar-nav">
                 <a href="/admin" class="nav-item">
                     <span>📊</span>
-                    <span>Dashboard</span>
+                    <span>Tổng quan</span>
                 </a>
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
-                    <span>Users</span>
+                    <span>Người dùng</span>
                 </a>
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
@@ -384,23 +384,23 @@
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
-                    <span>Buses</span>
+                    <span>Xe</span>
                 </a>
                 <a href="/admin/routes" class="nav-item">
                     <span>📍</span>
-                    <span>Routes</span>
+                    <span>Tuyến</span>
                 </a>
                 <a href="/admin/trips" class="nav-item">
                     <span>🕐</span>
-                    <span>Trips</span>
+                    <span>Chuyến</span>
                 </a>
                 <a href="/admin/bookings" class="nav-item active">
                     <span>🎫</span>
-                    <span>Bookings</span>
+                    <span>Đặt chỗ</span>
                 </a>
                 <a href="/admin/statistics" class="nav-item">
                     <span>📈</span>
-                    <span>Statistics</span>
+                    <span>Thống kê</span>
                 </a>
                 <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
                     <span>🏠</span>
@@ -489,8 +489,8 @@
                                 <% bookings.forEach(function(booking) { %>
                                     <tr>
                                         <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
-                                        <td><%= booking.user?.full_name || booking.passenger?.name || 'N/A' %></td>
-                                        <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'N/A' %></span></td>
+                                        <td><%= booking.user?.full_name || booking.passenger?.name || 'Không có' %></td>
+                                        <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'Không có' %></span></td>
                                         <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>
                                         <td>
                                             <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
@@ -556,9 +556,9 @@
             const b = bookingsData.find(x => String(x.id) === String(id));
             if (!b) return alert('Không tìm thấy thông tin đặt chỗ');
             document.getElementById('bd-code').innerText = String(b.id).substring(0,8) + '...';
-            document.getElementById('bd-passenger').innerText = b.passenger_name || 'N/A';
-            document.getElementById('bd-seats').innerText = (b.seat_numbers && b.seat_numbers.length) ? b.seat_numbers.join(', ') : 'N/A';
-            document.getElementById('bd-plate').innerText = b.bus_license || 'N/A';
+            document.getElementById('bd-passenger').innerText = b.passenger_name || 'Không có';
+            document.getElementById('bd-seats').innerText = (b.seat_numbers && b.seat_numbers.length) ? b.seat_numbers.join(', ') : 'Không có';
+            document.getElementById('bd-plate').innerText = b.bus_license || 'Không có';
             document.getElementById('bd-total').innerText = (Number(b.total_price) || 0).toLocaleString('vi-VN') + ' ₫';
             document.getElementById('bd-date').innerText = new Date(b.createdAt).toLocaleString('vi-VN');
             document.getElementById('booking-detail-modal').style.display = 'flex';

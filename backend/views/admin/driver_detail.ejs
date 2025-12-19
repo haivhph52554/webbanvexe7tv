@@ -32,7 +32,7 @@
 				<div style="opacity:0.9;font-size:0.9rem">Trang quản trị</div>
 			</div>
             <nav style="padding:1rem">
-                <a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Dashboard</a>
+                <a href="/admin" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none">Tổng quan</a>
                 <a href="/admin/drivers" style="display:block;padding:0.6rem 0;color:#0f172a;text-decoration:none;font-weight:600">🚐 Tài xế</a>
             </nav>
         </aside>
@@ -61,8 +61,8 @@
 					<div><strong>Họ tên:</strong> <div><%= driver.name %></div></div>
 					<div><strong>Email:</strong> <div><%= driver.email %></div></div>
 					<div><strong>Số điện thoại:</strong> <div><%= driver.phone %></div></div>
-					<div><strong>Mã nhân viên:</strong> <div><%= driver.employee_id || 'N/A' %></div></div>
-					<div><strong>Bằng lái:</strong> <div><%= driver.license_number || 'N/A' %></div></div>
+                    <div><strong>Mã nhân viên:</strong> <div><%= driver.employee_id || 'Không có' %></div></div>
+                    <div><strong>Bằng lái:</strong> <div><%= driver.license_number || 'Không có' %></div></div>
 					<div><strong>Kinh nghiệm:</strong> <div><%= driver.experience_years || 0 %> năm</div></div>
 				</div>
 			</div>
@@ -86,11 +86,11 @@
                                     <tr>
 										<td>
 											<strong>
-												<%= trip.route ? ((trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city)) : 'N/A' %>
+                                                <%= trip.route ? ((trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city)) : 'Không có' %>
 											</strong>
 										</td>
-										<td><%= trip.bus ? trip.bus.license_plate : 'N/A' %></td>
-										<td><%= trip.start_time ? new Date(trip.start_time).toLocaleString('vi-VN') : 'N/A' %></td>
+                                        <td><%= trip.bus ? trip.bus.license_plate : 'Không có' %></td>
+                                        <td><%= trip.start_time ? new Date(trip.start_time).toLocaleString('vi-VN') : 'Không có' %></td>
                                         <td>
                                             <span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : 'badge-warning' %>">
                                                 <%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đang chạy' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status %>

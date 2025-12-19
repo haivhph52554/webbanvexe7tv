@@ -270,11 +270,11 @@
             <nav class="sidebar-nav">
                 <a href="/admin" class="nav-item">
                     <span>📊</span>
-                    <span>Dashboard</span>
+                    <span>Tổng quan</span>
                 </a>
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
-                    <span>Users</span>
+                    <span>Người dùng</span>
                 </a>
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
@@ -286,23 +286,23 @@
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
-                    <span>Buses</span>
+                    <span>Xe</span>
                 </a>
                 <a href="/admin/routes" class="nav-item">
                     <span>📍</span>
-                    <span>Routes</span>
+                    <span>Tuyến</span>
                 </a>
                 <a href="/admin/trips" class="nav-item">
                     <span>🕐</span>
-                    <span>Trips</span>
+                    <span>Chuyến</span>
                 </a>
                 <a href="/admin/bookings" class="nav-item">
                     <span>🎫</span>
-                    <span>Bookings</span>
+                    <span>Đặt chỗ</span>
                 </a>
                 <a href="/admin/statistics" class="nav-item">
                     <span>📈</span>
-                    <span>Statistics</span>
+                    <span>Thống kê</span>
                 </a>
                 <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
                     <span>🏠</span>
@@ -343,10 +343,10 @@
                         <strong>Số điện thoại:</strong> <%= assistant.phone %>
                     </div>
                     <div>
-                        <strong>Mã nhân viên:</strong> <%= assistant.employee_id || 'N/A' %>
+                        <strong>Mã nhân viên:</strong> <%= assistant.employee_id || 'Không có' %>
                     </div>
                     <div>
-                        <strong>Số giấy phép:</strong> <%= assistant.license_number || 'N/A' %>
+                        <strong>Số giấy phép:</strong> <%= assistant.license_number || 'Không có' %>
                     </div>
                     <div>
                         <strong>Kinh nghiệm:</strong> <%= assistant.experience_years || 0 %> năm
@@ -408,10 +408,10 @@
                                             <strong><%= (route.origin || route.from_city) + ' → ' + (route.destination || route.to_city) %></strong>
                                         </td>
                                         <td>
-                                            <%= route.total_distance_km ? route.total_distance_km + ' km' : 'N/A' %>
+                                            <%= route.total_distance_km ? route.total_distance_km + ' km' : 'Không có' %>
                                     </td>
                                         <td>
-                                            <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'N/A' %>
+                                            <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'Không có' %>
                                         </td>
                                     </tr>
                                 <% }); %>
@@ -440,10 +440,10 @@
                                 <% assistant.assigned_trips.forEach(function(trip) { %>
                                     <tr>
                                         <td>
-                                            <%= trip.route ? (trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city) : 'N/A' %>
+                                            <%= trip.route ? (trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city) : 'Không có' %>
                                         </td>
                                         <td>
-                                            <%= trip.bus ? trip.bus.license_plate : 'N/A' %>
+                                            <%= trip.bus ? trip.bus.license_plate : 'Không có' %>
                                         </td>
                                         <td>
                                             <%= new Date(trip.start_time).toLocaleString('vi-VN') %>
@@ -486,16 +486,16 @@
                             <% allBookings.forEach(function(item) { %>
                                 <tr>
                                     <td>
-                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'N/A') %></strong><br>
+                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'Không có') %></strong><br>
                                         <small style="color: var(--gray);">
                                             <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
                                         </small>
                                     </td>
                                     <td>
-                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'N/A' %>
+                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'Không có' %>
                                     </td>
                                     <td>
-                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'N/A' %>
+                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'Không có' %>
                                     </td>
                                     <td>
                                         <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
@@ -554,13 +554,13 @@
                                 <% checkins.forEach(function(checkin) { %>
                                     <tr>
                                         <td>
-                                            <%= checkin.booking && checkin.booking.passenger ? checkin.booking.passenger.name : (checkin.booking && checkin.booking.user ? checkin.booking.user.name : 'N/A') %>
+                                            <%= checkin.booking && checkin.booking.passenger ? checkin.booking.passenger.name : (checkin.booking && checkin.booking.user ? checkin.booking.user.name : 'Không có') %>
                                         </td>
                                         <td>
-                                            <%= checkin.booking && checkin.booking.trip && checkin.booking.trip.route ? (checkin.booking.trip.route.origin || checkin.booking.trip.route.from_city) + ' → ' + (checkin.booking.trip.route.destination || checkin.booking.trip.route.to_city) : 'N/A' %>
+                                            <%= checkin.booking && checkin.booking.trip && checkin.booking.trip.route ? (checkin.booking.trip.route.origin || checkin.booking.trip.route.from_city) + ' → ' + (checkin.booking.trip.route.destination || checkin.booking.trip.route.to_city) : 'Không có' %>
                                         </td>
                                         <td>
-                                            <%= checkin.checkin_time ? new Date(checkin.checkin_time).toLocaleString('vi-VN') : 'N/A' %>
+                                            <%= checkin.checkin_time ? new Date(checkin.checkin_time).toLocaleString('vi-VN') : 'Không có' %>
                                         </td>
                                         <td>
                                             <span class="badge <%= checkin.status === 'checked_in' ? 'badge-success' : 'badge-danger' %>">

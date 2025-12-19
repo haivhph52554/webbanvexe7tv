@@ -31,18 +31,18 @@
     <div class="row">
       <div class="col">
         <div class="label">Hành khách</div>
-        <div class="value"><%= (booking.user && booking.user.full_name) || (booking.passenger && booking.passenger.name) || 'N/A' %></div>
+        <div class="value"><%= (booking.user && booking.user.full_name) || (booking.passenger && booking.passenger.name) || 'Không có' %></div>
       </div>
       <div class="col">
         <div class="label">Số điện thoại</div>
-        <div class="value"><%= (booking.user && booking.user.phone) || (booking.passenger && booking.passenger.phone) || 'N/A' %></div>
+        <div class="value"><%= (booking.user && booking.user.phone) || (booking.passenger && booking.passenger.phone) || 'Không có' %></div>
       </div>
     </div>
 
     <div class="row">
       <div class="col">
         <div class="label">Ghế</div>
-        <div class="value"><%= (booking.seat_numbers && booking.seat_numbers.length) ? booking.seat_numbers.join(', ') : 'N/A' %></div>
+        <div class="value"><%= (booking.seat_numbers && booking.seat_numbers.length) ? booking.seat_numbers.join(', ') : 'Không có' %></div>
       </div>
       <div class="col">
         <div class="label">Tổng tiền</div>
@@ -53,22 +53,22 @@
     <div class="row">
       <div class="col">
         <div class="label">Chuyến</div>
-        <div class="value"><%= booking.trip && booking.trip.route ? (booking.trip.route.name || (booking.trip.route.from + ' → ' + booking.trip.route.to)) : 'N/A' %></div>
+        <div class="value"><%= booking.trip && booking.trip.route ? (booking.trip.route.name || (booking.trip.route.from + ' → ' + booking.trip.route.to)) : 'Không có' %></div>
       </div>
       <div class="col">
         <div class="label">Biển số xe</div>
-        <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'N/A' %></div>
+        <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'Không có' %></div>
       </div>
     </div>
 
     <div class="row">
       <div class="col">
         <div class="label">Ngày khởi hành (start_time)</div>
-        <div class="value"><%= booking.start_time ? new Date(booking.start_time).toLocaleString('vi-VN') : 'N/A' %></div>
+        <div class="value"><%= booking.start_time ? new Date(booking.start_time).toLocaleString('vi-VN') : 'Không có' %></div>
       </div>
       <div class="col">
         <div class="label">Ngày đặt</div>
-        <div class="value"><%= booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'N/A' %></div>
+        <div class="value"><%= booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'Không có' %></div>
       </div>
     </div>
 

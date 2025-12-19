@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Admin' %> - BaseVeXe</title>
+    <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Quản trị' %> - BaseVeXe</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -148,18 +148,18 @@
 <body>
     <header>
         <div class="header-content">
-            <h1>🚌 Admin Panel - BaseVeXe</h1>
+            <h1>🚌 Quản trị - BaseVeXe</h1>
         </div>
         <nav>
-            <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Dashboard</a>
-            <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Users</a>
+            <a href="/admin" class="<%= page === 'dashboard' ? 'active' : '' %>">📊 Tổng quan</a>
+            <a href="/admin/users" class="<%= page === 'users' && !roleFilter ? 'active' : '' %>">👥 Người dùng</a>
             <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>"><span>🧑‍✈️</span> <span>Phụ xe</span></a>
             <a href="/admin/drivers" class="<%= page === 'drivers' ? 'active' : '' %>">🚐 Tài xế</a>
-            <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Buses</a>
-            <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Routes</a>
-            <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Trips</a>
-            <a href="/admin/bookings" class="<%= page === 'bookings' ? 'active' : '' %>">🎫 Bookings</a>
-            <a href="/admin/statistics" class="<%= page === 'statistics' ? 'active' : '' %>">📈 Statistics</a>
+            <a href="/admin/buses" class="<%= page === 'buses' ? 'active' : '' %>">🚌 Xe</a>
+            <a href="/admin/routes" class="<%= page === 'routes' ? 'active' : '' %>">📍 Tuyến</a>
+            <a href="/admin/trips" class="<%= page === 'trips' ? 'active' : '' %>">🕐 Chuyến</a>
+            <a href="/admin/bookings" class="<%= page === 'bookings' ? 'active' : '' %>">🎫 Đặt chỗ</a>
+            <a href="/admin/statistics" class="<%= page === 'statistics' ? 'active' : '' %>">📈 Thống kê</a>
             <a href="/" style="background: rgba(239,68,68,0.2);">← Về trang chủ</a>
         </nav>
     </header>

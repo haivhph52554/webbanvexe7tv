@@ -434,11 +434,11 @@
             <nav class="sidebar-nav">
                 <a href="/admin" class="nav-item active">
                     <span>📊</span>
-                    <span>Dashboard</span>
+                    <span>Tổng quan</span>
                 </a>
                 <a href="/admin/users" class="nav-item">
                     <span>👥</span>
-                    <span>Users</span>
+                    <span>Người dùng</span>
                 </a>
                 <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
                     <span>👷</span>
@@ -450,23 +450,23 @@
                 </a>
                 <a href="/admin/buses" class="nav-item">
                     <span>🚌</span>
-                    <span>Buses</span>
+                    <span>Xe</span>
                 </a>
                 <a href="/admin/routes" class="nav-item">
                     <span>📍</span>
-                    <span>Routes</span>
+                    <span>Tuyến</span>
                 </a>
                 <a href="/admin/trips" class="nav-item">
                     <span>🕐</span>
-                    <span>Trips</span>
+                    <span>Chuyến</span>
                 </a>
                 <a href="/admin/bookings" class="nav-item">
                     <span>🎫</span>
-                    <span>Bookings</span>
+                    <span>Đặt chỗ</span>
                 </a>
                 <a href="/admin/statistics" class="nav-item">
                     <span>📈</span>
-                    <span>Statistics</span>
+                    <span>Thống kê</span>
                 </a>
                 <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
                     <span>🏠</span>
@@ -557,9 +557,9 @@
                                     <% trips.forEach(function(trip) { %>
                                         <tr>
                                             <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
-                                            <td><%= trip.route?.name || 'N/A' %></td>
+                                            <td><%= trip.route?.name || 'Không có' %></td>
                                             <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
-                                            <td><%= trip.end_time ? new Date(trip.end_time).toLocaleString('vi-VN') : 'N/A' %></td>
+                                            <td><%= trip.end_time ? new Date(trip.end_time).toLocaleString('vi-VN') : 'Không có' %></td>
                                             <td><strong><%= trip.base_price?.toLocaleString('vi-VN') || '0' %> ₫</strong></td>
                                             <td>
                                                 <span class="badge <%= trip.direction === 'go' ? 'badge-success' : 'badge-warning' %>">
@@ -606,8 +606,8 @@
                                     <% bookings.forEach(function(booking) { %>
                                         <tr>
                                             <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
-                                            <td><%= booking.user?.full_name || booking.passenger?.name || 'N/A' %></td>
-                                            <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'N/A' %></span></td>
+                                            <td><%= booking.user?.full_name || booking.passenger?.name || 'Không có' %></td>
+                                            <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'Không có' %></span></td>
                                             <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>
                                             <td>
                                                 <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
