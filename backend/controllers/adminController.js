@@ -1077,6 +1077,31 @@ exports.createTrip = async (req, res) => {
       status
     };
 
+   
+    try {
+      const overlap = await Trip.findOne({
+        bus: busId,
+        status: { $in: ['scheduled', 'departed'] },
+        start_time: { $lt: payload.end_time },
+        $or: [
+          { end_time: { $gt: payload.start_time } },
+          { end_time: null }
+        ]
+      });
+
+      if (overlap) {
+        return res.render('admin/trip_form', { 
+          trip: null,
+          routes,
+          buses,
+          page: 'trips',
+          errors: 'Xe đã có chuyến trùng/đang chạy vào khoảng thời gian này. Vui lòng chọn xe/khung giờ khác.'
+        });
+      }
+    } catch (e) {
+      console.warn('Lỗi khi kiểm tra xung đột chuyến:', e.message);
+    }
+
     const trip = await Trip.create(payload);
 
     const busDoc = await BusModel.findById(trip.bus);
@@ -1274,6 +1299,23 @@ exports.createRecurringTrips = async (req, res) => {
             status: 'scheduled',
             is_recurring: true
           };
+
+          // Trước khi tạo, kiểm tra xung đột với các chuyến khác cùng xe
+          try {
+            const overlap = await Trip.findOne({
+              bus: busId,
+              status: { $in: ['scheduled', 'departed'] },
+              start_time: { $lt: payload.end_time },
+              $or: [
+                { end_time: { $gt: payload.start_time } },
+                { end_time: null }
+              ]
+            });
+
+            if (overlap) { skipped++; continue; }
+          } catch (e) {
+            console.warn('Lỗi khi kiểm tra xung đột chuyến định kỳ:', e.message);
+          }
 
           const trip = await Trip.create(payload);
 
