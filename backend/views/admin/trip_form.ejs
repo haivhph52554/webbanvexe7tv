@@ -104,24 +104,41 @@
       <input type="date" name="end_date" />
 
       <label>Giờ khởi hành cố định</label>
-      <input type="time" name="time_of_day" value="08:00" />
-
-      <label>Thứ trong tuần (khi chọn theo tuần)</label>
-      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-        <label><input type="checkbox" name="days_of_week" value="1" /> Thứ 2</label>
-        <label><input type="checkbox" name="days_of_week" value="2" /> Thứ 3</label>
-        <label><input type="checkbox" name="days_of_week" value="3" /> Thứ 4</label>
-        <label><input type="checkbox" name="days_of_week" value="4" /> Thứ 5</label>
-        <label><input type="checkbox" name="days_of_week" value="5" /> Thứ 6</label>
-        <label><input type="checkbox" name="days_of_week" value="6" /> Thứ 7</label>
-        <label><input type="checkbox" name="days_of_week" value="0" /> Chủ nhật</label>
+      <div id="timesContainer" style="display: flex; flex-direction: column;gap:0.5rem">
+        <input type="time" name="time_of_day" value="08:00"/>
       </div>
-
-      <div class="actions">
-        <button type="submit" class="btn btn-primary">Tạo chuyến cố định</button>
-        <a href="/admin/trips" class="btn btn-secondary">Hủy</a>
-      </div>
+      <button type="button" id="addTimeBtn" class="btn btn-secondary"style="margin-top:0.5rem;width:fit-content">Thêm giờ</button>
+      <small style="display:block;margin-top:0.25rem;color:#6b7280">thêm giờ để tạo nhiều chuyến cùng 1 ngày</small>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">tạo lịch</button>
+        </div>
     </form>
   </div>
+  <script>
+    (function () {
+      const btn = document.getElementById('addTimeBtn');
+      const box = document.getElementById('timesContainer');
+      if (!btn || !box) return;
+      btn.addEventListener('click',function() {
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.gap = '0.5rem';
+        wrap.style.alignItems = 'center';
+        const input = document.createElement('input');
+        input.type = 'time';
+        input.name = 'time_of_day';
+        input.value = '08:00';
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn btn-secondary';
+        remove.textContent = 'xoá';
+        remove.addEventListener('click',() => wrap.remove());
+        wrap.appendChild(input);
+        wrap.appendChild(remove);
+        box.appendChild(wrap);
+      });
+    }) ();
+  </script>
 </body>
 </html>

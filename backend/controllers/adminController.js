@@ -1184,26 +1184,20 @@ exports.createRecurringTrips = async (req, res) => {
     const direction = req.body.direction || 'go';
     const frequency = req.body.frequency || 'daily';
     const daysOfWeek = req.body.days_of_week;
-    const timeOfDay = req.body.time_of_day;
+    const timeOfDayRaw = req.body.time_of_day;
     const startDateStr = req.body.start_date;
     const endDateStr = req.body.end_date;
 
     const today = new Date();
     const startDate = startDateStr ? new Date(startDateStr) : new Date(today);
     startDate.setHours(0, 0, 0, 0);
+
     let endDate = endDateStr ? new Date(endDateStr) : new Date(startDate);
     if (!endDateStr) {
+     
       endDate.setDate(endDate.getDate() + 180);
     }
     endDate.setHours(23, 59, 59, 999);
-
-    let hours = 8;
-    let minutes = 0;
-    if (timeOfDay && typeof timeOfDay === 'string') {
-      const parts = timeOfDay.split(':');
-      hours = parseInt(parts[0], 10) || 8;
-      minutes = parseInt(parts[1], 10) || 0;
-    }
 
     const route = await Route.findById(routeId);
     const bus = await Bus.findById(busId);
@@ -1213,53 +1207,96 @@ exports.createRecurringTrips = async (req, res) => {
 
     const durationMin = Number(route.estimated_duration_min) || null;
 
+    
+    const times = (() => {
+      if (Array.isArray(timeOfDayRaw)) return timeOfDayRaw;
+      if (typeof timeOfDayRaw === 'string') {
+
+        return timeOfDayRaw
+          .split(/[\n,]/g)
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
+      return [];
+    })();
+
+    const normalizedTimes = (times.length ? times : ['08:00'])
+      .map(t => {
+        const parts = String(t).split(':');
+        const h = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
+        const m = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${pad(h)}:${pad(m)}`;
+      })
+      .filter((v, i, arr) => arr.indexOf(v) === i) 
+      .sort();
+
     const dows = Array.isArray(daysOfWeek)
       ? daysOfWeek.map(x => parseInt(x, 10))
       : (typeof daysOfWeek === 'string' ? [parseInt(daysOfWeek, 10)] : []);
+
     const isWeekly = frequency === 'weekly' && dows.length > 0;
+    if (frequency === 'weekly' && dows.length >0) {
+      isWeekly = false;
+    }
 
     let created = 0;
     let skipped = 0;
 
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
+
       if (frequency === 'daily' || (isWeekly && dows.includes(dow))) {
-        const start = new Date(d);
-        start.setHours(hours, minutes, 0, 0);
+       
+        for (const timeStr of normalizedTimes) {
+          const [hh, mm] = timeStr.split(':');
 
-        const existed = await Trip.findOne({ route: routeId, bus: busId, start_time: start });
-        if (existed) { skipped++; continue; }
+          const start = new Date(d);
+          start.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
 
-        const payload = {
-          route: routeId,
-          bus: busId,
-          start_time: start,
-          end_time: durationMin ? new Date(start.getTime() + durationMin * 60000) : null,
-          base_price: basePrice,
-          direction,
-          status: 'scheduled',
-          is_recurring: true
-        };
+         
+          const existed = await Trip.findOne({
+            route: routeId,
+            bus: busId,
+            direction,
+            start_time: start
+          });
 
-        const trip = await Trip.create(payload);
+          if (existed) { skipped++; continue; }
 
-        const seatDocs = [];
-        const seatCount = bus.seat_count || 0;
-        for (let i = 1; i <= seatCount; i++) {
-          seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
+          const payload = {
+            route: routeId,
+            bus: busId,
+            start_time: start,
+            end_time: durationMin ? new Date(start.getTime() + durationMin * 60000) : null,
+            base_price: basePrice,
+            direction,
+            status: 'scheduled',
+            is_recurring: true
+          };
+
+          const trip = await Trip.create(payload);
+
+          // tạo ghế cho chuyến
+          const seatDocs = [];
+          const seatCount = bus.seat_count || 0;
+          for (let i = 1; i <= seatCount; i++) {
+            seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
+          }
+          if (seatDocs.length) await TripSeatStatus.insertMany(seatDocs);
+
+          created++;
         }
-        if (seatDocs.length) await TripSeatStatus.insertMany(seatDocs);
-
-        created++;
       }
     }
 
-    res.redirect('/admin/trips');
+    res.redirect(`/admin/trips?created=${created}&skipped=${skipped}`);
   } catch (err) {
     console.error('Error creating recurring trips:', err);
     res.status(500).send('Lỗi khi tạo chuyến cố định: ' + err.message);
   }
 };
+
 
 const Driver = require('../models/Driver'); // Nhớ import model
 
