@@ -46,6 +46,8 @@ type TripDetailResponse = {
   trip: TripDoc;
   seats: SeatDoc[];
   stops?: RouteStopDoc[];
+  driver?: { name?: string; phone?: string; license_number?: string } | null;
+  assistant?: { name?: string; phone?: string } | null;
 };
 
 const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
@@ -268,12 +270,6 @@ const BookingDetail: React.FC = () => {
   const handleBooking = () => {
     if (!tripDetail?.trip?._id) { alert('Chưa chọn chuyến.'); return; }
     if (selectedSeats.length === 0) { alert('Vui lòng chọn ít nhất một ghế'); return; }
-    if (!selectedPickupId || !selectedDropoffId) { alert('Vui lòng chọn điểm đón và điểm trả'); return; }
-
-    const pickup = tripDetail?.stops?.find(s => s._id === selectedPickupId);
-    const dropoff = tripDetail?.stops?.find(s => s._id === selectedDropoffId);
-    if (!pickup || !dropoff) { alert('Điểm dừng không hợp lệ'); return; }
-    if (pickup.order >= dropoff.order) { alert('Vui lòng chọn điểm đón trước điểm trả'); return; }
     if (!passengerInfo.name || !passengerInfo.phone) { alert('Vui lòng điền đầy đủ thông tin hành khách'); return; }
     if (!isValidPhone(passengerInfo.phone)) { setPhoneError('Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 hoặc +84.'); return; }
     
@@ -281,9 +277,10 @@ const BookingDetail: React.FC = () => {
       tripId: tripDetail.trip._id,
       seats: selectedSeats,
       passenger: passengerInfo,
-      stops: { pickupId: selectedPickupId, dropoffId: selectedDropoffId, pickupName: pickup.stop_name, dropoffName: dropoff.stop_name },
       route: { from: tripDetail.trip.route?.from_city || '', to: tripDetail.trip.route?.to_city || '', durationMin: tripDetail.trip.route?.estimated_duration_min || null },
       bus: { busType: tripDetail.trip.bus?.bus_type || '', licensePlate: tripDetail.trip.bus?.license_plate || '', seatCount: tripDetail.trip.bus?.seat_count || 0 },
+      driver: tripDetail.driver || null,
+      assistant: tripDetail.assistant || null,
       times: { departureTime: tripDetail.trip.start_time, arrivalTime: computedArrivalIso || tripDetail.trip.end_time || null },
       pricePerSeat: computedPricePerSeat
     } });
@@ -307,7 +304,7 @@ const BookingDetail: React.FC = () => {
   }, [tripDetail?.stops, tripDetail?.trip?.base_price, selectedPickupId, selectedDropoffId, selectedTrip?.base_price]);
 
   const computedArrivalIso = React.useMemo(() => {
-    if (!selectedTrip) return selectedTrip?.end_time || null;
+    if (!selectedTrip) return null;
     if (selectedDropoffId && tripDetail?.stops && tripDetail.stops.length > 0) {
       const stops = tripDetail.stops;
       const minOrder = Math.min(...stops.map(s => s.order));
@@ -779,14 +776,6 @@ const BookingDetail: React.FC = () => {
                     <span className="text-gray-600">Số ghế:</span>
                     <span className="font-medium">{selectedSeats.length} ghế</span>
                   </div>
-                  {tripDetail?.stops && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Điểm đón / trả:</span>
-                      <span className="font-medium text-right">
-                        {selectedPickupId ? (tripDetail.stops.find(s => s._id === selectedPickupId)?.stop_name || '-') : '-'} / {selectedDropoffId ? (tripDetail.stops.find(s => s._id === selectedDropoffId)?.stop_name || '-') : '-'}
-                      </span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Giá/ghế:</span>
                     <span className="font-medium">{(computedPricePerSeat || 0).toLocaleString()}₫</span>

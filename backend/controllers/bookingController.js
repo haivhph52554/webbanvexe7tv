@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const Trip = require('../models/Trip');
+const Driver = require('../models/Driver');
+const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 const RouteStop = require('../models/RouteStop');
 const { sendBookingConfirmationEmail } = require('../utils/mailer');
@@ -133,6 +135,16 @@ exports.checkout = async (req, res) => {
       // Nếu là Banking hoặc MoMo -> Pending. COD -> Paid (hoặc pending tùy bạn, ở đây để paid cho đơn giản)
       const initialStatus = (paymentMethod === 'banking' || paymentMethod === 'momo') ? 'pending' : 'paid';
 
+      // Try to find a driver and assistant assigned to this trip (if any)
+      let assignedDriver = null;
+      let assignedAssistant = null;
+      try {
+        assignedDriver = await Driver.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route }] });
+      } catch (e) { /* ignore */ }
+      try {
+        assignedAssistant = await Assistant.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route }] });
+      } catch (e) { /* ignore */ }
+
       const [booking] = await Booking.create(
         [
           {
@@ -165,6 +177,16 @@ exports.checkout = async (req, res) => {
               license_plate: trip.bus?.license_plate || '',
               seat_count: trip.bus?.seat_count || 0
             }
+            ,
+            driver_snapshot: assignedDriver ? {
+              name: assignedDriver.name || '',
+              phone: assignedDriver.phone || '',
+              license_number: assignedDriver.license_number || ''
+            } : undefined,
+            assistant_snapshot: assignedAssistant ? {
+              name: assignedAssistant.name || '',
+              phone: assignedAssistant.phone || ''
+            } : undefined
           }
         ],
         wopt
@@ -237,6 +259,15 @@ exports.checkout = async (req, res) => {
             seatCount: booking.bus_snapshot.seat_count, 
             licensePlate: booking.bus_snapshot.license_plate 
         },
+        driver: booking.driver_snapshot ? {
+          name: booking.driver_snapshot.name || '',
+          phone: booking.driver_snapshot.phone || '',
+          licenseNumber: booking.driver_snapshot.license_number || ''
+        } : null,
+        assistant: booking.assistant_snapshot ? {
+          name: booking.assistant_snapshot.name || '',
+          phone: booking.assistant_snapshot.phone || ''
+        } : null,
         seats: requestedNums,
         passenger: booking.passenger || null,
         pricePerSeat,

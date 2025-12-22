@@ -21,6 +21,17 @@ const bookingSchema = new mongoose.Schema({
     license_plate: String,
     seat_count: Number
   },
+  // Snapshot of driver assigned to the trip (optional)
+  driver_snapshot: {
+    name: String,
+    phone: String,
+    license_number: String
+  },
+  // Snapshot of assistant (lơ xe) assigned to the trip (optional)
+  assistant_snapshot: {
+    name: String,
+    phone: String
+  },
 
   start_time: Date,
   end_time: Date,

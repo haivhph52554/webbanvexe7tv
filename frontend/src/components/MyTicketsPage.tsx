@@ -14,6 +14,7 @@ interface Ticket {
     departureTime: string;
     arrivalTime: string;
     busType: string;
+    licensePlate?: string;
   };
   seats: number[];
   passenger: {
@@ -26,6 +27,10 @@ interface Ticket {
   paymentMethod: string;
   bookingDate: string;
   status: 'confirmed' | 'cancelled' | 'used' | 'pending';
+  driver?: {
+    name?: string;
+    phone?: string;
+  } | null;
 }
 
 type BookingDoc = {
@@ -124,6 +129,7 @@ const MyTicketsPage: React.FC = () => {
               departureTime: fmtTime(booking.start_time),
               arrivalTime: fmtTime(booking.end_time),
               busType: booking.bus_snapshot?.bus_type || '-',
+              licensePlate: booking.bus_snapshot?.license_plate || '',
             },
             seats: booking.seat_numbers.map(s => parseInt(s, 10)).filter(n => !Number.isNaN(n)),
             passenger: booking.passenger || {
@@ -132,6 +138,8 @@ const MyTicketsPage: React.FC = () => {
               email: '',
               note: '',
             },
+            driver: booking.driver_snapshot || null,
+            assistant: booking.assistant_snapshot || null,
             totalAmount: booking.total_amount || booking.total_price || 0,
             paymentMethod: 'banking', // Có thể lấy từ payment nếu cần
             bookingDate: fmtDate(booking.createdAt),
@@ -372,6 +380,20 @@ const MyTicketsPage: React.FC = () => {
                       <p className="text-sm text-gray-600">Loại xe</p>
                       <p className="font-medium">{ticket.route.busType}</p>
                     </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                  <div>
+                    <span className="font-medium">Biển số:</span>
+                    <span className="ml-2 font-mono text-blue-700">{ticket.route.licensePlate || '---'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Tài xế:</span>
+                    <span className="ml-2">{ticket.driver?.name ? `${ticket.driver.name}${ticket.driver.phone ? ' · ' + ticket.driver.phone : ''}` : '-'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Lơ xe:</span>
+                    <span className="ml-2">{ticket.assistant?.name ? `${ticket.assistant.name}${ticket.assistant.phone ? ' · ' + ticket.assistant.phone : ''}` : '-'}</span>
                   </div>
                 </div>
 

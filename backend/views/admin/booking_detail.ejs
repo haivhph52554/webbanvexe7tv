@@ -59,6 +59,10 @@
         <div class="label">Biển số xe</div>
         <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'Không có' %></div>
       </div>
+      <div style="margin-top:6px">
+        <div style="color:#6b7280">Tài xế:</div>
+        <div class="value"><%= booking.driver_snapshot ? (booking.driver_snapshot.name + ' · ' + (booking.driver_snapshot.phone || '')) : 'Không có' %></div>
+      </div>
     </div>
 
     <div class="row">

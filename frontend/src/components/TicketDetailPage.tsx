@@ -13,6 +13,7 @@ interface Ticket {
     departureTime: string;
     arrivalTime: string;
     busType: string;
+    licensePlate?: string;
   };
   seats: number[];
   passenger: {
@@ -21,6 +22,15 @@ interface Ticket {
     email: string;
     note: string;
   };
+  driver?: {
+    name?: string;
+    phone?: string;
+    licenseNumber?: string;
+  } | null;
+  assistant?: {
+    name?: string;
+    phone?: string;
+  } | null;
   totalAmount: number;
   paymentMethod: string;
   bookingDate: string;
@@ -161,6 +171,26 @@ const TicketDetailPage: React.FC = () => {
                   <div>
                     <span className="text-gray-600">Loại xe:</span>
                     <span className="ml-2 font-medium">{ticket.route.busType}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Biển số:</span>
+                    <span className="ml-2 font-medium font-mono text-blue-700">{ticket.route.licensePlate || '---'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Tài xế:</span>
+                    <span className="ml-2 font-medium">{ticket.driver?.name || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">SĐT tài xế:</span>
+                    <span className="ml-2 font-medium">{ticket.driver?.phone || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Lơ xe:</span>
+                    <span className="ml-2 font-medium">{ticket.assistant?.name || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">SĐT lơ xe:</span>
+                    <span className="ml-2 font-medium">{ticket.assistant?.phone || '-'}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Hành khách:</span>

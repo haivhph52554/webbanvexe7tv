@@ -11,6 +11,7 @@ type PaymentState = {
   stops?: { pickupId?: string; dropoffId?: string; pickupName?: string; dropoffName?: string };
   route?: { from?: string; to?: string; durationMin?: number | null };
   bus?: { busType?: string; licensePlate?: string; seatCount?: number };
+  driver?: { name?: string; phone?: string } | null;
   times?: { departureTime?: string; arrivalTime?: string | null };
   pricePerSeat?: number;
 };
@@ -160,7 +161,19 @@ const PaymentPage: React.FC = () => {
                   <span className="ml-2 font-medium font-mono text-blue-700">
                     {st.bus?.licensePlate || '---'}
                   </span>
-              </div>
+                </div>
+                {st.driver?.name && (
+                  <div>
+                    <span className="text-gray-600">Tài xế:</span>
+                    <span className="ml-2 font-medium">{st.driver.name}{st.driver.phone ? ' · ' + st.driver.phone : ''}</span>
+                  </div>
+                )}
+                {st.assistant?.name && (
+                  <div>
+                    <span className="text-gray-600">Lơ xe:</span>
+                    <span className="ml-2 font-medium">{st.assistant.name}{st.assistant.phone ? ' · ' + st.assistant.phone : ''}</span>
+                  </div>
+                )}
               </div>
             </div>
 

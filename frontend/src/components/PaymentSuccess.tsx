@@ -9,6 +9,8 @@ type SuccessPayload = {
   route: { from: string; to: string; durationMin: number | null };
   times: { departureTime: string; arrivalTime: string | null };
   bus: { busType: string; seatCount: number; licensePlate?: string };
+  driver?: { name?: string; phone?: string; licenseNumber?: string } | null;
+  assistant?: { name?: string; phone?: string } | null;
   seats: (number|string)[];
   passenger: { name?: string; phone?: string; email?: string; note?: string } | null;
   pricePerSeat: number;
@@ -62,9 +64,13 @@ const PaymentSuccess: React.FC = () => {
           departureTime: s.times.departureTime,
           arrivalTime: s.times.arrivalTime || '',
           busType: s.bus.busType || ''
+          ,
+          licensePlate: s.bus.licensePlate || ''
         },
         seats: (s.seats || []).map((x: any) => Number(x)),
         passenger: s.passenger || { name: '', phone: '', email: '', note: '' },
+        driver: s.driver || null,
+        assistant: s.assistant || null,
         totalAmount: s.totalAmount || 0,
         paymentMethod: s.paymentMethod,
         bookingDate: new Date().toISOString(),
@@ -240,6 +246,8 @@ const PaymentSuccess: React.FC = () => {
                   <div><span className="text-gray-600">Loại xe:</span><span className="ml-2 font-medium">{s.bus.busType}</span></div>
                   <div><span className="text-gray-600">Hành khách:</span><span className="ml-2 font-medium">{s.passenger?.name || '-'}</span></div>
                   <div><span className="text-gray-600">SĐT:</span><span className="ml-2 font-medium">{s.passenger?.phone || '-'}</span></div>
+                  <div><span className="text-gray-600">Tài xế:</span><span className="ml-2 font-medium">{s.driver?.name || '-'}</span></div>
+                  <div><span className="text-gray-600">SĐT tài xế:</span><span className="ml-2 font-medium">{s.driver?.phone || '-'}</span></div>
                 </div>
               </div>
 

@@ -68,12 +68,18 @@ router.get('/:id', async (req, res) => {
       }
     }
 
+    // Tìm tài xế và lơ xe được gán (nếu có) để trả về cùng
+    const Driver = require('../models/Driver');
+    const Assistant = require('../models/Assistant');
+    const assignedDriver = await Driver.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route?._id }] }).select('name phone license_number').lean();
+    const assignedAssistant = await Assistant.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route?._id }] }).select('name phone').lean();
+
     // Lấy danh sách điểm dừng của tuyến
     const stops = trip.route && trip.route._id 
       ? await RouteStop.find({ route: trip.route._id }).sort({ order: 1 }).lean()
       : [];
 
-    res.json({ trip, seats, stops });
+    res.json({ trip, seats, stops, driver: assignedDriver || null, assistant: assignedAssistant || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
