@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Đặt chỗ - VeXe7TV Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #3b82f6;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --gray-light: #e2e8f0;
+            --white: #ffffff;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--dark);
+        }
+        
+        .admin-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-xl);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 0.875rem 1.5rem;
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            margin: 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .page-header {
+            margin-bottom: 2rem;
+        }
+        
+        .page-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: var(--white);
+            padding: 1.75rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .stat-card h3 {
+            color: var(--gray);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1;
+        }
+        
+        .content-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
+        
+        .content-card h2 {
+            margin: 0 0 1.5rem 0;
+            color: var(--dark);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: var(--light);
+        }
+        
+        th {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-light);
+        }
+        
+        td {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--gray-light);
+            color: var(--dark);
+        }
+        
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        tbody tr:hover {
+            background: var(--light);
+            transform: scale(1.01);
+        }
+        
+        .badge {
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+        
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        
+        .badge-primary {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
+        }
+        
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Thêm style cho nút Duyệt */
+        .btn-success {
+            background: var(--success);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--gray);
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+        }
+        
+        .empty-state p {
+            color: var(--gray);
+        }
+        
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚌 VeXe7TV</h1>
+                <p>Trang quản trị</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin" class="nav-item">
+                    <span>📊</span>
+                    <span>Tổng quan</span>
+                </a>
+                <a href="/admin/users" class="nav-item">
+                    <span>👥</span>
+                    <span>Người dùng</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
+                <a href="/admin/buses" class="nav-item">
+                    <span>🚌</span>
+                    <span>Xe</span>
+                </a>
+                <a href="/admin/routes" class="nav-item">
+                    <span>📍</span>
+                    <span>Tuyến</span>
+                </a>
+                <a href="/admin/trips" class="nav-item">
+                    <span>🕐</span>
+                    <span>Chuyến</span>
+                </a>
+                <a href="/admin/bookings" class="nav-item active">
+                    <span>🎫</span>
+                    <span>Đặt chỗ</span>
+                </a>
+                <a href="/admin/statistics" class="nav-item">
+                    <span>📈</span>
+                    <span>Thống kê</span>
+                </a>
+                <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
+                    <span>🏠</span>
+                    <span>Về trang chủ</span>
+                </a>
+            </nav>
+        </aside>
+        
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Quản lý Đặt chỗ</h2>
+                <p>Quản lý tất cả đặt chỗ trong hệ thống</p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Tổng số đặt chỗ</h3>
+                            <div class="value"><%= stats.total %></div>
+                        </div>
+                        <div class="stat-card-icon">🎫</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Đang chờ</h3>
+                            <div class="value"><%= stats.pending %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">⏳</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Đã thanh toán</h3>
+                            <div class="value"><%= stats.paid %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--info), #60a5fa);">💳</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Hoàn thành</h3>
+                            <div class="value"><%= stats.completed %></div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--success), #34d399);">✅</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div>
+                            <h3>Doanh thu</h3>
+                            <div class="value" style="font-size: 1.75rem;"><%= stats.totalRevenue.toLocaleString('vi-VN') %> ₫</div>
+                        </div>
+                        <div class="stat-card-icon" style="background: linear-gradient(135deg, var(--warning), #fbbf24);">💰</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content-card">
+                <h2>Danh sách Đặt chỗ</h2>
+                <% if (bookings.length === 0) { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎫</div>
+                        <h3>Chưa có đặt chỗ nào</h3>
+                        <p>Khách hàng chưa đặt chỗ</p>
+                    </div>
+                <% } else { %>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Khách hàng</th>
+                                    <th>Ghế</th>
+                                    <th>Tổng tiền</th>
+                                    <th>Trạng thái</th>
+                                    <th>Ngày đặt</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% bookings.forEach(function(booking) { %>
+                                    <tr>
+                                        <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
+                                        <td><%= booking.user?.full_name || booking.passenger?.name || 'Không có' %></td>
+                                        <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'Không có' %></span></td>
+                                        <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>
+                                        <td>
+                                            <span class="badge <%= booking.status === 'completed' ? 'badge-success' : booking.status === 'paid' ? 'badge-primary' : 'badge-warning' %>">
+                                                <%= booking.status === 'pending' ? 'Đang chờ' : booking.status === 'paid' ? 'Đã thanh toán' : booking.status === 'completed' ? 'Hoàn thành' : booking.status === 'cancelled' ? 'Đã hủy' : booking.status %>
+                                            </span>
+                                        </td>
+                                        <td><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></td>
+                                        <td>
+                                                <% if (booking.status === 'pending') { %>
+                                                    <button 
+                                                        class="btn btn-success" 
+                                                        onclick="updateStatus('<%= booking._id %>', 'paid')"
+                                                        style="margin-right: 0.5rem;"
+                                                        title="Xác nhận đã nhận tiền"
+                                                    >
+                                                        ✔ Duyệt
+                                                    </button>
+                                                <% } %>
+
+                                                <!-- Chi tiết link -> open detail page -->
+                                                <a class="btn" style="background:#e6e6e6; margin-right:0.5rem; text-decoration:none; color:inherit; display:inline-flex; align-items:center;" href="/admin/bookings/<%= booking._id %>">ℹ️ Chi tiết</a>
+
+                                                <% if (booking.status === 'pending' || booking.status === 'cancelled') { %>
+                                                    <button class="btn btn-danger" onclick="deleteBooking('<%= booking._id %>')">🗑️ Xóa</button>
+                                                <% } else { %>
+                                                    <span class="text-gray-500 text-sm" title="Không thể xóa đơn đã thanh toán hoặc đã hoàn thành">🔒 Đã khóa</span>
+                                                <% } %>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                <% } %>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Booking detail modal -->
+    <div id="booking-detail-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:2000;">
+        <div style="background:white; border-radius:12px; width:480px; max-width:95%; padding:1.25rem; box-shadow:0 10px 25px rgba(0,0,0,0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <h3 style="margin:0;">Chi tiết đặt chỗ</h3>
+                <button onclick="closeBookingDetail()" style="background:#eee;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">Đóng</button>
+            </div>
+            <div style="margin-bottom:0.5rem;"></div>
+            <div style="font-size:0.95rem; color:#111;">
+                <p><strong>Mã vé:</strong> <span id="bd-code">—</span></p>
+                <p><strong>Hành khách:</strong> <span id="bd-passenger">—</span></p>
+                <p><strong>Ghế:</strong> <span id="bd-seats">—</span></p>
+                <p><strong>Biển số xe:</strong> <span id="bd-plate">—</span></p>
+                <p><strong>Tổng tiền:</strong> <span id="bd-total">—</span></p>
+                <p><strong>Ngày đặt:</strong> <span id="bd-date">—</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Snapshot of bookings to quickly show details without extra request
+        const bookingsData = <%- JSON.stringify(bookings.map(function(b){ return { id: (b._id && b._id.toString) ? b._id.toString() : b._id, seat_numbers: b.seat_numbers||[], bus_license: (b.trip && b.trip.bus && b.trip.bus.license_plate) || (b.bus_snapshot && b.bus_snapshot.license_plate) || null, passenger_name: (b.user && b.user.full_name) || (b.passenger && b.passenger.name) || null, total_price: ((b.total_price || b.total_amount) || 0), createdAt: b.createdAt }; })) %>;
+
+        function showBookingDetail(id) {
+            const b = bookingsData.find(x => String(x.id) === String(id));
+            if (!b) return alert('Không tìm thấy thông tin đặt chỗ');
+            document.getElementById('bd-code').innerText = String(b.id).substring(0,8) + '...';
+            document.getElementById('bd-passenger').innerText = b.passenger_name || 'Không có';
+            document.getElementById('bd-seats').innerText = (b.seat_numbers && b.seat_numbers.length) ? b.seat_numbers.join(', ') : 'Không có';
+            document.getElementById('bd-plate').innerText = b.bus_license || 'Không có';
+            document.getElementById('bd-total').innerText = (Number(b.total_price) || 0).toLocaleString('vi-VN') + ' ₫';
+            document.getElementById('bd-date').innerText = new Date(b.createdAt).toLocaleString('vi-VN');
+            document.getElementById('booking-detail-modal').style.display = 'flex';
+        }
+
+        function closeBookingDetail() {
+            document.getElementById('booking-detail-modal').style.display = 'none';
+        }
+
+        // Hàm xóa booking
+        async function deleteBooking(id) {
+            if (!confirm('Bạn có chắc muốn xóa đặt chỗ này?')) return;
+            try {
+                const response = await fetch(`/admin/bookings/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Đã xóa đặt chỗ thành công');
+                    location.reload();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể xóa đặt chỗ'));
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            }
+        }
+
+        // --- HÀM DUYỆT ĐƠN MỚI ---
+        async function updateStatus(id, status) {
+            if (!confirm('Xác nhận đã nhận được tiền cho đơn này?')) return;
+            try {
+                const response = await fetch(`/admin/bookings/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status }) 
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Đã duyệt đơn thành công!');
+                    location.reload(); // Tải lại trang để thấy màu xanh
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Không thể cập nhật'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Lỗi kết nối server');
+            }
+        }
+    </script>
+</body>
+</html>

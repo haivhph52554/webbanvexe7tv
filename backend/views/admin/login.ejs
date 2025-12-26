@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng nhập Admin</title>
+  <style>
+    body{font-family:Inter,Segoe UI,Tahoma,Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;margin:0;display:flex;align-items:center;justify-content:center}
+    .card{background:#fff;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.15);width:100%;max-width:420px;padding:2rem}
+    h1{margin:0 0 1rem 0;font-size:1.5rem;color:#1e293b;text-align:center}
+    .field{margin-bottom:1rem}
+    label{display:block;margin-bottom:0.5rem;font-weight:600;color:#334155}
+    input{width:100%;padding:0.75rem;border:1px solid #e5e7eb;border-radius:8px;font-size:0.95rem}
+    .btn{width:100%;padding:0.75rem;border:none;border-radius:8px;background:#1e3a8a;color:#fff;font-weight:600;cursor:pointer}
+    .btn:hover{background:#172f6b}
+    .error{background:#fee2e2;color:#991b1b;padding:0.75rem;border-radius:8px;margin-bottom:1rem;text-align:center}
+    .note{margin-top:1rem;color:#64748b;font-size:0.9rem;text-align:center}
+    .links{margin-top:1rem;text-align:center}
+    .links a{color:#1e3a8a;text-decoration:none;font-weight:600}
+  </style>
+  </head>
+<body>
+  <div class="card">
+    <h1>Đăng nhập hệ thống</h1>
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+    <form method="post" action="/admin/login">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="you@example.com" required />
+      </div>
+      <div class="field">
+        <label>Mật khẩu</label>
+        <input type="password" name="password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn">Đăng nhập</button>
+    </form>
+    <div class="note">Admin → vào trang quản trị. Tài xế/Lơ xe → vào trang riêng.</div>
+    <div class="links"><a href="/">Về trang chủ</a></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi tiết Phụ xe - VeXe7TV Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --info: #3b82f6;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --gray-light: #e2e8f0;
+            --white: #ffffff;
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--dark);
+        }
+        
+        .admin-wrapper {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-lg);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sidebar-nav {
+            padding: 1.5rem 0;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 0.875rem 1.5rem;
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            margin: 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-left-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%);
+            border-left-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        
+        .page-header {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: var(--gray-light);
+            color: var(--dark);
+        }
+        
+        .info-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+        }
+        
+        .info-card h3 {
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: var(--white);
+            padding: 1.75rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--warning), #fbbf24);
+        }
+        
+        .stat-card h4 {
+            color: var(--gray);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: var(--light);
+        }
+        
+        th {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--gray-light);
+        }
+        
+        td {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--gray-light);
+            color: var(--dark);
+        }
+        
+        tbody tr:hover {
+            background: var(--light);
+        }
+        
+        .badge {
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+        
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+        
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-wrapper">
+        <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚌 VeXe7TV</h1>
+                <p>Trang quản trị</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/admin" class="nav-item">
+                    <span>📊</span>
+                    <span>Tổng quan</span>
+                </a>
+                <a href="/admin/users" class="nav-item">
+                    <span>👥</span>
+                    <span>Người dùng</span>
+                </a>
+                <a href="/admin/assistants" class="nav-item <%= page === 'assistants' ? 'active' : '' %>">
+                    <span>👷</span>
+                    <span>Lơ xe</span>
+                </a>
+                <a href="/admin/drivers" class="nav-item <%= page === 'drivers' ? 'active' : '' %>">
+                    <span>🚐</span> 
+                    <span>Tài xế</span>
+                </a>
+                <a href="/admin/buses" class="nav-item">
+                    <span>🚌</span>
+                    <span>Xe</span>
+                </a>
+                <a href="/admin/routes" class="nav-item">
+                    <span>📍</span>
+                    <span>Tuyến</span>
+                </a>
+                <a href="/admin/trips" class="nav-item">
+                    <span>🕐</span>
+                    <span>Chuyến</span>
+                </a>
+                <a href="/admin/bookings" class="nav-item">
+                    <span>🎫</span>
+                    <span>Đặt chỗ</span>
+                </a>
+                <a href="/admin/statistics" class="nav-item">
+                    <span>📈</span>
+                    <span>Thống kê</span>
+                </a>
+                <a href="/" class="nav-item" style="margin-top: 2rem; border-top: 1px solid var(--gray-light); padding-top: 1.5rem;">
+                    <span>🏠</span>
+                    <span>Về trang chủ</span>
+                </a>
+            </nav>
+        </aside>
+        <% } %>
+        
+        <main class="main-content">
+            <% if (typeof currentUserRole !== 'undefined' && currentUserRole !== 'admin') { %>
+            <style>.main-content{margin-left:0}</style>
+            <% } %>
+            <div class="page-header">
+                <div>
+                    <h2>Chi tiết Phụ xe</h2>
+                    <p style="color: rgba(255, 255, 255, 0.9);"><%= assistant.name %></p>
+                </div>
+                <div>
+                    <% if (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin') { %>
+                        <a href="/admin/assistants" class="btn btn-secondary">← Quay lại</a>
+                        <a href="/admin/assistants/<%= assistant._id %>/edit" class="btn btn-primary">✏️ Sửa</a>
+                    <% } %>
+                </div>
+            </div>
+            
+            <!-- Thông tin cơ bản -->
+            <div class="info-card">
+                <h3>Thông tin cơ bản</h3>
+                <div class="info-grid">
+                    <div>
+                        <strong>Họ tên:</strong> <%= assistant.name %>
+                    </div>
+                    <div>
+                        <strong>Email:</strong> <%= assistant.email %>
+                    </div>
+                    <div>
+                        <strong>Số điện thoại:</strong> <%= assistant.phone %>
+                    </div>
+                    <div>
+                        <strong>Mã nhân viên:</strong> <%= assistant.employee_id || 'Không có' %>
+                    </div>
+                    <div>
+                        <strong>Số giấy phép:</strong> <%= assistant.license_number || 'Không có' %>
+                    </div>
+                    <div>
+                        <strong>Kinh nghiệm:</strong> <%= assistant.experience_years || 0 %> năm
+                    </div>
+                    <div>
+                        <strong>Trạng thái:</strong>
+                        <span class="badge <%= assistant.status === 'active' ? 'badge-success' : 'badge-warning' %>">
+                            <%= assistant.status === 'active' ? 'Đang hoạt động' : 'Không hoạt động' %>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Thống kê -->
+            <div class="info-grid">
+                <div class="stat-card">
+                    <h4>Tổng Check-in</h4>
+                    <div class="value"><%= stats.totalCheckins %></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Đã Check-in</h4>
+                    <div class="value" style="color: var(--success);"><%= stats.checkedInCount %></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Không đến (No-show)</h4>
+                    <div class="value" style="color: var(--danger);"><%= stats.noShowCount %></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Tỷ lệ thành công</h4>
+                    <div class="value" style="color: var(--info);"><%= stats.checkinRate %>%</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Tuyến được gán</h4>
+                    <div class="value"><%= stats.assignedRoutesCount %></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Chờ Check-in</h4>
+                    <div class="value" style="color: var(--warning);"><%= stats.pendingCheckins %></div>
+                </div>
+            </div>
+            
+            <!-- Danh sách tuyến được gán -->
+            <% if (assistant.assigned_routes && assistant.assigned_routes.length > 0) { %>
+                <div class="info-card">
+                    <h3>Tuyến được gán (<%= assistant.assigned_routes.length %>)</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tuyến</th>
+                                    <th>Khoảng cách</th>
+                                    <th>Thời gian ước tính</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% assistant.assigned_routes.forEach(function(route) { %>
+                                    <tr>
+                                        <td>
+                                            <strong><%= (route.origin || route.from_city) + ' → ' + (route.destination || route.to_city) %></strong>
+                                        </td>
+                                        <td>
+                                            <%= route.total_distance_km ? route.total_distance_km + ' km' : 'Không có' %>
+                                    </td>
+                                        <td>
+                                            <%= route.estimated_duration_min ? route.estimated_duration_min + ' phút' : 'Không có' %>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top: 1rem; color: var(--gray); font-size: 0.875rem;">
+                        <strong>Lưu ý:</strong> Phụ xe này sẽ check-in hành khách cho tất cả các chuyến thuộc các tuyến trên.
+                    </p>
+                </div>
+            <% } else if (assistant.assigned_trips && assistant.assigned_trips.length > 0) { %>
+                <!-- Hiển thị trips nếu chưa có routes (tương thích ngược) -->
+                <div class="info-card">
+                    <h3>Chuyến được gán (<%= assistant.assigned_trips.length %>) - Cũ</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tuyến</th>
+                                    <th>Xe</th>
+                                    <th>Thời gian khởi hành</th>
+                                    <th>Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% assistant.assigned_trips.forEach(function(trip) { %>
+                                    <tr>
+                                        <td>
+                                            <%= trip.route ? (trip.route.origin || trip.route.from_city) + ' → ' + (trip.route.destination || trip.route.to_city) : 'Không có' %>
+                                        </td>
+                                        <td>
+                                            <%= trip.bus ? trip.bus.license_plate : 'Không có' %>
+                                        </td>
+                                        <td>
+                                            <%= new Date(trip.start_time).toLocaleString('vi-VN') %>
+                                        </td>
+                                        <td>
+                                            <span class="badge <%= trip.status === 'completed' ? 'badge-success' : trip.status === 'departed' ? 'badge-info' : trip.status === 'cancelled' ? 'badge-danger' : 'badge-warning' %>">
+                                                <%= trip.status === 'scheduled' ? 'Đã lên lịch' : trip.status === 'departed' ? 'Đã khởi hành' : trip.status === 'completed' ? 'Đã hoàn thành' : trip.status === 'cancelled' ? 'Đã hủy' : trip.status %>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="info-card">
+                    <h3>Tuyến được gán</h3>
+                    <p style="color: var(--gray); text-align: center; padding: 2rem;">Chưa được gán tuyến nào. Vui lòng chỉnh sửa để gán tuyến cho phụ xe.</p>
+                </div>
+            <% } %>
+            
+            <!-- Danh sách Booking - Quản lý Check-in -->
+            <% if (allBookings && allBookings.length > 0) { %>
+                <div class="info-card">
+                    <h3>Danh sách Hành khách - Quản lý Lên/Xuống xe (<%= allBookings.length %>)</h3>
+                    <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hành khách</th>
+                                <th>Ghế</th>
+                                <th>Chuyến</th>
+                                <th>Thời gian</th>
+                                <th>Trạng thái</th>
+                                <th>Hành động</th>
+                                </tr>
+                        </thead>
+                        <tbody>
+                            <% allBookings.forEach(function(item) { %>
+                                <tr>
+                                    <td>
+                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'Không có') %></strong><br>
+                                        <small style="color: var(--gray);">
+                                            <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'Không có' %>
+                                    </td>
+                                    <td>
+                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'Không có' %>
+                                    </td>
+                                    <td>
+                                        <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <% if (item.checkin && item.checkin.status === 'checked_in') { %>
+                                            <span class="badge badge-success">✅ Đã lên xe</span>
+                                            <br><small><%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
+                                        <% } else if (item.checkin && item.checkin.status === 'checked_out') { %>
+                                            <span class="badge badge-info">⬇️ Đã xuống xe</span>
+                                            <br><small><%= item.checkin.checkout_time ? new Date(item.checkin.checkout_time).toLocaleTimeString('vi-VN') : '' %></small>
+                                        <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
+                                            <span class="badge badge-danger">❌ Vắng mặt</span>
+                                        <% } else { %>
+                                            <span class="badge badge-warning">⏳ Chưa đón</span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (!item.checkin) { %>
+                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_in')">Đã lên xe</button>
+                                            <button class="btn btn-secondary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','no_show')">Vắng mặt</button>
+                                        <% } else if (item.checkin.status === 'checked_in') { %>
+                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_out')">Đánh dấu xuống xe</button>
+                                        <% } else { %>
+                                            
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+            <% } else { %>
+                <div class="info-card">
+                    <h3>Danh sách Hành khách</h3>
+                    <p style="color: var(--gray); text-align: center; padding: 2rem;">Chưa có booking nào cho các chuyến được gán</p>
+                </div>
+            <% } %>
+            
+            <!-- Lịch sử check-in -->
+            <% if (checkins && checkins.length > 0) { %>
+                <div class="info-card">
+                    <h3>Lịch sử Check-in (50 gần nhất)</h3>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Hành khách</th>
+                                    <th>Chuyến</th>
+                                    <th>Thời gian check-in</th>
+                                    <th>Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% checkins.forEach(function(checkin) { %>
+                                    <tr>
+                                        <td>
+                                            <%= checkin.booking && checkin.booking.passenger ? checkin.booking.passenger.name : (checkin.booking && checkin.booking.user ? checkin.booking.user.name : 'Không có') %>
+                                        </td>
+                                        <td>
+                                            <%= checkin.booking && checkin.booking.trip && checkin.booking.trip.route ? (checkin.booking.trip.route.origin || checkin.booking.trip.route.from_city) + ' → ' + (checkin.booking.trip.route.destination || checkin.booking.trip.route.to_city) : 'Không có' %>
+                                        </td>
+                                        <td>
+                                            <%= checkin.checkin_time ? new Date(checkin.checkin_time).toLocaleString('vi-VN') : 'Không có' %>
+                                        </td>
+                                        <td>
+                                            <span class="badge <%= checkin.status === 'checked_in' ? 'badge-success' : 'badge-danger' %>">
+                                                <%= checkin.status === 'checked_in' ? 'Đã check-in' : 'Không đến' %>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="info-card">
+                    <h3>Lịch sử Check-in</h3>
+                    <p style="color: var(--gray); text-align: center; padding: 2rem;">Chưa có lịch sử check-in nào</p>
+                </div>
+            <% } %>
+        </main>
+    </div>
+    
+    <script>
+        async function checkinPassenger(assistantId, bookingId, status) {
+            if (!confirm(status === 'checked_in' ? 'Xác nhận hành khách đã lên xe?' : 'Xác nhận hành khách không đến?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/admin/assistants/${assistantId}/checkin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        bookingId: bookingId,
+                        status: status
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload(); // Reload để cập nhật trạng thái
+                } else {
+                    alert('Lỗi: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi check-in');
+            }
+        }
+    </script>
+</body>
+</html>
+

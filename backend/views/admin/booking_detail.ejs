@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chi tiết đặt chỗ - <%= booking._id.toString().substring(0,8) %>...</title>
+  <style>
+    body{font-family:Inter,Segoe UI,Arial;background:#f3f4f6;color:#111;margin:0}
+    .container{max-width:900px;margin:40px auto;padding:24px;background:white;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.08)}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .badge{display:inline-block;padding:6px 10px;border-radius:8px;background:#eef2ff;color:#3730a3}
+    .row{display:flex;gap:16px;margin-bottom:12px}
+    .col{flex:1}
+    .label{color:#6b7280;font-size:13px}
+    .value{font-weight:600;font-size:15px}
+    .back{display:inline-block;margin-top:12px;padding:8px 12px;background:#e6e6e6;border-radius:8px;text-decoration:none;color:#111}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h2 style="margin:0">Chi tiết đặt chỗ</h2>
+        <div style="margin-top:6px;color:#6b7280">Mã vé: <strong><%= booking._id.toString() %></strong></div>
+      </div>
+      <div>
+        <span class="badge"><%= booking.status %></span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Hành khách</div>
+        <div class="value"><%= (booking.user && booking.user.full_name) || (booking.passenger && booking.passenger.name) || 'Không có' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Số điện thoại</div>
+        <div class="value"><%= (booking.user && booking.user.phone) || (booking.passenger && booking.passenger.phone) || 'Không có' %></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Ghế</div>
+        <div class="value"><%= (booking.seat_numbers && booking.seat_numbers.length) ? booking.seat_numbers.join(', ') : 'Không có' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Tổng tiền</div>
+        <div class="value"><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Chuyến</div>
+        <div class="value"><%= booking.trip && booking.trip.route ? (booking.trip.route.name || (booking.trip.route.from + ' → ' + booking.trip.route.to)) : 'Không có' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Biển số xe</div>
+        <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'Không có' %></div>
+      </div>
+      <div style="margin-top:6px">
+        <div style="color:#6b7280">Tài xế:</div>
+        <div class="value"><%= booking.driver_snapshot ? (booking.driver_snapshot.name + ' · ' + (booking.driver_snapshot.phone || '')) : 'Không có' %></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label">Ngày khởi hành (start_time)</div>
+        <div class="value"><%= booking.start_time ? new Date(booking.start_time).toLocaleString('vi-VN') : 'Không có' %></div>
+      </div>
+      <div class="col">
+        <div class="label">Ngày đặt</div>
+        <div class="value"><%= booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'Không có' %></div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <div class="label">Ghi chú hành khách</div>
+      <div style="margin-top:6px"><%= booking.passenger && booking.passenger.note ? booking.passenger.note : '-' %></div>
+    </div>
+
+    <% if (booking.payment) { %>
+    <div style="margin-top:24px; padding:16px; background:#f9fafb; border-radius:8px; border-left:4px solid #3b82f6">
+      <div class="label" style="font-weight:600; margin-bottom:8px">Thông tin thanh toán</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:14px">
+        <div>
+          <span style="color:#6b7280">Phương thức:</span>
+          <span style="font-weight:600; margin-left:8px"><%= booking.payment.method || 'banking' %></span>
+        </div>
+        <div>
+          <span style="color:#6b7280">Trạng thái:</span>
+          <span style="font-weight:600; margin-left:8px; color:<%= booking.payment.status === 'success' ? '#10b981' : booking.payment.status === 'pending' ? '#f59e0b' : '#ef4444' %>">
+            <%= booking.payment.status === 'success' ? 'Đã thanh toán' : booking.payment.status === 'pending' ? 'Chờ thanh toán' : 'Thất bại' %>
+          </span>
+        </div>
+        <% if (booking.payment.transaction_code) { %>
+        <div>
+          <span style="color:#6b7280">Mã giao dịch:</span>
+          <span style="font-weight:600; margin-left:8px; font-family:monospace"><%= booking.payment.transaction_code %></span>
+        </div>
+        <% } %>
+        <% if (booking.payment.paid_at) { %>
+        <div>
+          <span style="color:#6b7280">Thời gian:</span>
+          <span style="font-weight:600; margin-left:8px"><%= new Date(booking.payment.paid_at).toLocaleString('vi-VN') %></span>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <div style="margin-top:24px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+      <a class="back" href="/admin/bookings">← Quay lại danh sách</a>
+      <a class="back" href="/admin/bookings/<%= booking._id %>/edit" style="background:#dbeafe">Chỉnh sửa</a>
+      
+      <% if (booking.status === 'pending') { %>
+      <button id="confirmPaymentBtn" style="padding:8px 16px; background:#10b981; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:14px">
+        ✅ Xác nhận thanh toán
+      </button>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    <% if (booking.status === 'pending') { %>
+    document.getElementById('confirmPaymentBtn')?.addEventListener('click', async function() {
+      if (!confirm('Bạn có chắc chắn muốn xác nhận thanh toán cho booking này?\n\nSau khi xác nhận, vé sẽ được kích hoạt và khách hàng có thể sử dụng.')) {
+        return;
+      }
+
+      const btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Đang xử lý...';
+      btn.style.opacity = '0.6';
+
+      try {
+        const response = await fetch(`/admin/bookings/<%= booking._id %>/confirm-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          alert('✅ Xác nhận thanh toán thành công!');
+          window.location.reload();
+        } else {
+          alert('❌ Lỗi: ' + (data.error || 'Không thể xác nhận thanh toán'));
+          btn.disabled = false;
+          btn.textContent = '✅ Xác nhận thanh toán';
+          btn.style.opacity = '1';
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Lỗi kết nối: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '✅ Xác nhận thanh toán';
+        btn.style.opacity = '1';
+      }
+    });
+    <% } %>
+  </script>
+</body>
+</html>
