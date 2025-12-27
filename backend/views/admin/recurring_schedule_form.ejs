@@ -1,0 +1,101 @@
+<%- include('admin/layout', { page: 'recurring_schedules' }) %>
+
+<div class="container">
+  <h2><%= schedule ? 'Sửa lịch' : 'Tạo lịch lặp mới' %></h2>
+  <form method="post" action="<%= schedule ? ('/admin/recurring-schedules/' + schedule._id) : '/admin/recurring-schedules' %>">
+    <div class="form-group">
+      <label>Route</label>
+      <select name="route" class="form-control" required>
+        <% routes.forEach(r => { %>
+          <option value="<%= r._id %>" <%= schedule && schedule.route && schedule.route.toString() === r._id.toString() ? 'selected' : '' %>><%= r.name %> (<%= r.from_city %> - <%= r.to_city %>)</option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Bus</label>
+      <select name="bus" class="form-control" required>
+        <% buses.forEach(b => { %>
+          <option value="<%= b._id %>" <%= schedule && schedule.bus && schedule.bus.toString() === b._id.toString() ? 'selected' : '' %>><%= b.license_plate %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Frequency</label>
+      <select name="frequency" class="form-control">
+        <option value="daily" <%= !schedule || schedule.frequency === 'daily' ? 'selected' : '' %>>Daily</option>
+            <p class="mt-2 text-muted">Timezone used for generation: <strong><%= process.env.RECURRING_TIMEZONE || 'Asia/Ho_Chi_Minh' %></strong></p>
+        <option value="weekly" <%= schedule && schedule.frequency === 'weekly' ? 'selected' : '' %>>Weekly</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Days of week (for weekly)</label>
+      <div>
+        <% const dayLabels = ['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy']; %>
+        <% for (let i=0;i<7;i++) { %>
+          <label style="margin-right:10px"><input type="checkbox" name="daysOfWeek" value="<%= i %>" <%= schedule && schedule.daysOfWeek && schedule.daysOfWeek.includes(i) ? 'checked' : '' %> /> <%= dayLabels[i] %></label>
+        <% } %>
+      </div>
+      <small class="form-text text-muted">Ngày được đánh theo chuẩn JS (0 = Chủ nhật, 1 = Thứ hai, ...)</small>
+    </div>
+
+    <div class="form-group">
+      <label>Times of day (multiple departures per day)</label>
+      <div id="timesContainer">
+        <% const times = schedule && schedule.timesOfDay ? schedule.timesOfDay : ['']; %>
+        <% times.forEach((t, idx) => { %>
+          <div class="input-group mb-2 time-row">
+            <input type="time" name="timesOfDay[]" class="form-control" value="<%= t %>" />
+            <div class="input-group-append">
+              <button type="button" class="btn btn-danger remove-time">-</button>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <button type="button" id="addTimeBtn" class="btn btn-sm btn-outline-primary">Add time</button>
+      <small class="form-text text-muted">Each time is a departure on the day (format HH:MM). You can add multiple times to generate several trips per day.</small>
+    </div>
+
+    <script>
+      (function(){
+        const container = document.getElementById('timesContainer');
+        const addBtn = document.getElementById('addTimeBtn');
+        function makeRow(value){
+          const div = document.createElement('div'); div.className = 'input-group mb-2 time-row';
+          const input = document.createElement('input'); input.type = 'time'; input.name = 'timesOfDay[]'; input.className = 'form-control'; input.value = value || '';
+          const append = document.createElement('div'); append.className = 'input-group-append';
+          const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-danger remove-time'; btn.textContent = '-';
+          append.appendChild(btn);
+          div.appendChild(input); div.appendChild(append);
+          return div;
+        }
+        addBtn.addEventListener('click', function(){ container.appendChild(makeRow('')); });
+        container.addEventListener('click', function(e){ if (e.target && e.target.classList.contains('remove-time')){ const row = e.target.closest('.time-row'); if (row) row.remove(); } });
+      })();
+    </script>
+
+    <div class="form-row">
+      <div class="form-group col-md-6">
+        <label>Start date</label>
+        <input type="date" name="start_date" class="form-control" value="<%= schedule && schedule.start_date ? new Date(schedule.start_date).toISOString().slice(0,10) : '' %>">
+      </div>
+      <div class="form-group col-md-6">
+        <label>End date (optional)</label>
+        <input type="date" name="end_date" class="form-control" value="<%= schedule && schedule.end_date ? new Date(schedule.end_date).toISOString().slice(0,10) : '' %>">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Base price</label>
+      <input name="base_price" class="form-control" value="<%= schedule && schedule.base_price ? schedule.base_price : '' %>">
+    </div>
+
+    <div class="form-group form-check">
+      <input type="checkbox" class="form-check-input" name="active" <%= !schedule || schedule.active ? 'checked' : '' %> /> Active
+    </div>
+
+    <button class="btn btn-primary">Save</button>
+  </form>
+</div>

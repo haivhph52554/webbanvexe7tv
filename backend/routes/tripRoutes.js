@@ -11,8 +11,23 @@ router.get('/route/:routeId', tripController.getTripsByRoute);
 router.get('/:tripId/seats', tripController.getSeatsByTrip);
 
 router.get('/', async (req, res) => {
-  const trips = await Trip.find().populate('route').populate('bus').sort({ createdAt: -1 });
-  res.json(trips);
+  const trips = await Trip.find().populate('route').populate('bus').sort({ createdAt: -1 }).lean();
+
+  // Attach assigned driver/assistant summary for each trip to avoid extra client calls
+  const Driver = require('../models/Driver');
+  const Assistant = require('../models/Assistant');
+
+  const enhanced = await Promise.all(trips.map(async (trip) => {
+    try {
+      const assignedDriver = await Driver.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route?._id }] }).select('name phone license_number').lean();
+      const assignedAssistant = await Assistant.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route?._id }] }).select('name phone').lean();
+      return { ...trip, driver: assignedDriver || null, assistant: assignedAssistant || null };
+    } catch (e) {
+      return { ...trip, driver: null, assistant: null };
+    }
+  }));
+
+  res.json(enhanced);
 });
 
 router.post('/', async (req, res) => {

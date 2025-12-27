@@ -61,8 +61,9 @@ const PaymentSuccess: React.FC = () => {
           to: s.route.to,
           price: (s.pricePerSeat || 0).toString(),
           duration: s.route.durationMin?.toString() || '',
-          departureTime: s.times.departureTime,
-          arrivalTime: s.times.arrivalTime || '',
+          departureIso: s.times.departureTime,
+          departureTime: (new Date(s.times.departureTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          arrivalTime: s.times.arrivalTime ? (new Date(s.times.arrivalTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '',
           busType: s.bus.busType || ''
           ,
           licensePlate: s.bus.licensePlate || ''

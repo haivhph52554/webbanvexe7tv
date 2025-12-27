@@ -60,6 +60,14 @@ router.post('/trips/:id', ensureAuthUI, requireRolesUI('admin'), adminController
 // Cập nhật trạng thái chuyến (cho admin và tài xế)
 router.put('/trips/:id/status', ensureAuthUI, requireRolesUI('admin','driver'), adminController.updateTripStatus);
 router.get('/trips', ensureAuthUI, requireRolesUI('admin'), adminController.trips);
+// Recurring schedule management
+router.get('/recurring-schedules', ensureAuthUI, requireRolesUI('admin'), adminController.recurringSchedules);
+router.get('/recurring-schedules/new', ensureAuthUI, requireRolesUI('admin'), adminController.newRecurringSchedule);
+router.post('/recurring-schedules', ensureAuthUI, requireRolesUI('admin'), adminController.createRecurringSchedule);
+router.get('/recurring-schedules/:id/edit', ensureAuthUI, requireRolesUI('admin'), adminController.editRecurringSchedule);
+router.post('/recurring-schedules/:id', ensureAuthUI, requireRolesUI('admin'), adminController.updateRecurringSchedule);
+router.post('/recurring-schedules/:id/delete', ensureAuthUI, requireRolesUI('admin'), adminController.deleteRecurringSchedule);
+router.post('/recurring-schedules/generate', ensureAuthUI, requireRolesUI('admin'), adminController.generateRecurringSchedulesNow);
 router.get('/bookings', ensureAuthUI, requireRolesUI('admin'), adminController.bookings);
 router.get('/bookings/:id', ensureAuthUI, requireRolesUI('admin'), adminController.bookingDetail);
 router.get('/statistics', ensureAuthUI, requireRolesUI('admin'), adminController.statistics);

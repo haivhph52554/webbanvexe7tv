@@ -1,0 +1,42 @@
+<%- include('admin/layout', { page: 'recurring_schedules' }) %>
+
+<div class="container">
+  <h2>Lịch lặp (Recurring Schedules)</h2>
+  <a class="btn btn-primary" href="/admin/recurring-schedules/new">Tạo lịch mới</a>
+  <form method="post" action="/admin/recurring-schedules/generate" style="display:inline;margin-left:10px">
+    <button class="btn btn-secondary">Chạy sinh chuyến (Generate now)</button>
+  </form>
+  <table class="table mt-3">
+    <thead>
+      <tr>
+        <th>Route</th>
+        <th>Bus</th>
+        <th>Frequency</th>
+        <th>Times</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Active</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% schedules.forEach(s => { %>
+          <tr>
+            <td><%= s.route ? s.route.name : 'N/A' %></td>
+            <td><%= s.bus ? s.bus.license_plate : 'N/A' %></td>
+            <td><%= s.frequency %></td>
+            <td><%= (s.timesOfDay || []).join(', ') %></td>
+            <td><%= s.start_date ? new Date(s.start_date).toLocaleDateString('vi-VN', { timeZone: (process.env.RECURRING_TIMEZONE || 'Asia/Ho_Chi_Minh') }) : '' %></td>
+            <td><%= s.end_date ? new Date(s.end_date).toLocaleDateString('vi-VN', { timeZone: (process.env.RECURRING_TIMEZONE || 'Asia/Ho_Chi_Minh') }) : '' %></td>
+            <td><%= s.active ? 'Yes' : 'No' %></td>
+          <td>
+            <a class="btn btn-sm btn-secondary" href="/admin/recurring-schedules/<%= s._id %>/edit">Edit</a>
+            <form method="post" action="/admin/recurring-schedules/<%= s._id %>/delete" style="display:inline" onsubmit="return confirm('Delete schedule?')">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

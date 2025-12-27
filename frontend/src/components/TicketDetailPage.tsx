@@ -232,6 +232,13 @@ const TicketDetailPage: React.FC = () => {
                 <div className="flex items-center">
                   <Calendar className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
+                    <p className="font-semibold text-gray-900">Ngày khởi hành</p>
+                    <p className="text-gray-600">{ticket.route.departureIso ? new Date(ticket.route.departureIso).toLocaleDateString('vi-VN') : '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <Calendar className="h-5 w-5 text-blue-600 mr-3" />
+                  <div>
                     <p className="font-semibold text-gray-900">Ngày đặt vé</p>
                     <p className="text-gray-600">{new Date(ticket.bookingDate).toLocaleDateString('vi-VN')}</p>
                   </div>

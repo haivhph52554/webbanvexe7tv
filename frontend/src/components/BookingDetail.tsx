@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../App';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, MapPin, Clock, Users, Calendar } from 'lucide-react';
+import { ArrowLeft, Bus, MapPin, Clock, Users, Calendar, Phone } from 'lucide-react';
 
 /** Types matching backend responses */
 type TripDoc = {
@@ -24,6 +24,8 @@ type TripDoc = {
   base_price?: number;
   direction?: 'go' | 'return';
   status?: 'scheduled' | 'departed' | 'completed' | 'cancelled';
+  driver?: { name?: string; phone?: string; license_number?: string } | null;
+  assistant?: { name?: string; phone?: string } | null;
 };
 
 type SeatDoc = {
@@ -375,11 +377,11 @@ const BookingDetail: React.FC = () => {
                   const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                   const dEnd = t.end_time ? new Date(t.end_time) : null;
                   const timeEndStr = dEnd ? dEnd.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '...';
-                  return (
-                    <option key={t._id} value={t._id}>
-                      {dateStr} | {timeStr} - {timeEndStr} | {t.route?.from_city || '-'} → {t.route?.to_city || '-'}
-                    </option>
-                  );
+                      return (
+                        <option key={t._id} value={t._id}>
+                          {dateStr} | {timeStr} - {timeEndStr} | {t.route?.from_city || '-'} → {t.route?.to_city || '-'}{t.driver?.name ? ` • Tài xế: ${t.driver.name}` : ''}
+                        </option>
+                      );
                 })}
               </select>
             </div>
@@ -442,6 +444,37 @@ const BookingDetail: React.FC = () => {
                     <p className="text-gray-600">{loadingDetail ? '…' : `${availableSeatsCount - selectedAvailableCount} ghế trống`}</p>
                   </div>
                 </div>
+
+                {/* Driver & Assistant info */}
+                {(tripDetail?.driver || tripDetail?.assistant) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    {tripDetail?.driver && (
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">T</div>
+                          <div>
+                            <p className="text-sm text-gray-600">Tài xế</p>
+                            <p className="font-medium text-gray-900">{tripDetail.driver.name || '—'}</p>
+                            <p className="text-sm text-gray-600 flex items-center gap-2"><Phone className="h-4 w-4" />{tripDetail.driver.phone || '—'}{tripDetail.driver.license_number ? ` • ${tripDetail.driver.license_number}` : ''}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {tripDetail?.assistant && (
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 bg-green-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">L</div>
+                          <div>
+                            <p className="text-sm text-gray-600">Phụ xe</p>
+                            <p className="font-medium text-gray-900">{tripDetail.assistant.name || '—'}</p>
+                            <p className="text-sm text-gray-600 flex items-center gap-2"><Phone className="h-4 w-4" />{tripDetail.assistant.phone || '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {tripDetail?.stops && tripDetail.stops.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
@@ -776,6 +809,18 @@ const BookingDetail: React.FC = () => {
                     <span className="text-gray-600">Số ghế:</span>
                     <span className="font-medium">{selectedSeats.length} ghế</span>
                   </div>
+                  {tripDetail?.driver && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Tài xế:</span>
+                      <span className="font-medium">{tripDetail.driver.name}{tripDetail.driver.phone ? ` • ${tripDetail.driver.phone}` : ''}</span>
+                    </div>
+                  )}
+                  {tripDetail?.assistant && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Phụ xe:</span>
+                      <span className="font-medium">{tripDetail.assistant.name}{tripDetail.assistant.phone ? ` • ${tripDetail.assistant.phone}` : ''}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Giá/ghế:</span>
                     <span className="font-medium">{(computedPricePerSeat || 0).toLocaleString()}₫</span>

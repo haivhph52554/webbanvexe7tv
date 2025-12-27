@@ -126,6 +126,7 @@ const MyTicketsPage: React.FC = () => {
               to: booking.dropoff_name || booking.route_snapshot?.to || '-',
               price: String(booking.total_amount || booking.total_price || 0),
               duration,
+              departureIso: booking.start_time,
               departureTime: fmtTime(booking.start_time),
               arrivalTime: fmtTime(booking.end_time),
               busType: booking.bus_snapshot?.bus_type || '-',

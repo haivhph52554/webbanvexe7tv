@@ -44,6 +44,8 @@ const Contact = require('./models/Contact');
 const startCancelPendingBookings = require('./jobs/cancelPendingBookings');
 const bookingTtlMinutes = parseInt(process.env.BOOKING_TTL_MINUTES || '2', 10);
 const bookingCancelIntervalSeconds = parseInt(process.env.BOOKING_CANCEL_INTERVAL_SECONDS || '60', 10);
+// Recurring trips generator
+const startGenerateRecurringTrips = require('./jobs/generateRecurringTrips');
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -185,4 +187,10 @@ try {
   startCancelPendingBookings({ ttlMinutes: bookingTtlMinutes, intervalSeconds: bookingCancelIntervalSeconds });
 } catch (e) {
   console.error('Failed to start cancelPendingBookings job:', e);
+}
+
+try {
+  startGenerateRecurringTrips({ windowDays: parseInt(process.env.RECURRING_WINDOW_DAYS || '30', 10), runOnStart: true });
+} catch (e) {
+  console.error('Failed to start generateRecurringTrips job:', e);
 }

@@ -1550,3 +1550,119 @@ exports.driverDetail = async (req, res) => {
     res.status(500).send(err.message);
   }
 };
+
+// ---------------- Recurring schedules management ----------------
+const RecurringSchedule = require('../models/RecurringSchedule');
+
+exports.recurringSchedules = async (req, res) => {
+  try {
+    const schedules = await RecurringSchedule.find().populate('route').populate('bus').sort({ createdAt: -1 }).lean();
+    res.render('admin/recurring_schedules', { schedules, page: 'recurring_schedules' });
+  } catch (err) {
+    console.error('Error loading recurring schedules:', err);
+    res.status(500).send('Lỗi khi tải trang lịch lặp: ' + err.message);
+  }
+};
+
+exports.newRecurringSchedule = async (req, res) => {
+  try {
+    const routes = await Route.find().lean();
+    const buses = await Bus.find().lean();
+    res.render('admin/recurring_schedule_form', { schedule: null, routes, buses, page: 'recurring_schedules', errors: null });
+  } catch (err) {
+    console.error('Error rendering new recurring schedule form:', err);
+    res.status(500).send('Lỗi khi tải form tạo lịch lặp: ' + err.message);
+  }
+};
+
+exports.createRecurringSchedule = async (req, res) => {
+  try {
+    const parseTimes = (input) => {
+      if (!input) return [];
+      if (Array.isArray(input)) return input.map(s => String(s || '').trim()).filter(Boolean);
+      if (typeof input === 'string') return input.split(',').map(s => s.trim()).filter(Boolean);
+      return [];
+    };
+
+    const payload = {
+      route: req.body.route,
+      bus: req.body.bus,
+      frequency: req.body.frequency || 'daily',
+      daysOfWeek: req.body.daysOfWeek ? (Array.isArray(req.body.daysOfWeek) ? req.body.daysOfWeek.map(Number) : String(req.body.daysOfWeek).split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n))) : [],
+      timesOfDay: parseTimes(req.body['timesOfDay[]'] || req.body.timesOfDay),
+      start_date: req.body.start_date ? new Date(req.body.start_date) : new Date(),
+      end_date: req.body.end_date ? new Date(req.body.end_date) : null,
+      active: req.body.active === 'on',
+      base_price: req.body.base_price ? Number(req.body.base_price) : 0
+    };
+    await RecurringSchedule.create(payload);
+    res.redirect('/admin/recurring-schedules');
+  } catch (err) {
+    console.error('Error creating recurring schedule:', err);
+    res.status(500).send('Lỗi khi tạo lịch lặp: ' + err.message);
+  }
+};
+
+exports.editRecurringSchedule = async (req, res) => {
+  try {
+    const schedule = await RecurringSchedule.findById(req.params.id).lean();
+    if (!schedule) return res.status(404).send('Lịch không tồn tại');
+    const routes = await Route.find().lean();
+    const buses = await Bus.find().lean();
+    res.render('admin/recurring_schedule_form', { schedule, routes, buses, page: 'recurring_schedules', errors: null });
+  } catch (err) {
+    console.error('Error rendering edit recurring schedule form:', err);
+    res.status(500).send('Lỗi khi tải form sửa lịch lặp: ' + err.message);
+  }
+};
+
+exports.updateRecurringSchedule = async (req, res) => {
+  try {
+    const parseTimes = (input) => {
+      if (!input) return [];
+      if (Array.isArray(input)) return input.map(s => String(s || '').trim()).filter(Boolean);
+      if (typeof input === 'string') return input.split(',').map(s => s.trim()).filter(Boolean);
+      return [];
+    };
+
+    const payload = {
+      route: req.body.route,
+      bus: req.body.bus,
+      frequency: req.body.frequency || 'daily',
+      daysOfWeek: req.body.daysOfWeek ? (Array.isArray(req.body.daysOfWeek) ? req.body.daysOfWeek.map(Number) : String(req.body.daysOfWeek).split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n))) : [],
+      timesOfDay: parseTimes(req.body['timesOfDay[]'] || req.body.timesOfDay),
+      start_date: req.body.start_date ? new Date(req.body.start_date) : new Date(),
+      end_date: req.body.end_date ? new Date(req.body.end_date) : null,
+      active: req.body.active === 'on',
+      base_price: req.body.base_price ? Number(req.body.base_price) : 0
+    };
+    await RecurringSchedule.findByIdAndUpdate(req.params.id, payload);
+    res.redirect('/admin/recurring-schedules');
+  } catch (err) {
+    console.error('Error updating recurring schedule:', err);
+    res.status(500).send('Lỗi khi cập nhật lịch lặp: ' + err.message);
+  }
+};
+
+exports.deleteRecurringSchedule = async (req, res) => {
+  try {
+    await RecurringSchedule.findByIdAndDelete(req.params.id);
+    res.redirect('/admin/recurring-schedules');
+  } catch (err) {
+    console.error('Error deleting recurring schedule:', err);
+    res.status(500).send('Lỗi khi xóa lịch lặp: ' + err.message);
+  }
+};
+
+exports.generateRecurringSchedulesNow = async (req, res) => {
+  try {
+    const startGenerateRecurringTrips = require('../jobs/generateRecurringTrips');
+    const runner = startGenerateRecurringTrips({ runOnStart: false });
+    const result = await runner.runOnce({ windowDays: parseInt(process.env.RECURRING_WINDOW_DAYS || '30', 10) });
+    console.log('Manual generateRecurringTrips result:', result);
+    res.redirect('/admin/recurring-schedules');
+  } catch (err) {
+    console.error('Error running generateRecurringTrips manually:', err);
+    res.status(500).send('Lỗi khi chạy tạo chuyến tự động');
+  }
+};
