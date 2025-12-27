@@ -18,10 +18,27 @@ type SuccessPayload = {
   paymentMethod: 'momo'|'banking'|'cod';
 };
 
+
+const formatBookingCode = (bookingId: string) => {
+  if (!bookingId) return '';
+  const clean = bookingId.replace(/-/g, '').toUpperCase();
+  return `VXR-7TV-${clean.slice(-6)}`;
+};
+
+const formatPaymentCode = (paymentId: string) => {
+  if (!paymentId) return '';
+  const clean = paymentId.replace(/-/g, '').toUpperCase();
+  return `PAY-${clean.slice(-8)}`;
+};
+
 const PaymentSuccess: React.FC = () => {
-  const { state } = useLocation();
+  const { state } = useLocation();  
   const navigate = useNavigate();
   const s = (state || null) as SuccessPayload | null;
+  const bookingCode = formatBookingCode(s?.bookingId || '');
+  const paymentCode = formatPaymentCode(s?.paymentId || '');
+
+
 
   const [bookingStatus, setBookingStatus] = useState<string | null>(() => {
     if (!s) return null;
@@ -96,7 +113,7 @@ const PaymentSuccess: React.FC = () => {
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(`/api/bookings/${s.bookingId}`);
+        const res = await fetch(`/api/bookings/${bookingCode}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data && data.status && data.status !== bookingStatus) {
@@ -155,7 +172,7 @@ const PaymentSuccess: React.FC = () => {
             <div className="bg-white p-2 inline-block rounded-lg shadow-sm border">
               {/* QR Code VietQR tự động */}
               <img 
-                src={`https://img.vietqr.io/image/MB-0945555555-compact.jpg?amount=${s.totalAmount}&addInfo=VEXE ${s.bookingId}`} 
+                src={`https://img.vietqr.io/image/MB-0945555555-compact.jpg?amount=${s.totalAmount}&addInfo=${bookingCode}`} 
                 alt="QR Code thanh toán" 
                 className="h-48 w-48 mx-auto"
               />
@@ -167,7 +184,7 @@ const PaymentSuccess: React.FC = () => {
               <p>Chủ tài khoản: <strong>NGUYEN VAN A</strong></p>
               <p className="pt-2">Nội dung chuyển khoản (Bắt buộc):</p>
               <p className="font-mono font-bold text-red-600 text-lg bg-white inline-block px-2 py-1 rounded border border-red-200">
-                VEXE {s.bookingId}
+               {bookingCode}
               </p>
             </div>
             
@@ -188,7 +205,7 @@ const PaymentSuccess: React.FC = () => {
               <CheckCircle className="h-12 w-12 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Đặt vé thành công!</h2>
-            <p className="text-gray-600">Mã đặt vé: {s.bookingId}</p>
+            <p className="text-gray-600">Mã đặt vé: {bookingCode}</p>
           </div>
         )}
 
@@ -214,7 +231,7 @@ const PaymentSuccess: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="text-center mb-4">
                   <div className="text-2xl font-bold text-gray-900 mb-1">VeXe7TV</div>
-                  <div className="text-sm text-gray-600">Mã đặt vé: {s.bookingId}</div>
+                  <div className="text-sm text-gray-600">Mã đặt vé: {bookingCode}</div>
                 </div>
 
                 <div className="flex items-center justify-between mb-4">
@@ -294,8 +311,8 @@ const PaymentSuccess: React.FC = () => {
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Chi tiết thanh toán</h3>
               <div className="space-y-3 mb-4">
-                <div className="flex justify-between"><span className="text-gray-600">Mã đặt vé:</span><span className="font-medium">{s.bookingId}</span></div>
-                <div className="flex justify-between"><span className="text-gray-600">Mã thanh toán:</span><span className="font-medium">{s.paymentId}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Mã đặt vé:</span><span className="font-medium">{bookingCode}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Mã thanh toán:</span><span className="font-medium">{paymentCode}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Phương thức:</span><span className="font-medium">{s.paymentMethod === 'momo' ? 'Ví MoMo' : s.paymentMethod === 'cod' ? 'Thanh toán tại xe' : 'Chuyển khoản ngân hàng'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Số ghế:</span><span className="font-medium">{s.seats.length} ghế</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Giá vé/ghế:</span><span className="font-medium">{(s.pricePerSeat || 0).toLocaleString()}₫</span></div>

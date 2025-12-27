@@ -359,6 +359,8 @@
     </style>
 </head>
 <body>
+    <%const shortId = (id) => id ? id.toString().substring(0, 8) : '-';%>
+
     <div class="admin-wrapper">
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -488,7 +490,7 @@
                             <tbody>
                                 <% bookings.forEach(function(booking) { %>
                                     <tr>
-                                        <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
+                                        <td title="<%= booking._id %>"><strong><%= shortId(booking._id) %></strong></td>
                                         <td><%= booking.user?.full_name || booking.passenger?.name || 'Không có' %></td>
                                         <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'Không có' %></span></td>
                                         <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>
@@ -555,7 +557,7 @@
         function showBookingDetail(id) {
             const b = bookingsData.find(x => String(x.id) === String(id));
             if (!b) return alert('Không tìm thấy thông tin đặt chỗ');
-            document.getElementById('bd-code').innerText = String(b.id).substring(0,8) + '...';
+            document.getElementById('bd-code').innerText = String(b.id).substring(0, 8);
             document.getElementById('bd-passenger').innerText = b.passenger_name || 'Không có';
             document.getElementById('bd-seats').innerText = (b.seat_numbers && b.seat_numbers.length) ? b.seat_numbers.join(', ') : 'Không có';
             document.getElementById('bd-plate').innerText = b.bus_license || 'Không có';

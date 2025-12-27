@@ -424,6 +424,9 @@
     </style>
 </head>
 <body>
+        <%
+  const shortId = (id) => id ? id.toString().substring(0, 8) : '-';
+%>
     <div class="admin-wrapper">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -556,7 +559,7 @@
                                 <tbody>
                                     <% trips.forEach(function(trip) { %>
                                         <tr>
-                                            <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
+                                            <td title="<%= trip._id %>"><%= shortId(trip._id) %></td>
                                             <td><%= trip.route?.name || 'Không có' %></td>
                                             <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
                                             <td><%= trip.end_time ? new Date(trip.end_time).toLocaleString('vi-VN') : 'Không có' %></td>
@@ -605,7 +608,7 @@
                                 <tbody>
                                     <% bookings.forEach(function(booking) { %>
                                         <tr>
-                                            <td><strong><%= booking._id.toString().substring(0, 8) %>...</strong></td>
+                                            <td title="<%= booking._id %>"><%= shortId(booking._id) %></td>
                                             <td><%= booking.user?.full_name || booking.passenger?.name || 'Không có' %></td>
                                             <td><span class="badge badge-primary"><%= booking.seat_numbers?.join(', ') || 'Không có' %></span></td>
                                             <td><strong><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</strong></td>

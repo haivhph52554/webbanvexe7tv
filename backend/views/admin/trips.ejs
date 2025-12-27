@@ -373,6 +373,9 @@
     </style>
 </head>
 <body>
+    <%
+  const shortId = (id) => id ? id.toString().substring(0, 8) : '-';
+%>
     <div class="admin-wrapper">
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -553,7 +556,7 @@
                 <tbody>
                     <% recurringTrips.forEach(function(trip) { %>
                         <tr>
-                                        <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
+                                        <td title="<%= trip._id %>"><strong><%= shortId(trip._id) %></strong></td>
                             <td><%= trip.route?.name || 'Không có' %></td>
                             <td><%= trip.bus?.license_plate || 'Không có' %></td>
                             <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
@@ -608,7 +611,7 @@
                 <tbody>
                     <% singleTrips.forEach(function(trip) { %>
                         <tr>
-                                        <td><strong><%= trip._id.toString().substring(0, 8) %>...</strong></td>
+                                        <td title="<%= trip._id %>"><strong><%= shortId(trip._id) %></strong></td>
                             <td><%= trip.route?.name || 'Không có' %></td>
                             <td><%= trip.bus?.license_plate || 'Không có' %></td>
                             <td><%= new Date(trip.start_time).toLocaleString('vi-VN') %></td>
