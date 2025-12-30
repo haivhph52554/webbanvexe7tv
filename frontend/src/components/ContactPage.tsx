@@ -1,389 +1,227 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bus, Phone, Mail, MapPin, Clock, MessageCircle, Send, CheckCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Phone,
+  Mail,
+  MapPin,
+  Clock,
+  Send,
+  CheckCircle
+} from 'lucide-react';
+
+type FormData = {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+};
+
+type Errors = Partial<FormData>;
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
+
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
     phone: '',
     subject: '',
     message: ''
   });
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [publicView, setPublicView] = useState<{ contactId: string; token: string } | null>(null);
-  const [contactDetails, setContactDetails] = useState<any>(null);
-  const [pollingId, setPollingId] = useState<number | null>(null);
 
-  // Khi component mount, nếu có lastContactId trong localStorage thì tự load và bắt polling
-  useEffect(() => {
-    try {
-      const lastId = localStorage.getItem('lastContactId');
-      if (lastId) {
-        const token = localStorage.getItem(`contactToken:${lastId}`);
-        if (token) {
-          const pv = { contactId: lastId, token };
-          setPublicView(pv);
-          fetchPublicContact(pv.contactId, pv.token);
-          const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
-          setPollingId(id);
-        }
-      }
-    } catch (e) {
-      console.warn('ContactPage mount load token error', e);
+  const [errors, setErrors] = useState<Errors>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  /* ================= VALIDATE ================= */
+  const validate = () => {
+    const err: Errors = {};
+
+    if (!formData.name.trim()) err.name = 'Vui lòng nhập họ tên';
+
+    if (!formData.email.trim()) {
+      err.email = 'Vui lòng nhập email';
+    } else if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
+      err.email = 'Email không đúng định dạng';
     }
 
-    // cleanup when unmount
-    return () => {
-      if (pollingId) { window.clearInterval(pollingId); }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!formData.phone.trim()) {
+      err.phone = 'Vui lòng nhập số điện thoại';
+    } else if (!/^(0|\+84)[0-9]{9}$/.test(formData.phone)) {
+      err.phone = 'Số điện thoại không hợp lệ';
+    }
 
-  // clear interval if pollingId changes (ensure no duplicate timers)
-  useEffect(() => {
-    return () => { if (pollingId) { window.clearInterval(pollingId); } };
-  }, [pollingId]);
+    if (!formData.subject) err.subject = 'Vui lòng chọn chủ đề';
+    if (!formData.message.trim()) err.message = 'Vui lòng nhập nội dung';
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    return err;
+  };
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-  
-    (async () => {
-      try {
-        const apiUrl = 'http://localhost:5000';
-        const res = await fetch(`${apiUrl}/contact`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setIsSubmitted(true);
-          // store token so user can view replies on site
-          if (data.contactId && data.token) {
-            const pv = { contactId: data.contactId, token: data.token };
-            setPublicView(pv);
-            try { 
-              localStorage.setItem(`contactToken:${data.contactId}`, data.token);
-              localStorage.setItem('lastContactId', data.contactId);
-            } catch(e){}
-            // start polling for replies
-            fetchPublicContact(pv.contactId, pv.token);
-            const id = window.setInterval(() => fetchPublicContact(pv.contactId, pv.token), 10000);
-            setPollingId(id);
-          }
+    const err = validate();
+    setErrors(err);
 
-          setTimeout(() => setIsSubmitted(false), 3000);
-          setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-        } else {
-          alert(data.error || 'Có lỗi khi gửi liên hệ');
-        }
-      } catch (err) {
-        console.error('Contact submit error', err);
-        alert('Lỗi khi gửi liên hệ. Vui lòng thử lại sau.');
-      }
-    })();
+    if (Object.keys(err).length === 0) {
+      setSubmitted(true);
+      console.log('FORM DATA:', formData);
+    }
   };
 
-  async function fetchPublicContact(contactId: string, token: string) {
-    try {
-      const apiUrl = 'http://localhost:5000';
-      const res = await fetch(`${apiUrl}/public/contacts/${contactId}?token=${encodeURIComponent(token)}`);
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setContactDetails(data.contact);
-      } else {
-        // if token invalid or expired, stop polling
-        if (res.status === 403 || res.status === 404) {
-          if (pollingId) { window.clearInterval(pollingId); setPollingId(null); }
-        }
-      }
-    } catch (e) {
-      console.error('fetchPublicContact error', e);
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center py-4">
-            <button 
-              onClick={() => navigate('/')}
-              className="flex items-center text-gray-600 hover:text-blue-600 mr-4"
-            >
-              <ArrowLeft className="h-5 w-5 mr-2" />
-              Quay lại
-            </button>
-            <div className="flex items-center">
-              <Bus className="h-8 w-8 text-blue-600" />
-              <h1 className="ml-2 text-2xl font-bold text-gray-900">VeXe7TV</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* BACK */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-blue-600 mb-6"
+      >
+        <ArrowLeft size={18} /> Quay lại
+      </button>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Liên hệ với chúng tôi</h2>
-          <p className="text-gray-600">Chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7</p>
-        </div>
+      {/* HEADER */}
+      <div className="text-center mb-12">
+        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          Liên hệ với chúng tôi
+        </h2>
+        <p className="text-gray-600">
+          Chúng tôi luôn sẵn sàng hỗ trợ bạn 24/7
+        </p>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Contact Information */}
-          <div className="space-y-8">
-            {/* Contact Cards */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Thông tin liên hệ</h3>
-              
-              <div className="space-y-6">
-                <div className="flex items-start">
-                  <div className="bg-blue-100 p-3 rounded-lg mr-4">
-                    <Phone className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Hotline</h4>
-                    <p className="text-gray-600 mb-1">1900 6886</p>
-                    <p className="text-sm text-gray-500">Hỗ trợ 24/7</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <div className="bg-green-100 p-3 rounded-lg mr-4">
-                    <Mail className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Email</h4>
-                    <p className="text-gray-600 mb-1">vexe7tv@gmail.com</p>
-                    <p className="text-sm text-gray-500">Phản hồi trong 24h</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <div className="bg-purple-100 p-3 rounded-lg mr-4">
-                    <MapPin className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Địa chỉ</h4>
-                    <p className="text-gray-600 mb-1">123 Đường Trịnh Văn Bô, Quận Nam Từ Liêm</p>
-                    <p className="text-gray-600 mb-1">TP.Hà Nội, Việt Nam</p>
-                    <p className="text-sm text-gray-500">Trụ sở chính</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <div className="bg-orange-100 p-3 rounded-lg mr-4">
-                    <Clock className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">Giờ làm việc</h4>
-                    <p className="text-gray-600 mb-1">Thứ 2 - Thứ 6: 8:00 - 18:00</p>
-                    <p className="text-gray-600 mb-1">Thứ 7: 8:00 - 12:00</p>
-                    <p className="text-sm text-gray-500">Hotline hoạt động 24/7</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* FAQ */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Câu hỏi thường gặp</h3>
-              
-              <div className="space-y-4">
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <h4 className="font-semibold text-gray-900 mb-1">Làm thế nào để đặt vé?</h4>
-                  <p className="text-gray-600 text-sm">Chọn tuyến đường, chọn ghế, nhập thông tin và thanh toán.</p>
-                </div>
-                
-                <div className="border-l-4 border-green-500 pl-4">
-                  <h4 className="font-semibold text-gray-900 mb-1">Có thể hủy vé không?</h4>
-                  <p className="text-gray-600 text-sm">Có thể hủy vé trước giờ khởi hành 2 tiếng.</p>
-                </div>
-                
-                <div className="border-l-4 border-purple-500 pl-4">
-                  <h4 className="font-semibold text-gray-900 mb-1">Thanh toán như thế nào?</h4>
-                  <p className="text-gray-600 text-sm">Hỗ trợ MoMo, chuyển khoản ngân hàng và thanh toán tại xe.</p>
-                </div>
-                
-                <div className="border-l-4 border-orange-500 pl-4">
-                  <h4 className="font-semibold text-gray-900 mb-1">Có hỗ trợ hoàn tiền không?</h4>
-                  <p className="text-gray-600 text-sm">Có chính sách hoàn tiền theo điều khoản dịch vụ.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Form */}
+      {/* MAIN */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* ================= LEFT ================= */}
+        <div className="space-y-8">
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Gửi tin nhắn</h3>
-            
-            {isSubmitted ? (
-              <div className="text-center py-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                </div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">Tin nhắn đã được gửi!</h4>
-                <p className="text-gray-600">Chúng tôi sẽ phản hồi trong thời gian sớm nhất.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Họ và tên *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Nhập họ và tên"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Nhập email"
-                    />
-                  </div>
-                </div>
+            <h3 className="text-xl font-bold mb-6">Thông tin liên hệ</h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Số điện thoại
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Nhập số điện thoại"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Chủ đề *
-                    </label>
-                    <select
-                      name="subject"
-                      value={formData.subject}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Chọn chủ đề</option>
-                      <option value="booking">Đặt vé</option>
-                      <option value="cancel">Hủy vé</option>
-                      <option value="refund">Hoàn tiền</option>
-                      <option value="complaint">Khiếu nại</option>
-                      <option value="suggestion">Góp ý</option>
-                      <option value="other">Khác</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nội dung tin nhắn *
-                  </label>
-                  <textarea
-                    name="message"
-                    value={formData.message}
-                    onChange={handleInputChange}
-                    required
-                    rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Nhập nội dung tin nhắn..."
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center"
-                >
-                  <Send className="h-5 w-5 mr-2" />
-                  Gửi tin nhắn
-                </button>
-              </form>
-            )}
-            {/* Public view: nếu có publicView hiển thị thread và replies */}
-            {publicView && contactDetails && (
-              <div className="mt-6 border-t pt-6">
-                <h4 className="text-lg font-semibold mb-2">Lịch sử liên hệ</h4>
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="text-sm text-gray-600 mb-2"><strong>Chủ đề:</strong> {contactDetails.subject}</div>
-                  <div className="mb-3"><strong>Nội dung bạn gửi:</strong>
-                    <div className="mt-2 p-3 bg-white rounded border">{contactDetails.message}</div>
-                  </div>
-                  <div className="mb-2"><strong>Phản hồi:</strong></div>
-                  {contactDetails.replies && contactDetails.replies.length > 0 ? (
-                    contactDetails.replies.map((r: any, idx: number) => (
-                      <div key={idx} className="mb-3 p-3 bg-white rounded border">
-                        <div className="text-sm text-gray-500 mb-1">{new Date(r.createdAt).toLocaleString()}</div>
-                        <div className="text-gray-800">{r.message}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-gray-500">Hiện chưa có phản hồi. Vui lòng kiểm tra lại sau hoặc kiểm tra email.</div>
-                  )}
-                </div>
-              </div>
-            )}
+            <div className="space-y-6">
+              <InfoItem icon={<Phone />} color="blue" title="Hotline" desc="1900 6886" sub="Hỗ trợ 24/7" />
+              <InfoItem icon={<Mail />} color="green" title="Email" desc="vexe7tv@gmail.com" sub="Phản hồi trong 24h" />
+              <InfoItem
+                icon={<MapPin />}
+                color="purple"
+                title="Địa chỉ"
+                desc="123 Trịnh Văn Bô, Nam Từ Liêm, Hà Nội"
+                sub="Trụ sở chính"
+              />
+              <InfoItem
+                icon={<Clock />}
+                color="orange"
+                title="Giờ làm việc"
+                desc="Thứ 2 - Thứ 6: 8:00 - 18:00"
+                sub="Hotline 24/7"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Additional Info */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-blue-50 rounded-xl p-6 text-center">
-            <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MessageCircle className="h-6 w-6 text-blue-600" />
+        {/* ================= RIGHT ================= */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-xl font-bold mb-6">Gửi yêu cầu hỗ trợ</h3>
+
+          {submitted ? (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle /> Gửi liên hệ thành công!
             </div>
-            <h4 className="font-semibold text-gray-900 mb-2">Chat trực tuyến</h4>
-            <p className="text-gray-600 text-sm">Hỗ trợ trực tuyến 24/7 qua chat</p>
-          </div>
-          
-          <div className="bg-green-50 rounded-xl p-6 text-center">
-            <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Phone className="h-6 w-6 text-green-600" />
-            </div>
-            <h4 className="font-semibold text-gray-900 mb-2">Hotline</h4>
-            <p className="text-gray-600 text-sm">Gọi ngay 1900 1234 để được hỗ trợ</p>
-          </div>
-          
-          <div className="bg-purple-50 rounded-xl p-6 text-center">
-            <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="h-6 w-6 text-purple-600" />
-            </div>
-            <h4 className="font-semibold text-gray-900 mb-2">Email</h4>
-            <p className="text-gray-600 text-sm">Gửi email đến support@vexe7tv.com</p>
-          </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input name="name" placeholder="Họ và tên" value={formData.name} onChange={handleChange} error={errors.name} />
+              <Input name="email" placeholder="Email" value={formData.email} onChange={handleChange} error={errors.email} />
+              <Input name="phone" placeholder="Số điện thoại" value={formData.phone} onChange={handleChange} error={errors.phone} />
+
+              <Select
+                name="subject"
+                value={formData.subject}
+                onChange={handleChange}
+                error={errors.subject}
+              />
+
+              <Textarea
+                name="message"
+                placeholder="Nội dung"
+                value={formData.message}
+                onChange={handleChange}
+                error={errors.message}
+              />
+
+              <button className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700">
+                <Send size={18} /> Gửi liên hệ
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* ================= FAQ ================= */}
+      <div className="bg-white rounded-xl shadow-md p-6 mt-12">
+        <h3 className="text-xl font-bold mb-6">Câu hỏi thường gặp</h3>
+
+        <div className="space-y-4">
+          <FAQ color="blue" q="Làm thế nào để đặt vé?" a="Chọn tuyến đường, ghế, nhập thông tin và thanh toán." />
+          <FAQ color="green" q="Có thể hủy vé không?" a="Có thể hủy trước giờ khởi hành 2 tiếng." />
+          <FAQ color="purple" q="Thanh toán như thế nào?" a="MoMo, chuyển khoản, thanh toán tại xe." />
+          <FAQ color="orange" q="Có hỗ trợ hoàn tiền không?" a="Có theo điều khoản dịch vụ." />
         </div>
       </div>
     </div>
   );
 };
+
+/* ================= COMPONENT PHỤ ================= */
+const InfoItem = ({ icon, color, title, desc, sub }: any) => (
+  <div className="flex items-start">
+    <div className={`bg-${color}-100 p-3 rounded-lg mr-4 text-${color}-600`}>
+      {icon}
+    </div>
+    <div>
+      <h4 className="font-semibold">{title}</h4>
+      <p>{desc}</p>
+      <p className="text-sm text-gray-500">{sub}</p>
+    </div>
+  </div>
+);
+
+const Input = ({ error, ...props }: any) => (
+  <div>
+    <input {...props} className={`w-full border px-3 py-2 rounded ${error && 'border-red-500'}`} />
+    {error && <p className="text-red-500 text-sm">{error}</p>}
+  </div>
+);
+
+const Select = ({ error, ...props }: any) => (
+  <div>
+    <select {...props} className={`w-full border px-3 py-2 rounded ${error && 'border-red-500'}`}>
+      <option value="">Chọn chủ đề</option>
+      <option value="booking">Đặt vé</option>
+      <option value="cancel">Hủy vé</option>
+      <option value="refund">Hoàn tiền</option>
+      <option value="other">Khác</option>
+    </select>
+    {error && <p className="text-red-500 text-sm">{error}</p>}
+  </div>
+);
+
+const Textarea = ({ error, ...props }: any) => (
+  <div>
+    <textarea {...props} rows={4} className={`w-full border px-3 py-2 rounded ${error && 'border-red-500'}`} />
+    {error && <p className="text-red-500 text-sm">{error}</p>}
+  </div>
+);
+
+const FAQ = ({ color, q, a }: any) => (
+  <div className={`border-l-4 border-${color}-500 pl-4`}>
+    <h4 className="font-semibold">{q}</h4>
+    <p className="text-sm text-gray-600">{a}</p>
+  </div>
+);
 
 export default ContactPage;
