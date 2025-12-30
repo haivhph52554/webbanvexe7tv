@@ -1,119 +1,146 @@
-// controllers/routeController.js
+const mongoose = require('mongoose');
 const Route = require('../models/Route');
 const RouteStop = require('../models/RouteStop');
 const Trip = require('../models/Trip');
 const TripSeatStatus = require('../models/TripSeatStatus');
 const Review = require('../models/Review');
 
-// GET /api/routes/detailed
+/* =========================
+   HELPER VALIDATE
+========================= */
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+/* =========================
+   GET /api/routes/detailed
+========================= */
 exports.getAllRoutesDetailed = async (req, res) => {
   try {
     const { date } = req.query;
 
-    // Get all routes
-    const routes = await Route.find().lean();
-    
-    // Get all trips for all routes
-    const routeIds = routes.map(r => r._id);
-    
-    const tripFilter = { route: { $in: routeIds } };
+    // Validate date nếu có
+    let searchDate, nextDay;
     if (date) {
-      const searchDate = new Date(date);
-      const nextDay = new Date(date);
+      searchDate = new Date(date);
+      if (isNaN(searchDate.getTime())) {
+        return res.status(400).json({ error: 'Ngày tìm kiếm không hợp lệ' });
+      }
+      nextDay = new Date(searchDate);
       nextDay.setDate(searchDate.getDate() + 1);
-
-      tripFilter.start_time = {
-        $gte: searchDate,
-        $lt: nextDay,
-      };
     }
 
-    const trips = await Trip.find(tripFilter)
-      .populate('bus')
-      .lean();
+    const routes = await Route.find().lean();
+    if (!routes.length) return res.json([]);
 
-    // Group trips by route
+    const routeIds = routes.map(r => r._id);
+
+    const tripFilter = { route: { $in: routeIds } };
+    if (date) {
+      tripFilter.start_time = { $gte: searchDate, $lt: nextDay };
+    }
+
+    const trips = await Trip.find(tripFilter).populate('bus').lean();
+
     const tripsByRoute = {};
     trips.forEach(trip => {
-      if (!tripsByRoute[trip.route]) {
-        tripsByRoute[trip.route] = [];
-      }
-      tripsByRoute[trip.route].push(trip);
+      const key = trip.route.toString();
+      if (!tripsByRoute[key]) tripsByRoute[key] = [];
+      tripsByRoute[key].push(trip);
     });
 
-    // Get available seats for all trips
     const tripIds = trips.map(t => t._id);
-    const tripSeats = tripIds.length > 0 ? await TripSeatStatus.aggregate([
-      { $match: { trip: { $in: tripIds } } },
-      { $group: { 
-        _id: '$trip',
-        availableSeats: { 
-          $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] }
-        }
-      }}
-    ]) : [];
+    const tripSeats = tripIds.length
+      ? await TripSeatStatus.aggregate([
+          { $match: { trip: { $in: tripIds } } },
+          {
+            $group: {
+              _id: '$trip',
+              availableSeats: {
+                $sum: { $cond: [{ $eq: ['$status', 'available'] }, 1, 0] }
+              }
+            }
+          }
+        ])
+      : [];
 
-    // Create seats lookup
     const seatsByTrip = {};
-    tripSeats.forEach(ts => {
-      seatsByTrip[ts._id] = ts.availableSeats;
-    });
+    tripSeats.forEach(s => (seatsByTrip[s._id] = s.availableSeats));
 
-    // Get average ratings for all routes
-    const ratings = tripIds.length > 0 ? await Review.aggregate([
-      { $match: { trip: { $in: tripIds } } },
-      { $lookup: {
-        from: 'trips',
-        localField: 'trip',
-        foreignField: '_id',
-        as: 'trip'
-      }},
-      { $unwind: '$trip' },
-      { $group: {
-        _id: '$trip.route',
-        avgRating: { $avg: '$rating' }
-      }}
-    ]) : [];
+    const ratings = tripIds.length
+      ? await Review.aggregate([
+          { $match: { trip: { $in: tripIds } } },
+          {
+            $lookup: {
+              from: 'trips',
+              localField: 'trip',
+              foreignField: '_id',
+              as: 'trip'
+            }
+          },
+          { $unwind: '$trip' },
+          {
+            $group: {
+              _id: '$trip.route',
+              avgRating: { $avg: '$rating' }
+            }
+          }
+        ])
+      : [];
 
-    // Create ratings lookup
     const ratingsByRoute = {};
-    ratings.forEach(r => {
-      ratingsByRoute[r._id] = r.avgRating;
-    });
+    ratings.forEach(r => (ratingsByRoute[r._id] = r.avgRating));
 
-    // Combine all data
-    const detailedRoutes = routes.map(route => {
-      const routeTrips = tripsByRoute[route._id] || [];
-      // Sort trips by start time and get the soonest
-      routeTrips.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-      const nextTrip = routeTrips[0];
+    const detailedRoutes = routes
+      .map(route => {
+        const routeTrips = tripsByRoute[route._id.toString()] || [];
+        routeTrips.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+        const nextTrip = routeTrips[0];
 
-      return {
-        _id: route._id,
-        from_city: route.from_city,
-        to_city: route.to_city,
-        estimated_duration_min: route.estimated_duration_min,
-        base_price: nextTrip?.base_price,
-        start_time: nextTrip?.start_time,
-        end_time: nextTrip?.end_time,
-        bus_type: nextTrip?.bus?.bus_type,
-        availableSeats: nextTrip ? (seatsByTrip[nextTrip._id] || 0) : 0,
-        avgRating: ratingsByRoute[route._id] || 0,
-        company: route.company,
-        features: route.features || []
-      };
-    }).filter(route => route.start_time); // Only return routes that have trips on the given date
+        if (!nextTrip) return null;
+
+        return {
+          _id: route._id,
+          from_city: route.from_city,
+          to_city: route.to_city,
+          estimated_duration_min: route.estimated_duration_min,
+          base_price: nextTrip.base_price,
+          start_time: nextTrip.start_time,
+          end_time: nextTrip.end_time,
+          bus_type: nextTrip.bus?.bus_type,
+          availableSeats: seatsByTrip[nextTrip._id] || 0,
+          avgRating: ratingsByRoute[route._id] || 0,
+          company: route.company,
+          features: route.features || []
+        };
+      })
+      .filter(Boolean);
 
     res.json(detailedRoutes);
   } catch (err) {
-    console.error('Error in getAllRoutesDetailed:', err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
 
-// POST /api/routes
+/* =========================
+   POST /api/routes
+========================= */
 exports.createRoute = async (req, res) => {
   try {
+    const { from_city, to_city, estimated_duration_min, company } = req.body;
+
+    // VALIDATE
+    if (!from_city || !to_city) {
+      return res.status(400).json({ error: 'Điểm đi và điểm đến không được để trống' });
+    }
+
+    if (from_city === to_city) {
+      return res.status(400).json({ error: 'Điểm đi và điểm đến không được trùng nhau' });
+    }
+
+    if (estimated_duration_min && estimated_duration_min <= 0) {
+      return res.status(400).json({ error: 'Thời gian dự kiến phải > 0' });
+    }
+
     const route = await Route.create(req.body);
     res.status(201).json(route);
   } catch (err) {
@@ -121,79 +148,114 @@ exports.createRoute = async (req, res) => {
   }
 };
 
-// GET /api/routes
+/* =========================
+   GET /api/routes
+========================= */
 exports.getAllRoutes = async (req, res) => {
   try {
     const routes = await Route.find();
     res.json(routes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
 
-// POST /api/routes/:routeId/stops
+/* =========================
+   POST /api/routes/:routeId/stops
+========================= */
 exports.createStop = async (req, res) => {
   try {
-    const stop = await RouteStop.create({ ...req.body, route: req.params.routeId });
+    const { routeId } = req.params;
+    const { name, order } = req.body;
+
+    if (!isValidObjectId(routeId)) {
+      return res.status(400).json({ error: 'Route ID không hợp lệ' });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: 'Tên điểm dừng không được để trống' });
+    }
+
+    if (order < 0) {
+      return res.status(400).json({ error: 'Thứ tự điểm dừng không hợp lệ' });
+    }
+
+    const stop = await RouteStop.create({ ...req.body, route: routeId });
     res.status(201).json(stop);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// GET /api/routes/:routeId/stops
+/* =========================
+   GET /api/routes/:routeId/stops
+========================= */
 exports.getStops = async (req, res) => {
   try {
-    const stops = await RouteStop.find({ route: req.params.routeId }).sort({ order: 1 });
+    const { routeId } = req.params;
+
+    if (!isValidObjectId(routeId)) {
+      return res.status(400).json({ error: 'Route ID không hợp lệ' });
+    }
+
+    const stops = await RouteStop.find({ route: routeId }).sort({ order: 1 });
     res.json(stops);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
 
-// GET /api/routes/:routeId
-// returns route document, stops, and a trips summary (with bus populated and availableSeats)
+/* =========================
+   GET /api/routes/:routeId
+========================= */
 exports.getRouteDetail = async (req, res) => {
   try {
-    const routeId = req.params.routeId;
+    const { routeId } = req.params;
+
+    if (!isValidObjectId(routeId)) {
+      return res.status(400).json({ error: 'Route ID không hợp lệ' });
+    }
+
     const route = await Route.findById(routeId).lean();
-    if (!route) return res.status(404).json({ error: 'Route not found' });
+    if (!route) {
+      return res.status(404).json({ error: 'Không tìm thấy tuyến' });
+    }
 
     const stops = await RouteStop.find({ route: routeId }).sort({ order: 1 }).lean();
-
-    // find trips for this route (returning scheduled/upcoming and departed)
     const trips = await Trip.find({ route: routeId }).populate('bus').lean();
 
-    // for each trip compute available seats (count in TripSeatStatus)
     const tripsWithSeats = await Promise.all(
-      trips.map(async (t) => {
-        const availableSeats = await TripSeatStatus.countDocuments({ trip: t._id, status: 'available' });
+      trips.map(async trip => {
+        const availableSeats = await TripSeatStatus.countDocuments({
+          trip: trip._id,
+          status: 'available'
+        });
+
         return {
-          _id: t._id,
-          start_time: t.start_time,
-          end_time: t.end_time,
-          base_price: t.base_price,
-          status: t.status,
-          direction: t.direction,
-          bus: t.bus,
+          _id: trip._id,
+          start_time: trip.start_time,
+          end_time: trip.end_time,
+          base_price: trip.base_price,
+          status: trip.status,
+          direction: trip.direction,
+          bus: trip.bus,
           availableSeats
         };
       })
     );
 
-    // compute average rating from reviews of trips on this route
     let avgRating = null;
     const tripIds = trips.map(t => t._id);
-    if (tripIds.length > 0) {
-      const agg = await Review.aggregate([
+    if (tripIds.length) {
+      const ratingAgg = await Review.aggregate([
         { $match: { trip: { $in: tripIds } } },
         { $group: { _id: null, avgRating: { $avg: '$rating' } } }
       ]);
-      if (agg && agg.length) avgRating = agg[0].avgRating;
+      avgRating = ratingAgg[0]?.avgRating || null;
     }
 
     res.json({ route, stops, trips: tripsWithSeats, avgRating });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
