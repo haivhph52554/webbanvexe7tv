@@ -916,13 +916,76 @@ exports.bookingDetail = async (req, res) => {
 // Trang Statistics
 exports.statistics = async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+    
+    // Build date filter for Trips
+    let dateFilter = {};
+    let dateRange = { start: startDate, end: endDate };
+
+    if (startDate && endDate) {
+      // Create date objects. Set endDate to end of the day.
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      dateFilter = {
+        start_time: {
+          $gte: start,
+          $lte: end
+        }
+      };
+    }
+
     const users = await User.find();
-    const trips = await Trip.find().populate('route').populate('bus');
-    const bookings = await Booking.find().populate('user').populate('trip');
+    
+    // Apply date filter to Trips
+    const trips = await Trip.find(dateFilter).populate('route').populate('bus');
+    
+    // For Bookings, we want those related to the filtered trips
+    // First, get IDs of filtered trips
+    const tripIds = trips.map(t => t._id);
+    
+    // Find bookings for these trips
+    const bookings = await Booking.find({ trip: { $in: tripIds } }).populate('user').populate('trip');
+    
     const buses = await Bus.find();
     const routes = await Route.find();
     
+    // Calculate route details
+    const routeDetails = routes.map(route => {
+      // Trips for this route (already filtered by date if applied)
+      const routeTrips = trips.filter(t => t.route && t.route._id.toString() === route._id.toString());
+      const routeTripIds = routeTrips.map(t => t._id.toString());
+      
+      // Bookings for these trips
+      const routeBookings = bookings.filter(b => b.trip && routeTripIds.includes(b.trip._id.toString()));
+      
+      // Stats for this route
+      const totalBookings = routeBookings.length;
+      const cancelledBookings = routeBookings.filter(b => b.status === 'cancelled').length;
+      const revenue = routeBookings
+        .filter(b => b.status === 'paid' || b.status === 'completed')
+        .reduce((sum, b) => sum + (b.total_price || b.total_amount || 0), 0);
+        
+      return {
+        id: route._id,
+        name: route.name,
+        from: route.from_city,
+        to: route.to_city,
+        totalTrips: routeTrips.length,
+        totalBookings: totalBookings,
+        cancelledBookings: cancelledBookings,
+        revenue: revenue
+      };
+    });
+
+    // Sort by revenue descending
+    routeDetails.sort((a, b) => b.revenue - a.revenue);
+
     const stats = {
+      dateRange: dateRange,
       users: {
         total: users.length,
         byRole: {
@@ -938,7 +1001,8 @@ exports.statistics = async (req, res) => {
       },
       routes: {
         total: routes.length,
-        active: routes.filter(r => r.active).length
+        active: routes.filter(r => r.active).length,
+        details: routeDetails
       },
       trips: {
         total: trips.length,
@@ -959,7 +1023,7 @@ exports.statistics = async (req, res) => {
         },
         revenue: bookings
           .filter(b => b.status === 'paid' || b.status === 'completed')
-          .reduce((sum, b) => sum + (b.total_price || 0), 0)
+          .reduce((sum, b) => sum + (b.total_price || b.total_amount || 0), 0)
       }
     };
     
