@@ -1,7 +1,7 @@
 // src/components/BookingDetail.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../App';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, Users, Calendar } from 'lucide-react';
 
 /** Types matching backend responses */
@@ -114,6 +114,9 @@ const BookingDetail: React.FC = () => {
     }
   }, [tripDetail?.stops]);
 
+  const [searchParams] = useSearchParams();
+  const dateParam = searchParams.get('date');
+
   useEffect(() => {
     let mounted = true;
     const fetchTrips = async () => {
@@ -128,9 +131,18 @@ const BookingDetail: React.FC = () => {
         // Filter and sort trips
         const filtered = data
           .filter(t => {
-            // `t.route` may be populated (object with _id) or just an ObjectId/string.
+            // Filter by Route ID
             const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
-            return tid === routeId;
+            const matchRoute = tid === routeId;
+            
+            // Filter by Date if present
+            let matchDate = true;
+            if (dateParam) {
+               const tripDate = new Date(t.start_time).toISOString().split('T')[0];
+               matchDate = tripDate === dateParam;
+            }
+
+            return matchRoute && matchDate;
           })
           .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
@@ -159,7 +171,7 @@ const BookingDetail: React.FC = () => {
 
     fetchTrips();
     return () => { mounted = false; };
-  }, [routeId]);
+  }, [routeId, dateParam]);
 
   // Poll trip details (seats) for the selected trip so UI reflects changes made by admin
   // Function to compare seats arrays
@@ -253,6 +265,15 @@ const BookingDetail: React.FC = () => {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
+
+const fmtTime = (iso?: string | null) => {
+  if (!iso) return '--:--';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '--:--';
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  return `${h}:${m}`;
+};
 
 const fmtDateTime = (iso?: string | null) => {
   if (!iso) return '-';
@@ -387,12 +408,16 @@ const fmtDateTime = (iso?: string | null) => {
     setSelectedTrip(t);
   }}
 >
-  {allTrips.map(t => (
-    <option key={t._id} value={t._id}>
-      {t.route?.from_city || '-'} → {t.route?.to_city || '-'} | 
-      {fmtDateTime(t.start_time)} — {fmtDateTime(t.end_time || undefined)}
-    </option>
-  ))}
+  {allTrips.map(t => {
+    const d = new Date(t.start_time);
+    const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+    return (
+      <option key={t._id} value={t._id}>
+        {fmtTime(t.start_time)} — {fmtTime(t.end_time || undefined)}
+        {!dateParam && ` (${dateStr})`}
+      </option>
+    );
+  })}
 </select>
 
             </div>

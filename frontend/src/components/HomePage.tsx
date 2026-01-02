@@ -21,12 +21,12 @@ const HomePage: React.FC = () => {
   const auth = useAuth();
 
   const [routes, setRoutes] = useState<RouteDoc[]>([]);
+  const [allRoutes, setAllRoutes] = useState<RouteDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   // Search form state
-  const [fromCity, setFromCity] = useState('');
-  const [toCity, setToCity] = useState('');
+  const [selectedRouteId, setSelectedRouteId] = useState('');
   const [searchDate, setSearchDate] = useState('');
 
   const handleBookingClick = (routeId: string) => {
@@ -35,21 +35,16 @@ const HomePage: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to routes page with search params
+    if (!selectedRouteId) return; // Prevent search without route
+    
+    // Navigate to booking page directly with date param
     const params = new URLSearchParams();
-    if (fromCity.trim()) {
-      params.append('from', fromCity.trim());
-    }
-    if (toCity.trim()) {
-      params.append('to', toCity.trim());
-    }
     if (searchDate) {
       params.append('date', searchDate);
     }
     
-    // Navigate to routes page with search query
     const queryString = params.toString();
-    navigate(`/routes${queryString ? `?${queryString}` : ''}`);
+    navigate(`/booking/${selectedRouteId}${queryString ? `?${queryString}` : ''}`);
   };
 
   useEffect(() => {
@@ -63,11 +58,12 @@ const HomePage: React.FC = () => {
         const data: RouteDoc[] = await res.json();
         if (!mounted) return;
 
-        // lấy 6 tuyến đang active làm "popular"
-        const popular = (Array.isArray(data) ? data : [])
-          .filter(r => r?.active !== false)
-          .slice(0, 6);
-        setRoutes(popular);
+        // Load ALL active routes for the dropdown
+        const activeRoutes = (Array.isArray(data) ? data : []).filter(r => r?.active !== false);
+        setAllRoutes(activeRoutes);
+        
+        // Popular routes (limit to 6)
+        setRoutes(activeRoutes.slice(0, 6));
       } catch (e: any) {
         if (!mounted) return;
         setErr(e?.message || 'Lỗi tải dữ liệu');
@@ -168,25 +164,21 @@ const HomePage: React.FC = () => {
           <div className="max-w-4xl mx-auto">
             <form onSubmit={handleSearch} className="bg-white rounded-2xl shadow-xl p-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
+                <div className="relative md:col-span-2">
                   <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Điểm đi (ví dụ: Hà Nội)"
-                    value={fromCity}
-                    onChange={(e) => setFromCity(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                  />
-                </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Điểm đến (ví dụ: TP. Hồ Chí Minh)"
-                    value={toCity}
-                    onChange={(e) => setToCity(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-                  />
+                  <select
+                    value={selectedRouteId}
+                    onChange={(e) => setSelectedRouteId(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                    required
+                  >
+                    <option value="">Chọn chặng đường...</option>
+                    {allRoutes.map(route => (
+                      <option key={route._id} value={route._id}>
+                        {route.name ? route.name : `${route.from_city} - ${route.to_city}`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />

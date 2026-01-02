@@ -373,7 +373,71 @@
                 <h2>Thống kê & Báo cáo</h2>
                 <p>Tổng quan toàn diện về hệ thống</p>
             </div>
+
+            <!-- Date Filter -->
+            <div class="section" style="padding: 1.5rem;">
+                <form action="/admin/statistics" method="GET" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label for="startDate" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Từ ngày</label>
+                        <input type="date" id="startDate" name="startDate" value="<%= stats.dateRange ? stats.dateRange.start : '' %>" 
+                               style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-light); border-radius: 6px;">
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <label for="endDate" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Đến ngày</label>
+                        <input type="date" id="endDate" name="endDate" value="<%= stats.dateRange ? stats.dateRange.end : '' %>"
+                               style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-light); border-radius: 6px;">
+                    </div>
+                    <button type="submit" style="padding: 0.5rem 1.5rem; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; height: 38px;">
+                        Lọc thống kê
+                    </button>
+                    <% if (stats.dateRange && (stats.dateRange.start || stats.dateRange.end)) { %>
+                        <a href="/admin/statistics" style="padding: 0.5rem 1rem; color: var(--gray); text-decoration: none; display: flex; align-items: center; height: 38px;">Xóa lọc</a>
+                    <% } %>
+                </form>
+            </div>
             
+            <!-- Route Details Table -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">📊</span>
+                    <h2>Chi tiết theo Chặng đường</h2>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--light); text-align: left;">
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light);">Tên Tuyến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light);">Điểm đi - Đến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Số chuyến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Vé đã bán</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Vé hủy</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: right;">Doanh thu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (stats.routes.details && stats.routes.details.length > 0) { %>
+                                <% stats.routes.details.forEach(route => { %>
+                                    <tr style="border-bottom: 1px solid var(--gray-light);">
+                                        <td style="padding: 1rem; font-weight: 500;"><%= route.name %></td>
+                                        <td style="padding: 1rem; color: var(--gray);"><%= route.from %> - <%= route.to %></td>
+                                        <td style="padding: 1rem; text-align: center;"><%= route.totalTrips %></td>
+                                        <td style="padding: 1rem; text-align: center;"><%= route.totalBookings %></td>
+                                        <td style="padding: 1rem; text-align: center; color: var(--danger);"><%= route.cancelledBookings %></td>
+                                        <td style="padding: 1rem; text-align: right; font-weight: 600; color: var(--success);">
+                                            <%= route.revenue.toLocaleString('vi-VN') %> ₫
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="6" style="padding: 2rem; text-align: center; color: var(--gray);">Chưa có dữ liệu</td>
+                                </tr>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Revenue Card -->
             <div class="revenue-card">
                 <div class="revenue-card-content">
@@ -591,6 +655,47 @@
                             <div class="stat-card-icon icon-cancelled">❌</div>
                         </div>
                     </div>
+                </div>
+            </div>
+            <!-- Route Details Statistics -->
+            <div class="section">
+                <div class="section-header">
+                    <span class="section-icon">📊</span>
+                    <h2>Chi tiết theo Chặng đường</h2>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--light); text-align: left;">
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light);">Tên Tuyến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light);">Điểm đi - Đến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Số chuyến</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Vé đã bán</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: center;">Vé hủy</th>
+                                <th style="padding: 1rem; border-bottom: 2px solid var(--gray-light); text-align: right;">Doanh thu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% if (stats.routes.details && stats.routes.details.length > 0) { %>
+                                <% stats.routes.details.forEach(route => { %>
+                                    <tr style="border-bottom: 1px solid var(--gray-light);">
+                                        <td style="padding: 1rem; font-weight: 500;"><%= route.name %></td>
+                                        <td style="padding: 1rem; color: var(--gray);"><%= route.from %> - <%= route.to %></td>
+                                        <td style="padding: 1rem; text-align: center;"><%= route.totalTrips %></td>
+                                        <td style="padding: 1rem; text-align: center;"><%= route.totalBookings %></td>
+                                        <td style="padding: 1rem; text-align: center; color: var(--danger);"><%= route.cancelledBookings %></td>
+                                        <td style="padding: 1rem; text-align: right; font-weight: 600; color: var(--success);">
+                                            <%= route.revenue.toLocaleString('vi-VN') %> ₫
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="6" style="padding: 2rem; text-align: center; color: var(--gray);">Chưa có dữ liệu</td>
+                                </tr>
+                            <% } %>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>

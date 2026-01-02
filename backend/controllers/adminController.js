@@ -700,13 +700,83 @@ exports.bookings = async (req, res) => {
 // Trang Statistics
 exports.statistics = async (req, res) => {
   try {
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+    
+    // Tạo filter date range
+    const dateFilter = {};
+    if (startDate) {
+      dateFilter.$gte = startDate;
+    }
+    if (endDate) {
+      // Set end date to end of day
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateFilter.$lte = endOfDay;
+    }
+
+    // Filter cho Booking
+    const bookingQuery = {};
+    if (startDate || endDate) {
+      bookingQuery.createdAt = dateFilter;
+    }
+
+    // Filter cho Trip
+    const tripQuery = {};
+    if (startDate || endDate) {
+      tripQuery.start_time = dateFilter;
+    }
+
     const users = await User.find();
-    const trips = await Trip.find().populate('route').populate('bus');
-    const bookings = await Booking.find().populate('user').populate('trip');
+    const trips = await Trip.find(tripQuery).populate('route').populate('bus');
+    const bookings = await Booking.find(bookingQuery).populate('user').populate({
+      path: 'trip',
+      populate: { path: 'route' }
+    });
     const buses = await Bus.find();
     const routes = await Route.find();
     
+    // Thống kê chi tiết theo Route
+    const routeStats = {};
+    routes.forEach(route => {
+      routeStats[route._id] = {
+        name: route.name,
+        from: route.from_city,
+        to: route.to_city,
+        totalTrips: 0,
+        totalBookings: 0,
+        revenue: 0,
+        cancelledBookings: 0
+      };
+    });
+
+    // Tính toán từ trips
+    trips.forEach(trip => {
+      if (trip.route && routeStats[trip.route._id]) {
+        routeStats[trip.route._id].totalTrips++;
+      }
+    });
+
+    // Tính toán từ bookings
+    bookings.forEach(booking => {
+      if (booking.trip && booking.trip.route && routeStats[booking.trip.route._id]) {
+        routeStats[booking.trip.route._id].totalBookings++;
+        
+        if (booking.status === 'cancelled') {
+          routeStats[booking.trip.route._id].cancelledBookings++;
+        }
+        
+        if (booking.status === 'paid' || booking.status === 'completed') {
+          routeStats[booking.trip.route._id].revenue += (booking.total_price || 0);
+        }
+      }
+    });
+
     const stats = {
+      dateRange: {
+        start: req.query.startDate || '',
+        end: req.query.endDate || ''
+      },
       users: {
         total: users.length,
         byRole: {
@@ -722,7 +792,8 @@ exports.statistics = async (req, res) => {
       },
       routes: {
         total: routes.length,
-        active: routes.filter(r => r.active).length
+        active: routes.filter(r => r.active).length,
+        details: Object.values(routeStats).sort((a, b) => b.revenue - a.revenue)
       },
       trips: {
         total: trips.length,
