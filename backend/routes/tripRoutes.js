@@ -99,6 +99,52 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// DELETE /api/trips/bulk-delete
+router.delete('/bulk-delete', async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({ error: 'Thiếu ngày cần xoá' });
+    }
+
+    // ❌ Chặn xoá quá khứ (backend bảo vệ)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (new Date(date) < today) {
+      return res.status(400).json({ error: 'Không thể xoá chuyến trong quá khứ' });
+    }
+
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    // Lấy danh sách trip cần xoá
+    const trips = await Trip.find({
+      start_time: { $gte: start, $lte: end }
+    }).select('_id');
+
+    const tripIds = trips.map(t => t._id);
+
+    if (tripIds.length === 0) {
+      return res.json({ success: true, deletedTrips: 0 });
+    }
+
+    // Xoá ghế trước
+    await TripSeatStatus.deleteMany({ trip: { $in: tripIds } });
+
+    // Xoá chuyến
+    const result = await Trip.deleteMany({ _id: { $in: tripIds } });
+
+    res.json({
+      success: true,
+      deletedTrips: result.deletedCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 module.exports = router;

@@ -485,6 +485,32 @@
                         <a class="btn btn-success" href="/admin/trips/new" style="margin-left:auto">➕ Thêm chuyến mới</a>
                     </div>
                 </form>
+                <hr style="margin:1rem 0">
+
+<div style="display:flex;gap:0.75rem;align-items:end">
+  <div>
+    <label style="display:block;font-weight:600;color:#374151;margin-bottom:0.25rem">
+      🗑️ Xoá toàn bộ chuyến theo ngày
+    </label>
+    <input
+      type="date"
+      id="bulkDeleteDate"
+      style="padding:0.5rem;border:1px solid #e5e7eb;border-radius:8px"
+    />
+  </div>
+
+  <button
+    class="btn btn-danger"
+    onclick="bulkDeleteTrips()"
+  >
+    🧨 Xoá HẲN chuyến
+  </button>
+</div>
+
+<p style="margin-top:0.5rem;color:#dc2626;font-size:0.85rem">
+  ⚠️ Cảnh báo: thao tác này sẽ xoá vĩnh viễn tất cả chuyến trong ngày đã chọn
+</p>
+
             </div>
             
         <div class="stats-grid">
@@ -640,19 +666,43 @@
     </div>
     
     <script>
-        async function deleteTrip(id) {
-            if (!confirm('Bạn có chắc muốn xóa chuyến xe này?')) return;
-            try {
-                const response = await fetch(`/admin/trips/${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('Đã xóa chuyến xe thành công');
-                    location.reload();
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
-            }
-        }
-    </script>
+async function bulkDeleteTrips() {
+  const date = document.getElementById('bulkDeleteDate').value;
+if (new Date(date) < new Date().setHours(0,0,0,0)) {
+  alert('Không thể xoá chuyến trong quá khứ');
+  return;
+}
+
+
+
+  if (!date) {
+    alert('Vui lòng chọn ngày cần xoá');
+    return;
+  }
+
+  const confirmText = `XÁC NHẬN XOÁ HẲN tất cả chuyến ngày ${date}.\nDữ liệu sẽ KHÔNG THỂ KHÔI PHỤC!`;
+  if (!confirm(confirmText)) return;
+
+  try {
+    const res = await fetch('/api/trips/bulk-delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      alert(`Đã xoá ${data.deletedTrips} chuyến`);
+      location.reload();
+    } else {
+      alert(data.error || 'Xoá thất bại');
+    }
+  } catch (err) {
+    alert('Lỗi: ' + err.message);
+  }
+}
+</script>
+
 </body>
 </html>
