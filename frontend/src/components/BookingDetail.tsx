@@ -611,37 +611,146 @@ const fmtDateTime = (iso?: string | null) => {
                   <div className="text-red-600">Lỗi: {errDetail}</div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-3">
-                      {(tripDetail?.seats || []).map((seat) => {
-                        const seatNumber = parseInt(seat.seat_number, 10);
-                        // Find the current status of this seat
-                        const seatStatus = tripDetail?.seats?.find(
-                          s => s.seat_number === String(seatNumber)
-                        );
-                        const status = seatStatus?.status || 'available';
-                        const isSelected = selectedSeats.includes(seatNumber);
+                    {(() => {
+                  // 1. Phân loại xe
+                  const busType = tripDetail?.trip?.bus?.bus_type?.toLowerCase() || '';
+                  const isSleeper = busType.includes('giường') || busType.includes('sleeper') || busType.includes('bed');
 
+                  // 2. Sắp xếp ghế tăng dần theo số (Fix lỗi hiển thị lộn xộn)
+                  const sortedSeats = [...(tripDetail?.seats || [])].sort((a, b) => {
+                    const numA = parseInt(a.seat_number, 10) || 0;
+                    const numB = parseInt(b.seat_number, 10) || 0;
+                    return numA - numB;
+                  });
 
-                        return (
-                          <button
-                            key={seatNumber}
-                            onClick={() => handleSeatClick(seatNumber, status)}
-                            disabled={status !== 'available'}
-                            className={[
-                              'p-3 rounded-lg border-2 text-center font-medium transition-colors',
-                              status !== 'available'
-                                ? 'bg-red-100 text-gray-500 border-red-300 cursor-not-allowed'
-                                : isSelected
-                                  ? 'bg-blue-600 text-white border-blue-600'
-                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
-                            ].join(' ')}
-                            title={status !== 'available' ? `Ghế ${seatNumber} đã bán/giữ` : `Ghế ${seatNumber}`}
-                          >
-                            {seatNumber}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  // 3. Component hiển thị từng ghế đơn lẻ
+                  const RenderSeatItem = ({ seat, isBed = false }: { seat: any, isBed?: boolean }) => {
+                    const seatNumber = parseInt(seat.seat_number, 10);
+                    const status = seat.status || 'available';
+                    const isSelected = selectedSeats.includes(seatNumber);
+
+                    // Style kích thước: Giường (dài) - Ghế (ngắn)
+                    const baseDimensions = isBed ? "h-20 w-12" : "h-14 w-12";
+                    
+                    // Style hình dáng: Ghế ngồi bo đầu (rounded-t-2xl), Giường bo đều (rounded-lg)
+                    const shapeClass = isBed ? "rounded-lg border-2" : "rounded-t-2xl rounded-b-lg border-2";
+
+                    // Màu sắc theo trạng thái
+                    let bgClass = "bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:shadow-md"; // Trống
+                    let pillowClass = "bg-gray-200"; // Màu gối
+                    
+                    if (status !== 'available') {
+                      bgClass = "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"; // Đã bán
+                    } else if (isSelected) {
+                      bgClass = "bg-blue-600 border-blue-600 text-white shadow-lg transform -translate-y-1"; // Đang chọn
+                      pillowClass = "bg-blue-400";
+                    }
+
+                    return (
+                      <button
+                        onClick={() => handleSeatClick(seatNumber, status)}
+                        disabled={status !== 'available'}
+                        className={`
+                          ${baseDimensions} ${shapeClass} ${bgClass}
+                          relative flex flex-col items-center justify-center transition-all duration-200 
+                        `}
+                        title={`Ghế ${seatNumber}`}
+                      >
+                        {/* Gối đầu */}
+                        <div className={`absolute top-1.5 w-8 h-1 rounded-full ${pillowClass}`}></div>
+                        
+                        {/* Số ghế */}
+                        <span className="mt-2 text-sm font-bold">{seatNumber}</span>
+                        
+                        {/* Họa tiết chăn (nếu là giường) */}
+                        {isBed && (
+                          <div className={`absolute bottom-2 w-8 h-6 rounded opacity-20 ${isSelected ? 'bg-white' : 'bg-gray-400'}`}></div>
+                        )}
+                      </button>
+                    );
+                  };
+
+                    // --- RENDER GIAO DIỆN ---
+                    
+                    if (isSleeper) {
+                      // === XE GIƯỜNG NẰM (Chia 2 tầng song song để lấp đầy khoảng trống) ===
+                      const midPoint = Math.ceil(sortedSeats.length / 2);
+                      const lowerDeck = sortedSeats.slice(0, midPoint);
+                      const upperDeck = sortedSeats.slice(midPoint);
+
+                      return (
+                        <div className="flex flex-col gap-6 w-full">
+                          {/* Khung xe */}
+                          <div className="flex flex-col md:flex-row gap-8 justify-center items-start bg-gray-50 p-6 rounded-3xl border-4 border-gray-200 w-full max-w-3xl mx-auto">
+                            
+                            {/* Tầng dưới */}
+                            <div className="flex-1 w-full text-center border-r-0 md:border-r-2 border-dashed border-gray-300 md:pr-8">
+                              <div className="mb-6 flex flex-col items-center opacity-50">
+                                <div className="w-14 h-14 border-4 border-gray-400 rounded-full flex items-center justify-center mb-2 bg-white">
+                                    <span className="text-[10px] font-bold">TÀI XẾ</span>
+                                </div>
+                                <span className="text-sm font-bold text-gray-500 uppercase tracking-widest border px-2 py-1 rounded bg-white">Tầng dưới</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-y-4 gap-x-6 justify-items-center">
+                                {lowerDeck.map(s => <RenderSeatItem key={s._id} seat={s} isBed={true} />)}
+                              </div>
+                            </div>
+
+                            {/* Tầng trên */}
+                            <div className="flex-1 w-full text-center md:pl-4">
+                              {/* Spacer bù cho icon tài xế để 2 bên cân bằng */}
+                              <div className="mb-6 flex flex-col items-center opacity-50">
+                                <div className="w-14 h-14 mb-2 invisible"></div> 
+                                <span className="text-sm font-bold text-gray-500 uppercase tracking-widest border px-2 py-1 rounded bg-white">Tầng trên</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-y-4 gap-x-6 justify-items-center">
+                                {upperDeck.map(s => <RenderSeatItem key={s._id} seat={s} isBed={true} />)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+
+                    } else {
+                      // === XE GHẾ NGỒI (Layout 2-2 có lối đi) ===
+                      return (
+                        <div className="w-full bg-gray-50 p-8 rounded-[40px] border-4 border-gray-200 shadow-inner relative max-w-xl mx-auto">
+                          
+                          {/* Tài xế */}
+                          <div className="flex justify-center mb-10">
+                            <div className="w-16 h-16 border-4 border-gray-400 rounded-full flex items-center justify-center bg-white shadow-sm relative">
+                                <span className="text-[10px] font-bold text-gray-500">TÀI XẾ</span>
+                                {/* Trang trí 2 bên vô lăng */}
+                                <div className="absolute left-full top-1/2 w-6 h-1 bg-gray-300"></div>
+                                <div className="absolute right-full top-1/2 w-6 h-1 bg-gray-300"></div>
+                            </div>
+                          </div>
+
+                          {/* Lưới ghế 2-2 */}
+                          <div className="grid grid-cols-5 gap-y-6 gap-x-2 justify-items-center">
+                            {sortedSeats.map((seat, index) => {
+                              const seatComp = <RenderSeatItem key={seat._id} seat={seat} isBed={false} />;
+                              
+                              // Logic chèn lối đi: Cứ mỗi 2 ghế thì chèn 1 khoảng trống (cột thứ 3)
+                              // Index: 0 1 [Gap] 2 3 ...
+                              if (index > 0 && index % 4 === 2) {
+                                return (
+                                  <React.Fragment key={`gap-${seat._id}`}>
+                                    <div className="w-8 flex items-center justify-center text-gray-300 text-xs tracking-widest opacity-20 font-light">| |</div> {/* Lối đi */}
+                                    {seatComp}
+                                  </React.Fragment>
+                                );
+                              }
+                              return seatComp;
+                            })}
+                          </div>
+
+                          {/* Đuôi xe */}
+                          <div className="mt-12 border-t-4 border-gray-200 w-2/3 mx-auto rounded-full opacity-50"></div>
+                        </div>
+                      );
+                    }
+                  })()}
 
                     <div className="mt-4 flex flex-wrap items-center gap-4">
                       <div className="flex items-center">
