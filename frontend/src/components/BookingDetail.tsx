@@ -640,7 +640,7 @@ const fmtDateTime = (iso?: string | null) => {
                     let pillowClass = "bg-gray-200"; // Màu gối
                     
                     if (status !== 'available') {
-                      bgClass = "bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed"; // Đã bán
+                      bgClass = "bg-red-100 border-red-200 text-gray-300 cursor-not-allowed"; // Đã bán
                     } else if (isSelected) {
                       bgClass = "bg-blue-600 border-blue-600 text-white shadow-lg transform -translate-y-1"; // Đang chọn
                       pillowClass = "bg-blue-400";
