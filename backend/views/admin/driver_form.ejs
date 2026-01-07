@@ -32,7 +32,11 @@
 <body>
 	<div class="container">
 		<h2><%= driver ? 'Sửa thông tin tài xế' : 'Thêm tài xế mới' %></h2>
-
+		<% if (typeof errors !== 'undefined' && errors) { %>
+      <div style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #fecaca; background: #fee2e2; color: #991b1b; border-radius: 8px; font-weight: 500;">
+        ⚠️ <%= errors %>
+      </div>
+    <% } %>
 		<form method="get" action="<%= driver ? ('/admin/drivers/' + driver._id + '/edit') : '/admin/drivers/new' %>" style="margin:1rem 0; padding:0.75rem; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px">
 			<div class="form-group">
 				<div>

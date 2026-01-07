@@ -1,4 +1,3 @@
-
 const Trip = require('../models/Trip');
 const Booking = require('../models/Booking');
 const Route = require('../models/Route');
@@ -7,6 +6,63 @@ const User = require('../models/User');
 const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 const jwt = require('jsonwebtoken');
+
+// --- HELPER 1: Kiểm tra trùng giờ trong danh sách chuyến của 1 người ---
+const checkTripOverlaps = async (tripIds) => {
+  const ids = Array.isArray(tripIds) ? tripIds : [tripIds];
+  const validIds = ids.filter(id => id);
+  if (validIds.length < 2) return null;
+
+  const Trip = require('../models/Trip');
+  const trips = await Trip.find({ _id: { $in: validIds } }).select('start_time end_time route').populate('route');
+  
+  // Sắp xếp theo giờ chạy
+  trips.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+  for (let i = 0; i < trips.length - 1; i++) {
+    const current = trips[i];
+    const next = trips[i + 1];
+
+    let end = current.end_time ? new Date(current.end_time) : null;
+    if (!end) {
+      const duration = (current.route && current.route.estimated_duration_min) || 120; 
+      end = new Date(new Date(current.start_time).getTime() + duration * 60000);
+    }
+
+    if (end > new Date(next.start_time)) {
+      return `Xung đột lịch trình cá nhân: Chuyến lúc ${new Date(current.start_time).toLocaleString('vi-VN')} chưa kết thúc thì chuyến sau (${new Date(next.start_time).toLocaleString('vi-VN')}) đã chạy.`;
+    }
+  }
+  return null;
+};
+
+// --- HELPER 2: Kiểm tra chuyến đã có người khác nhận chưa ---
+const checkAssignmentConflict = async (tripIds, Model, roleName, excludeId = null) => {
+  const ids = Array.isArray(tripIds) ? tripIds : [tripIds];
+  const validIds = ids.filter(id => id);
+  if (validIds.length === 0) return null;
+
+  // Tìm người khác đang giữ ít nhất 1 trong các chuyến này
+  const query = { assigned_trips: { $in: validIds } };
+  if (excludeId) query._id = { $ne: excludeId }; // Trừ bản thân ra khi update
+
+  // Populate assigned_trips để lấy thông tin chuyến bị trùng
+  const conflict = await Model.findOne(query).populate('assigned_trips');
+  
+  if (conflict) {
+    // Tìm chuyến cụ thể bị trùng
+    const takenTrip = conflict.assigned_trips.find(t => 
+      validIds.includes(t._id.toString()) || validIds.includes(t._id)
+    );
+    
+    const tripTime = takenTrip && takenTrip.start_time 
+      ? new Date(takenTrip.start_time).toLocaleString('vi-VN') 
+      : 'một chuyến đã chọn';
+
+    return `Xung đột gán chuyến: Chuyến khởi hành lúc ${tripTime} đã được gán cho ${roleName} "${conflict.name}" (SĐT: ${conflict.phone}). Vui lòng gỡ bỏ người cũ trước khi gán cho người mới.`;
+  }
+  return null;
+};
 
 exports.newBus = async (req, res) => {
   try {
@@ -453,54 +509,45 @@ exports.newAssistant = async (req, res) => {
   }
 };
 
-// Tạo assistant mới
+// Tạo Phụ xe
 exports.createAssistant = async (req, res) => {
   try {
-    // Tạo User cho phụ xe nếu chưa có
-    let assistantUser = null;
+    const assignedTrips = req.body.assigned_trips ? [].concat(req.body.assigned_trips) : [];
+
+    // Check 1: Trùng giờ
+    const overlapErr = await checkTripOverlaps(assignedTrips);
+    if (overlapErr) return res.status(400).send(overlapErr);
+
+    // Check 2: Chuyến đã có phụ xe khác nhận
+    const takenErr = await checkAssignmentConflict(assignedTrips, require('../models/Assistant'), 'phụ xe');
+    if (takenErr) return res.status(400).send(takenErr);
+
+    // Tạo User
+    let user = null;
     if (req.body.email) {
-      assistantUser = await User.findOne({ email: req.body.email });
-      if (!assistantUser) {
-        assistantUser = await User.create({
-          name: req.body.name || 'Phụ xe',
-          email: req.body.email,
-          phone: req.body.phone || '0900000000',
-          password: '123456',
-          role: 'assistant'
-        });
-      } else {
-        assistantUser.role = 'assistant';
-        await assistantUser.save();
-      }
+        user = await User.findOne({ email: req.body.email });
+        if (!user) {
+            user = await User.create({
+                name: req.body.name || 'Phụ xe', email: req.body.email, phone: req.body.phone,
+                password: '123456', role: 'assistant'
+            });
+        } else {
+            user.role = 'assistant'; await user.save();
+        }
     }
 
     const payload = {
-      name: req.body.name,
-      email: req.body.email,
-      phone: req.body.phone,
-      employee_id: req.body.employee_id,
-      license_number: req.body.license_number,
+      name: req.body.name, email: req.body.email, phone: req.body.phone,
+      employee_id: req.body.employee_id, license_number: req.body.license_number,
       experience_years: Number(req.body.experience_years) || 0,
-      status: 'active',
-      assigned_trips: [],
-      assigned_routes: [],
-      userId: assistantUser ? assistantUser._id : undefined
+      status: 'active', userId: user ? user._id : undefined,
+      assigned_trips: assignedTrips,
+      assigned_routes: req.body.assigned_routes ? [].concat(req.body.assigned_routes).filter(Boolean) : []
     };
-    
-    // Xử lý assigned_routes nếu có
-    if (req.body.assigned_routes) {
-      const routeIds = Array.isArray(req.body.assigned_routes) 
-        ? req.body.assigned_routes 
-        : [req.body.assigned_routes];
-      payload.assigned_routes = routeIds.filter(id => id);
-    }
-    
+
     await Assistant.create(payload);
     res.redirect('/admin/assistants');
-  } catch (err) {
-    console.error('Error creating assistant:', err);
-    res.status(500).send('Lỗi khi tạo phụ xe: ' + err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 };
 
 // Form sửa assistant
@@ -519,40 +566,82 @@ exports.editAssistant = async (req, res) => {
 };
 
 // Cập nhật assistant
+// Cập nhật Phụ xe
 exports.updateAssistant = async (req, res) => {
   try {
+    const assignedTrips = req.body.assigned_trips ? [].concat(req.body.assigned_trips) : [];
+
+    // Check 1: Trùng giờ
+    const overlapErr = await checkTripOverlaps(assignedTrips);
+    if (overlapErr) return res.status(400).send(overlapErr);
+
+    // Check 2: Chuyến bị người khác nhận (trừ chính mình ra - req.params.id)
+    const takenErr = await checkAssignmentConflict(assignedTrips, require('../models/Assistant'), 'phụ xe', req.params.id);
+    if (takenErr) return res.status(400).send(takenErr);
+
     const payload = {
-      name: req.body.name,
-      email: req.body.email,
-      phone: req.body.phone,
-      employee_id: req.body.employee_id,
-      license_number: req.body.license_number,
+      name: req.body.name, email: req.body.email, phone: req.body.phone,
+      employee_id: req.body.employee_id, license_number: req.body.license_number,
       experience_years: Number(req.body.experience_years) || 0,
-      status: req.body.status || 'active'
+      status: req.body.status || 'active',
+      assigned_trips: assignedTrips
     };
-    
-    // Cập nhật assigned_routes nếu có
+
     if (req.body.assigned_routes) {
-      const routeIds = Array.isArray(req.body.assigned_routes) 
-        ? req.body.assigned_routes 
-        : [req.body.assigned_routes];
-      payload.assigned_routes = routeIds.filter(id => id);
+        payload.assigned_routes = [].concat(req.body.assigned_routes).filter(Boolean);
     } else {
-      payload.assigned_routes = [];
+        payload.assigned_routes = [];
     }
-    
+
     await Assistant.findByIdAndUpdate(req.params.id, payload);
     res.redirect('/admin/assistants');
-  } catch (err) {
-    console.error('Error updating assistant:', err);
-    res.status(500).send('Lỗi khi cập nhật phụ xe: ' + err.message);
-  }
+  } catch (err) { res.status(500).send(err.message); }
 };
 
 // Xóa assistant
 exports.deleteAssistant = async (req, res) => {
   try {
-    await Assistant.findByIdAndDelete(req.params.id);
+    const assistantId = req.params.id;
+    const assistant = await Assistant.findById(assistantId);
+
+    if (!assistant) {
+        return res.status(404).json({ error: 'Không tìm thấy phụ xe' });
+    }
+
+    const Trip = require('../models/Trip');
+
+    // 1. Kiểm tra ràng buộc theo TUYẾN (assigned_routes)
+    if (assistant.assigned_routes && assistant.assigned_routes.length > 0) {
+         // Nếu phụ xe đang phụ trách tuyến, kiểm tra xem tuyến đó có chuyến nào đang chạy không là quá phức tạp,
+         // Nên đơn giản là chặn xóa nếu vẫn còn gán tuyến.
+         return res.status(400).json({ 
+            error: `Không thể xóa: Phụ xe đang được phân công phụ trách ${assistant.assigned_routes.length} tuyến đường. Vui lòng gỡ bỏ phân công tuyến trước khi xóa.` 
+        });
+    }
+
+    // 2. Kiểm tra ràng buộc theo CHUYẾN LẺ (assigned_trips - nếu có dùng)
+    if (assistant.assigned_trips && assistant.assigned_trips.length > 0) {
+         const activeTripsCount = await Trip.countDocuments({
+            _id: { $in: assistant.assigned_trips },
+            status: { $in: ['scheduled', 'departed'] },
+            start_time: { $gte: new Date() }
+        });
+
+        if (activeTripsCount > 0) {
+            return res.status(400).json({ 
+                error: `Không thể xóa: Phụ xe đang được gán cho ${activeTripsCount} chuyến xe sắp tới.` 
+            });
+        }
+    }
+
+    // 3. Xóa User liên kết (nếu có)
+    if (assistant.userId) {
+        await User.findByIdAndDelete(assistant.userId);
+    }
+
+    // 4. Xóa Assistant
+    await Assistant.findByIdAndDelete(assistantId);
+
     res.json({ success: true, message: 'Đã xóa phụ xe thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -885,7 +974,7 @@ exports.trips = async (req, res) => {
       recurringTrips, 
       singleTrips, 
       stats, 
-      routes,
+      routes, 
       buses,
       filters: { route: route || '', bus: bus || '', status: status || '', direction: direction || '', date_from: date_from || '', date_to: date_to || '' },
       page: 'trips' 
@@ -1351,7 +1440,7 @@ exports.createRecurringTrips = async (req, res) => {
 
     let endDate = endDateStr ? new Date(endDateStr) : new Date(startDate);
     if (!endDateStr) {
-     
+      
       endDate.setDate(endDate.getDate() + 180);
     }
     endDate.setHours(23, 59, 59, 999);
@@ -1404,14 +1493,14 @@ exports.createRecurringTrips = async (req, res) => {
       const dow = d.getDay();
 
       if (frequency === 'daily' || (isWeekly && dows.includes(dow))) {
-       
+        
         for (const timeStr of normalizedTimes) {
           const [hh, mm] = timeStr.split(':');
 
           const start = new Date(d);
           start.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
 
-         
+          
           const existed = await Trip.findOne({
             route: routeId,
             bus: busId,
@@ -1518,7 +1607,7 @@ exports.newDriver = async (req, res) => {
     res.render('admin/driver_form', { 
       driver: null, 
       trips, 
-      routes,
+      routes, 
       buses,
       filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') },
       page: 'drivers' 
@@ -1528,44 +1617,92 @@ exports.newDriver = async (req, res) => {
   }
 };
 
-// 3. Xử lý tạo tài xế (Lưu vào DB)
+// Tạo Tài xế
 exports.createDriver = async (req, res) => {
   try {
-    // A. Tạo tài khoản User trước (để có thể đăng nhập)
+    const assignedTrips = req.body.assigned_trips ? [].concat(req.body.assigned_trips) : [];
+
+    // Lấy dữ liệu cần thiết để render lại form nếu có lỗi
+    // (Copy logic lấy data từ hàm newDriver)
+    const loadFormData = async () => {
+        const { route, bus, date, status } = req.query;
+        const now = new Date();
+        const query = {};
+        query.status = status || 'scheduled';
+        if (route) query.route = route;
+        if (bus) query.bus = bus;
+        if (date) {
+            const day = new Date(date);
+            const startDay = new Date(day); startDay.setHours(0,0,0,0);
+            const endDay = new Date(day); endDay.setHours(23,59,59,999);
+            query.start_time = { $gte: startDay, $lte: endDay };
+        } else {
+            query.start_time = { $gte: now };
+        }
+        const [trips, routes, buses] = await Promise.all([
+            Trip.find(query).populate('route').populate('bus').sort({ start_time: 1 }),
+            Route.find().sort({ origin: 1 }),
+            Bus.find().sort({ license_plate: 1 })
+        ]);
+        return { trips, routes, buses, filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') } };
+    };
+
+    // 1. Check trùng giờ cá nhân
+    const overlapErr = await checkTripOverlaps(assignedTrips);
+    if (overlapErr) {
+        const data = await loadFormData();
+        // Render lại form kèm lỗi
+        return res.render('admin/driver_form', { 
+            driver: req.body, // Giữ lại dữ liệu đã nhập
+            ...data,
+            page: 'drivers',
+            errors: overlapErr // Truyền lỗi xuống view
+        });
+    }
+
+    // 2. Check chuyến đã có người khác nhận
+    const takenErr = await checkAssignmentConflict(assignedTrips, require('../models/Driver'), 'tài xế');
+    if (takenErr) {
+        const data = await loadFormData();
+        return res.render('admin/driver_form', { 
+            driver: req.body,
+            ...data,
+            page: 'drivers',
+            errors: takenErr 
+        });
+    }
+
+    // ... Logic tạo User và Driver giữ nguyên ...
     let user = await User.findOne({ email: req.body.email });
     if (!user) {
         user = await User.create({
-            name: req.body.name,
-            email: req.body.email,
-            phone: req.body.phone,
-            password: '123456', // Mật khẩu mặc định
-            role: 'driver'      // Role là driver
+            name: req.body.name, email: req.body.email, phone: req.body.phone,
+            password: '123456', role: 'driver'
         });
     } else {
-        // Nếu email đã tồn tại, cập nhật role
-        user.role = 'driver';
-        await user.save();
+        user.role = 'driver'; await user.save();
     }
 
-    // B. Tạo hồ sơ Driver
-    const payload = {
+    await Driver.create({
         userId: user._id,
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        license_number: req.body.license_number,
-        experience_years: req.body.experience_years,
-        employee_id: req.body.employee_id,
-        status: 'active',
-        assigned_trips: req.body.assigned_trips || [] // Lưu các chuyến được gán
-    };
+        name: req.body.name, email: req.body.email, phone: req.body.phone,
+        license_number: req.body.license_number, experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id, status: 'active',
+        assigned_trips: assignedTrips
+    });
 
-    await Driver.create(payload);
     res.redirect('/admin/drivers');
 
   } catch (err) {
+    // Nếu lỗi hệ thống khác, cũng render lại form báo lỗi
     console.error(err);
-    res.status(500).send('Lỗi tạo tài xế: ' + err.message);
+    const data = await loadFormData(); // Cần định nghĩa loadFormData ở scope ngoài hoặc copy lại
+    res.render('admin/driver_form', { 
+        driver: req.body, 
+        ...data, 
+        page: 'drivers', 
+        errors: 'Lỗi hệ thống: ' + err.message 
+    });
   }
 };
 
@@ -1597,8 +1734,8 @@ exports.editDriver = async (req, res) => {
 
     res.render('admin/driver_form', { 
       driver, 
-      trips,
-      routes,
+      trips, 
+      routes, 
       buses,
       filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') },
       page: 'drivers' 
@@ -1628,28 +1765,110 @@ exports.cleanupPastTrips = async () => {
 // 5. Cập nhật tài xế
 exports.updateDriver = async (req, res) => {
   try {
-    const payload = {
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        license_number: req.body.license_number,
-        experience_years: req.body.experience_years,
-        employee_id: req.body.employee_id,
-        status: req.body.status,
-        assigned_trips: req.body.assigned_trips || []
+    const assignedTrips = req.body.assigned_trips ? [].concat(req.body.assigned_trips) : [];
+    
+    // Hàm load data để render lại form (tương tự editDriver)
+    const loadFormData = async () => {
+        const { route, bus, date, status } = req.query;
+        const now = new Date();
+        const query = {};
+        query.status = status || 'scheduled';
+        if (route) query.route = route;
+        if (bus) query.bus = bus;
+        if (date) {
+            const day = new Date(date);
+            const startDay = new Date(day); startDay.setHours(0,0,0,0);
+            const endDay = new Date(day); endDay.setHours(23,59,59,999);
+            query.start_time = { $gte: startDay, $lte: endDay };
+        } else {
+            query.start_time = { $gte: now };
+        }
+        const [trips, routes, buses] = await Promise.all([
+            Trip.find(query).populate('route').populate('bus').sort({ start_time: 1 }),
+            Route.find().sort({ origin: 1 }),
+            Bus.find().sort({ license_plate: 1 })
+        ]);
+        return { trips, routes, buses, filters: { route: route || '', bus: bus || '', date: date || '', status: (status || 'scheduled') } };
     };
-    await Driver.findByIdAndUpdate(req.params.id, payload);
+
+    // 1. Check trùng giờ
+    const overlapErr = await checkTripOverlaps(assignedTrips);
+    if (overlapErr) {
+        const data = await loadFormData();
+        // Cần merge _id vào để form biết đang edit ai
+        const driverData = { ...req.body, _id: req.params.id }; 
+        return res.render('admin/driver_form', { 
+            driver: driverData, 
+            ...data,
+            page: 'drivers',
+            errors: overlapErr 
+        });
+    }
+
+    // 2. Check xung đột
+    const takenErr = await checkAssignmentConflict(assignedTrips, require('../models/Driver'), 'tài xế', req.params.id);
+    if (takenErr) {
+        const data = await loadFormData();
+        const driverData = { ...req.body, _id: req.params.id };
+        return res.render('admin/driver_form', { 
+            driver: driverData, 
+            ...data,
+            page: 'drivers',
+            errors: takenErr 
+        });
+    }
+
+    // Update
+    await Driver.findByIdAndUpdate(req.params.id, {
+        name: req.body.name, email: req.body.email, phone: req.body.phone,
+        license_number: req.body.license_number, experience_years: req.body.experience_years,
+        employee_id: req.body.employee_id, status: req.body.status,
+        assigned_trips: assignedTrips
+    });
+
     res.redirect('/admin/drivers');
   } catch (err) {
-    res.status(500).send(err.message);
+    console.error(err);
+    res.status(500).send(err.message); // Hoặc render lại form như trên
   }
 };
 
 // 6. Xóa tài xế
 exports.deleteDriver = async (req, res) => {
   try {
-    await Driver.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
+    const driverId = req.params.id;
+    const driver = await Driver.findById(driverId);
+    
+    if (!driver) {
+        return res.status(404).json({ error: 'Không tìm thấy tài xế' });
+    }
+
+    // 1. Kiểm tra ràng buộc: Tài xế có đang được gán cho chuyến nào SẮP CHẠY hoặc ĐANG CHẠY không?
+    if (driver.assigned_trips && driver.assigned_trips.length > 0) {
+        const Trip = require('../models/Trip');
+        const activeTripsCount = await Trip.countDocuments({
+            _id: { $in: driver.assigned_trips },
+            status: { $in: ['scheduled', 'departed'] }, // Chỉ quan tâm chuyến chưa hoàn thành
+            start_time: { $gte: new Date() } // Và thời gian là tương lai
+        });
+
+        if (activeTripsCount > 0) {
+            return res.status(400).json({ 
+                error: `Không thể xóa: Tài xế này đang được gán cho ${activeTripsCount} chuyến xe sắp tới. Vui lòng gỡ tài xế khỏi các chuyến đó trước.` 
+            });
+        }
+    }
+
+    // 2. Xóa User liên kết (nếu muốn dọn sạch sẽ)
+    if (driver.userId) {
+        await User.findByIdAndDelete(driver.userId);
+    }
+
+    // 3. Xóa Driver
+    await Driver.findByIdAndDelete(driverId);
+    
+    res.json({ success: true, message: 'Đã xóa tài xế và tài khoản liên quan thành công.' });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

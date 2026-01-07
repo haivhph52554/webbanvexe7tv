@@ -38,7 +38,11 @@
 <body>
   <div class="container">
     <h2><%= assistant ? 'Sửa thông tin phụ xe' : 'Thêm phụ xe mới' %></h2>
-    
+    <% if (typeof errors !== 'undefined' && errors) { %>
+      <div style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #fecaca; background: #fee2e2; color: #991b1b; border-radius: 8px; font-weight: 500;">
+        ⚠️ <%= errors %>
+      </div>
+    <% } %>
     <form id="assistantForm" method="post" action="<%= assistant ? ('/admin/assistants/' + assistant._id) : '/admin/assistants' %>">
       
       <div class="form-group">
