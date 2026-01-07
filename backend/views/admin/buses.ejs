@@ -506,18 +506,21 @@
     
     <script>
         async function deleteBus(id) {
-            if (!confirm('Bạn có chắc muốn xóa xe buýt này?')) return;
-            try {
-                const response = await fetch(`/admin/buses/${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('Đã xóa xe buýt thành công');
-                    location.reload();
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
+        if (!confirm('Bạn có chắc muốn xóa xe buýt này?')) return;
+        try {
+            const response = await fetch(`/admin/buses/${id}`, { method: 'DELETE' });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể xóa xe buýt'));
             }
+        } catch (error) {
+            alert('Lỗi: ' + error.message);
         }
+    }
     </script>
 </body>
 </html>

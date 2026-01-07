@@ -327,13 +327,38 @@ exports.deleteBooking = async (req, res) => {
   }
 };
 
-// API endpoint để xóa trip
 exports.deleteTrip = async (req, res) => {
   try {
-    await Trip.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Đã xóa chuyến xe thành công' });
+    const tripId = req.params.id;
+
+    // Kiểm tra vé chưa hủy (Pending, Paid, Completed)
+    const activeBookingsCount = await Booking.countDocuments({
+      trip: tripId,
+      status: { $in: ['pending', 'paid', 'completed'] }
+    });
+
+    if (activeBookingsCount > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Không thể xóa: Chuyến này đang có ${activeBookingsCount} vé chưa hủy. Vui lòng hủy các vé này trước khi xóa chuyến.` 
+      });
+    }
+
+    const trip = await Trip.findById(tripId);
+    if (!trip) {
+      return res.status(404).json({ success: false, error: 'Chuyến xe không tồn tại' });
+    }
+
+    // Xóa rác dữ liệu (trạng thái ghế)
+    await TripSeatStatus.deleteMany({ trip: tripId });
+
+    // Xóa chuyến
+    await Trip.findByIdAndDelete(tripId);
+
+    res.json({ success: true, message: 'Đã xóa chuyến xe và dữ liệu ghế liên quan thành công.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error deleting trip:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -1046,7 +1071,24 @@ exports.deleteUser = async (req, res) => {
 
 exports.deleteBus = async (req, res) => {
   try {
-    await Bus.findByIdAndDelete(req.params.id);
+    const busId = req.params.id;
+
+    // Kiểm tra xe có đang được dùng trong chuyến nào không
+    const tripsUsingBus = await Trip.countDocuments({ bus: busId });
+
+    if (tripsUsingBus > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Không thể xóa: Xe này đang được gán cho ${tripsUsingBus} chuyến xe. Hãy tắt trạng thái 'Hoạt động' thay vì xóa.` 
+      });
+    }
+
+    await Bus.findByIdAndDelete(busId);
+    
+    // Gỡ xe khỏi lịch lặp (nếu có)
+    const RecurringSchedule = require('../models/RecurringSchedule');
+    await RecurringSchedule.updateMany({ bus: busId }, { $unset: { bus: "" }, active: false });
+
     res.json({ success: true, message: 'Đã xóa xe buýt thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1055,8 +1097,34 @@ exports.deleteBus = async (req, res) => {
 
 exports.deleteRoute = async (req, res) => {
   try {
-    await Route.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Đã xóa tuyến đường thành công' });
+    const routeId = req.params.id;
+
+    // Kiểm tra xem tuyến có chuyến đang chạy không
+    const tripsOnRoute = await Trip.countDocuments({ route: routeId });
+
+    if (tripsOnRoute > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Không thể xóa: Tuyến đường này đang có ${tripsOnRoute} chuyến xe liên quan. Hãy tắt trạng thái 'Hoạt động' thay vì xóa.` 
+      });
+    }
+
+    // Kiểm tra lịch lặp
+    const RecurringSchedule = require('../models/RecurringSchedule');
+    const schedules = await RecurringSchedule.countDocuments({ route: routeId });
+    if (schedules > 0) {
+        return res.status(400).json({
+            success: false,
+            error: `Không thể xóa: Tuyến đường này đang được dùng trong ${schedules} lịch chạy cố định.`
+        });
+    }
+
+    // Xóa Tuyến và Điểm dừng liên quan
+    const RouteStop = require('../models/RouteStop');
+    await RouteStop.deleteMany({ route: routeId });
+    await Route.findByIdAndDelete(routeId);
+
+    res.json({ success: true, message: 'Đã xóa tuyến đường và các điểm dừng liên quan thành công' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

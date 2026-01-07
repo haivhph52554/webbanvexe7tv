@@ -129,23 +129,38 @@ const BookingDetail: React.FC = () => {
         if (!mounted) return;
         
         // Filter and sort trips
+        // [SỬA TRONG BookingDetail.tsx - Khoảng dòng 2646]
+
+        // Filter and sort trips
         const filtered = data
           .filter(t => {
-            // Filter by Route ID
             const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
             const matchRoute = tid === routeId;
             
-            // Filter by Date if present
+            // --- [CODE MỚI SỬA] ---
             let matchDate = true;
+            const d = new Date(t.start_time); // Lấy giờ chuyến đi
+            
             if (dateParam) {
-               const tripDate = new Date(t.start_time).toISOString().split('T')[0];
+               // 1. Fix lỗi lệch ngày: So sánh theo giờ địa phương (Local Time)
+               // Tạo chuỗi YYYY-MM-DD theo giờ máy tính của khách
+               const year = d.getFullYear();
+               const month = String(d.getMonth() + 1).padStart(2, '0');
+               const day = String(d.getDate()).padStart(2, '0');
+               const tripDate = `${year}-${month}-${day}`;
+               
                matchDate = tripDate === dateParam;
+            } else {
+               // 2. Fix lỗi hiện năm 2025: Nếu không chọn ngày, chỉ hiện chuyến TƯƠNG LAI
+               const now = new Date();
+               now.setHours(0, 0, 0, 0); // Reset về đầu ngày hôm nay
+               matchDate = d >= now; 
             }
+            // ----------------------
 
             return matchRoute && matchDate;
           })
           .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-
         // Only update state if data has actually changed
         setAllTrips(prev => {
           if (prev.length === filtered.length && 
@@ -400,7 +415,7 @@ const fmtDateTime = (iso?: string | null) => {
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600">Chọn chuyến:</span>
-             <select
+   <select
   className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
   value={selectedTrip?._id || ''}
   onChange={(e) => {
@@ -410,11 +425,15 @@ const fmtDateTime = (iso?: string | null) => {
 >
   {allTrips.map(t => {
     const d = new Date(t.start_time);
-    const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+    
+    // --- [CODE MỚI SỬA] ---
+    // Hiển thị đầy đủ Ngày/Tháng/Năm để tránh nhầm lẫn 2025/2026
+    const dateStr = d.toLocaleDateString('vi-VN'); // Kết quả ví dụ: 08/01/2026
+    // ----------------------
+
     return (
       <option key={t._id} value={t._id}>
-        {fmtTime(t.start_time)} — {fmtTime(t.end_time || undefined)}
-        {!dateParam && ` (${dateStr})`}
+        {fmtTime(t.start_time)} — {fmtTime(t.end_time || undefined)} ({dateStr})
       </option>
     );
   })}

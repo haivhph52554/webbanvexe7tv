@@ -506,18 +506,21 @@
     
     <script>
         async function deleteRoute(id) {
-            if (!confirm('Bạn có chắc muốn xóa tuyến đường này?')) return;
-            try {
-                const response = await fetch(`/admin/routes/${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('Đã xóa tuyến đường thành công');
-                    location.reload();
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
+        if (!confirm('Bạn có chắc muốn xóa tuyến đường này?')) return;
+        try {
+            const response = await fetch(`/admin/routes/${id}`, { method: 'DELETE' });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data.error || 'Không thể xóa tuyến đường'));
             }
+        } catch (error) {
+            alert('Lỗi: ' + error.message);
         }
+    }
     </script>
 </body>
 </html>

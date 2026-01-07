@@ -702,6 +702,27 @@ if (new Date(date) < new Date().setHours(0,0,0,0)) {
     alert('Lỗi: ' + err.message);
   }
 }
+
+async function deleteTrip(id) {
+    if (!confirm('Bạn có chắc muốn xóa chuyến xe này?')) return;
+    try {
+        // Gọi API xóa (đã được update logic chặn xóa ở backend)
+        const response = await fetch(`/admin/trips/${id}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            // Hiện thông báo lỗi từ server (ví dụ: Chuyến đang có vé...)
+            alert('Lỗi: ' + (data.error || 'Không thể xóa chuyến xe')); 
+        }
+    } catch (error) {
+        alert('Lỗi kết nối: ' + error.message);
+    }
+}
 </script>
 
 </body>
