@@ -1,24 +1,14 @@
-// ...existing code...
 const express = require('express');
 const router = express.Router();
 const assistantController = require('../controllers/assistantController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
-// đảm bảo authMiddleware là middleware function trước khi dùng
-if (typeof authMiddleware === 'function') {
-  router.use(authMiddleware);
-} else if (authMiddleware && typeof authMiddleware.authenticate === 'function') {
-  router.use(authMiddleware.authenticate);
-} else if (authMiddleware && typeof authMiddleware.verifyToken === 'function') {
-  router.use(authMiddleware.verifyToken);
-} // nếu không tìm thấy function thì không đăng ký middleware (hoặc sửa middleware file)
+// Các route này yêu cầu đăng nhập và phải là role 'assistant'
+router.use(protect);
+router.use(authorize('assistant'));
 
-// routes (tất cả yêu cầu xác thực nếu middleware được đăng ký)
-router.get('/info', assistantController.getAssistantInfo);
-router.get('/passengers', assistantController.getPassengerList);
+router.get('/my-trips', assistantController.getMyTrips);
+router.get('/trip/:tripId/passengers', assistantController.getTripPassengers);
 router.post('/checkin', assistantController.checkInPassenger);
-router.post('/report-seat', assistantController.reportSeatIssue);
-router.post('/end-trip', assistantController.endTrip);
-router.put('/rating', assistantController.updateRating);
 
 module.exports = router;

@@ -134,7 +134,14 @@
 					<div class="help-text">Chọn các chuyến mà tài xế này sẽ phụ trách (tuỳ chọn).</div>
 				<div class="trips-grid">
 					<% trips.forEach(function(trip) { 
-							const isAssigned = driver && driver.assigned_trips && driver.assigned_trips.some(t => {
+							let assigned = (driver && driver.assigned_trips) ? driver.assigned_trips : [];
+							
+							// Nếu dữ liệu là chuỗi (do chọn 1 cái), ép thành mảng
+							if (!Array.isArray(assigned)) {
+								assigned = [assigned];
+							}
+
+							const isAssigned = assigned.some(t => {
 								const tid = typeof t === 'object' ? (t._id ? t._id.toString() : '') : t.toString();
 								return tid === trip._id.toString();
 							});
@@ -145,11 +152,11 @@
 									<%= (trip.route && (trip.route.from_city || trip.route.origin) ? (trip.route.from_city || trip.route.origin) : '---') %> → 
 									<%= (trip.route && (trip.route.to_city || trip.route.destination) ? (trip.route.to_city || trip.route.destination) : '---') %>
 									<span style="color:#6b7280;font-size:0.85rem;display:block;margin-top:0.25rem;">
-										<%= trip.start_time ? (new Date(trip.start_time)).toLocaleString() : 'Thời gian chưa đặt' %>
+										<%= trip.start_time ? (new Date(trip.start_time)).toLocaleString('vi-VN') : 'Thời gian chưa đặt' %>
 										<% if (trip.bus && trip.bus.license_plate) { %> · <%= trip.bus.license_plate %> <% } %>
 									</span>
 								</label>
-					</div>
+							</div>
 					<% }); %>
 				</div>
 				<% if (!trips || trips.length === 0) { %>

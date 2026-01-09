@@ -12,6 +12,7 @@ import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import './App.css';
+import AssistantPage from './components/AssistantPage';
 
 // 1. Thêm isLoading vào Context Type
 interface AuthContextType {
@@ -183,6 +184,14 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             /> */}
+            <Route
+              path="/assistant"
+              element={
+                <ProtectedRoute allowedRoles={['assistant']}>
+                  <AssistantPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </div>
       </Router>

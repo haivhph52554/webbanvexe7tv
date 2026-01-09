@@ -171,7 +171,7 @@ app.get('/public/contacts/:id/mark-replied', async (req, res) => {
 app.use('/admin', adminRoutes);
 
 // static / health
-app.get('/', (req, res) => res.send('BaseVeXe backend running'));
+app.get('/', (req, res) => res.redirect('/admin/login'));
 
 // error handler (basic)
 app.use((err, req, res, next) => {

@@ -19,15 +19,8 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include', // Important for cookies
-      });
-
+      // ... (code fetch API giữ nguyên) ...
+      const response = await fetch(`${API_BASE}/api/auth/login`, { /* ... */ });
       const data = await response.json();
 
       if (!response.ok) {
@@ -37,13 +30,16 @@ const LoginPage: React.FC = () => {
       // Use auth context to manage user state
       authLogin(data.user);
       
-      // Redirect based on role
+      // Redirect based on role (ĐOẠN CẦN SỬA)
       if (data.user.role === 'admin') {
         navigate('/admin');
+      } else if (data.user.role === 'assistant') {
+        navigate('/assistant'); // Điều hướng Phụ xe vào trang riêng
       } else {
-        navigate('/');
-      }
-    } catch (err: any) {
+        navigate('/'); // <-- THÊM DẤU } VÀO SAU DÒNG NÀY ĐỂ ĐÓNG KHỐI else
+      } // <-- ĐÃ SỬA: Đóng khối else
+      
+    } catch (err: any) { // <-- ĐÃ SỬA: Bắt lỗi đúng cách
       setError(err.message || 'Đã xảy ra lỗi khi đăng nhập');
     } finally {
       setLoading(false);

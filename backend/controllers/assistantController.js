@@ -1,139 +1,95 @@
+// backend/controllers/assistantController.js
 const Assistant = require('../models/Assistant');
-const Ticket = require('../models/Ticket');
-const Checkin = require('../models/Checkin');
+const Booking = require('../models/Booking');
 const Trip = require('../models/Trip');
-const TripSeatStatus = require('../models/TripSeatStatus');
+const Checkin = require('../models/Checkin');
 
-exports.getAssistantInfo = async (req, res) => {
+// 1. Lấy danh sách chuyến xe được phân công cho Phụ xe đang đăng nhập
+exports.getMyTrips = async (req, res) => {
   try {
-    const assistant = await Assistant.findOne({ userId: req.user.id })
-      .populate('userId', 'name phone email role')
-      .populate('busId')
-      .populate('currentTrip');
-
-    if (!assistant) return res.status(404).json({ message: 'Không tìm thấy lơ xe' });
-    res.json(assistant);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-exports.getPassengerList = async (req, res) => {
-  try {
-    const assistant = await Assistant.findOne({ userId: req.user.id });
-    if (!assistant || !assistant.currentTrip) {
-      return res.status(400).json({ message: 'Không có chuyến hiện tại' });
+    // Tìm phụ xe dựa trên userId (lấy từ token đăng nhập)
+    const assistant = await Assistant.findOne({ userId: req.user._id });
+    if (!assistant) {
+      return res.status(404).json({ message: 'Không tìm thấy thông tin phụ xe' });
     }
 
-    const tickets = await Ticket.find({ tripId: assistant.currentTrip })
-      .populate('userId', 'name phone email')
-      .populate('seatId');
+    // Lấy các chuyến trong assigned_trips
+    // (Nếu muốn lấy cả từ assigned_routes thì cần logic phức tạp hơn, tạm thời lấy trips trực tiếp)
+    const trips = await Trip.find({
+      _id: { $in: assistant.assigned_trips },
+      // Chỉ lấy chuyến chưa hoàn thành hoặc vừa hoàn thành gần đây
+      status: { $in: ['scheduled', 'departed'] } 
+    })
+    .populate('route')
+    .populate('bus')
+    .sort({ start_time: 1 });
 
-    res.json(tickets);
+    res.json(trips);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
+// 2. Lấy danh sách hành khách (Bookings) của một chuyến cụ thể
+exports.getTripPassengers = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    
+    // Lấy tất cả booking đã thanh toán của chuyến này
+    const bookings = await Booking.find({ 
+      trip: tripId,
+      status: { $in: ['paid', 'completed'] } // Chỉ hiện vé đã thanh toán
+    })
+    .populate('user', 'name phone email') // Thông tin người đặt
+    .sort({ 'seat_numbers': 1 });
+
+    // Lấy thông tin check-in hiện tại
+    const bookingIds = bookings.map(b => b._id);
+    const checkins = await Checkin.find({ booking: { $in: bookingIds } });
+
+    // Ghép thông tin checkin vào booking để trả về FE
+    const result = bookings.map(booking => {
+      const checkinInfo = checkins.find(c => c.booking.toString() === booking._id.toString());
+      return {
+        ...booking.toObject(),
+        checkinStatus: checkinInfo ? checkinInfo.status : null // null, 'checked_in', 'no_show', ...
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 3. Điểm danh hành khách
 exports.checkInPassenger = async (req, res) => {
   try {
-    const { ticketId } = req.body;
-    if (!ticketId) return res.status(400).json({ message: 'ticketId là bắt buộc' });
+    const { bookingId, status } = req.body; // status: 'checked_in', 'checked_out', 'no_show'
+    const assistantUser = await Assistant.findOne({ userId: req.user._id });
 
-    const assistant = await Assistant.findOne({ userId: req.user.id });
-    if (!assistant) return res.status(404).json({ message: 'Không tìm thấy lơ xe' });
-
-    const ticket = await Ticket.findById(ticketId);
-    if (!ticket) return res.status(404).json({ message: 'Không tìm thấy vé' });
-
-    // Kiểm tra vé thuộc chuyến hiện tại
-    if (assistant.currentTrip && ticket.tripId.toString() !== assistant.currentTrip.toString()) {
-      return res.status(400).json({ message: 'Vé không thuộc chuyến hiện tại' });
+    if (!['checked_in', 'checked_out', 'no_show'].includes(status)) {
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
-    // Tạo bản ghi checkin
-    const checkin = new Checkin({
-      ticketId: ticket._id,
-      assistantId: assistant._id,
-      checkedInTime: new Date(),
-      status: 'checked_in'
-    });
-    await checkin.save();
+    // Tìm hoặc tạo mới bản ghi Checkin
+    let checkin = await Checkin.findOne({ booking: bookingId });
+    
+    if (checkin) {
+      checkin.status = status;
+      checkin.assistant = assistantUser._id;
+      checkin.checkin_time = new Date();
+      await checkin.save();
+    } else {
+      checkin = await Checkin.create({
+        booking: bookingId,
+        assistant: assistantUser._id,
+        status: status,
+        checkin_time: new Date()
+      });
+    }
 
-    // Cập nhật vé và danh sách checkIn của assistant
-    ticket.status = 'checked_in';
-    await ticket.save();
-
-    assistant.checkInList.push({
-      passengerId: ticket.userId,
-      ticketId: ticket._id,
-      checkedIn: true,
-      checkedInTime: new Date()
-    });
-    await assistant.save();
-
-    res.json({ message: 'Check-in thành công', checkin });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-exports.reportSeatIssue = async (req, res) => {
-  try {
-    const { seatStatusId, issue } = req.body;
-    if (!seatStatusId || !issue) return res.status(400).json({ message: 'seatStatusId và issue là bắt buộc' });
-
-    const assistant = await Assistant.findOne({ userId: req.user.id });
-    if (!assistant) return res.status(404).json({ message: 'Không tìm thấy lơ xe' });
-
-    const updated = await TripSeatStatus.findByIdAndUpdate(
-      seatStatusId,
-      { status: 'broken', issue },
-      { new: true }
-    );
-
-    if (!updated) return res.status(404).json({ message: 'Không tìm thấy trạng thái ghế' });
-    res.json({ message: 'Báo cáo sự cố thành công', seat: updated });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-exports.endTrip = async (req, res) => {
-  try {
-    const { tripId, notes } = req.body;
-    if (!tripId) return res.status(400).json({ message: 'tripId là bắt buộc' });
-
-    const assistant = await Assistant.findOne({ userId: req.user.id });
-    if (!assistant) return res.status(404).json({ message: 'Không tìm thấy lơ xe' });
-
-    const trip = await Trip.findByIdAndUpdate(tripId, { status: 'completed', assistantNotes: notes }, { new: true });
-    if (!trip) return res.status(404).json({ message: 'Không tìm thấy chuyến' });
-
-    assistant.currentTrip = null;
-    assistant.status = 'available';
-    assistant.totalTrips = (assistant.totalTrips || 0) + 1;
-    await assistant.save();
-
-    res.json({ message: 'Kết thúc chuyến thành công', trip });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-exports.updateRating = async (req, res) => {
-  try {
-    const { rating } = req.body;
-    if (typeof rating !== 'number') return res.status(400).json({ message: 'rating phải là số' });
-
-    const assistant = await Assistant.findOne({ userId: req.user.id });
-    if (!assistant) return res.status(404).json({ message: 'Không tìm thấy lơ xe' });
-
-    // Cập nhật trung bình đơn giản
-    assistant.rating = (assistant.rating + rating) / 2;
-    await assistant.save();
-
-    res.json({ message: 'Cập nhật đánh giá thành công', assistant });
+    res.json({ success: true, message: 'Cập nhật điểm danh thành công', data: checkin });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
