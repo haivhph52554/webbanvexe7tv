@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../App';
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
+// SỬA: Đặt mặc định là http://localhost:5000 nếu không có biến môi trường
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,28 +20,43 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // ... (code fetch API giữ nguyên) ...
-      const response = await fetch(`${API_BASE}/api/auth/login`, { /* ... */ });
+      // Gọi API đăng nhập
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include', // Quan trọng để nhận cookie token
+      });
+
+      // Kiểm tra nếu response không phải JSON (tránh lỗi Unexpected token <)
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server trả về lỗi không xác định (HTML). Vui lòng kiểm tra Backend (Port 5000) đang chạy chưa.");
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || 'Đăng nhập thất bại');
       }
 
-      // Use auth context to manage user state
+      // Lưu thông tin user vào context
       authLogin(data.user);
       
-      // Redirect based on role (ĐOẠN CẦN SỬA)
+      // Điều hướng dựa trên role (Logic bạn đã thêm)
       if (data.user.role === 'admin') {
         navigate('/admin');
       } else if (data.user.role === 'assistant') {
-        navigate('/assistant'); // Điều hướng Phụ xe vào trang riêng
+        navigate('/assistant');
       } else {
-        navigate('/'); // <-- THÊM DẤU } VÀO SAU DÒNG NÀY ĐỂ ĐÓNG KHỐI else
-      } // <-- ĐÃ SỬA: Đóng khối else
-      
-    } catch (err: any) { // <-- ĐÃ SỬA: Bắt lỗi đúng cách
-      setError(err.message || 'Đã xảy ra lỗi khi đăng nhập');
+        navigate('/');
+      }
+
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      setError(err.message || 'Đã xảy ra lỗi kết nối');
     } finally {
       setLoading(false);
     }
@@ -89,9 +105,7 @@ const LoginPage: React.FC = () => {
 
             <div className="rounded-md shadow-sm -space-y-px">
               <div>
-                <label htmlFor="email" className="sr-only">
-                  Email
-                </label>
+                <label htmlFor="email" className="sr-only">Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-gray-400" />
@@ -110,9 +124,7 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label htmlFor="password" className="sr-only">
-                  Mật khẩu
-                </label>
+                <label htmlFor="password" className="sr-only">Mật khẩu</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-5 w-5 text-gray-400" />
@@ -134,11 +146,7 @@ const LoginPage: React.FC = () => {
 
             <div className="flex items-center justify-between">
               <div className="text-sm">
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="font-medium text-blue-600 hover:text-blue-500"
-                >
+                <button type="button" onClick={() => navigate('/forgot-password')} className="font-medium text-blue-600 hover:text-blue-500">
                   Quên mật khẩu?
                 </button>
               </div>
@@ -149,9 +157,7 @@ const LoginPage: React.FC = () => {
                 type="submit"
                 disabled={loading}
                 className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                  loading
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                 }`}
               >
                 {loading ? 'Đang xử lý...' : 'Đăng nhập'}
