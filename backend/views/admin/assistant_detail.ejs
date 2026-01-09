@@ -479,53 +479,41 @@
                                 <th>Chuyến</th>
                                 <th>Thời gian</th>
                                 <th>Trạng thái</th>
-                                <th>Hành động</th>
                                 </tr>
                         </thead>
                         <tbody>
-                            <% allBookings.forEach(function(item) { %>
-                                <tr>
-                                    <td>
-                                        <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'Không có') %></strong><br>
-                                        <small style="color: var(--gray);">
-                                            <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'Không có' %>
-                                    </td>
-                                    <td>
-                                        <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'Không có' %>
-                                    </td>
-                                    <td>
-                                        <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <% if (item.checkin && item.checkin.status === 'checked_in') { %>
-                                            <span class="badge badge-success">✅ Đã lên xe</span>
-                                            <br><small><%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
-                                        <% } else if (item.checkin && item.checkin.status === 'checked_out') { %>
-                                            <span class="badge badge-info">⬇️ Đã xuống xe</span>
-                                            <br><small><%= item.checkin.checkout_time ? new Date(item.checkin.checkout_time).toLocaleTimeString('vi-VN') : '' %></small>
-                                        <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
-                                            <span class="badge badge-danger">❌ Vắng mặt</span>
-                                        <% } else { %>
-                                            <span class="badge badge-warning">⏳ Chưa đón</span>
-                                        <% } %>
-                                    </td>
-                                    <td>
-                                        <% if (!item.checkin) { %>
-                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_in')">Đã lên xe</button>
-                                            <button class="btn btn-secondary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','no_show')">Vắng mặt</button>
-                                        <% } else if (item.checkin.status === 'checked_in') { %>
-                                            <button class="btn btn-primary" onclick="checkinPassenger('<%= assistant._id %>','<%= item.booking._id %>','checked_out')">Đánh dấu xuống xe</button>
-                                        <% } else { %>
-                                            
-                                        <% } %>
-                                    </td>
-                                </tr>
-                            <% }); %>
-                        </tbody>
+                        <% allBookings.forEach(function(item) { %>
+                            <tr>
+                                <td>
+                                    <strong><%= item.booking.passenger ? item.booking.passenger.name : (item.booking.user ? item.booking.user.name : 'Không có') %></strong><br>
+                                    <small style="color: var(--gray);">
+                                        <%= item.booking.passenger ? item.booking.passenger.phone : (item.booking.user ? item.booking.user.phone : '') %>
+                                    </small>
+                                </td>
+                                <td>
+                                    <%= item.booking.seat_numbers ? item.booking.seat_numbers.join(', ') : 'Không có' %>
+                                </td>
+                                <td>
+                                    <%= item.trip.route ? (item.trip.route.origin || item.trip.route.from_city) + ' → ' + (item.trip.route.destination || item.trip.route.to_city) : 'Không có' %>
+                                </td>
+                                <td>
+                                    <%= new Date(item.booking.start_time).toLocaleString('vi-VN') %>
+                                </td>
+                                <td style="text-align: center;">
+                                    <% if (item.checkin && item.checkin.status === 'checked_in') { %>
+                                        <span class="badge badge-success">✅ Đã lên xe</span>
+                                        <br><small>Lúc: <%= new Date(item.checkin.checkin_time).toLocaleTimeString('vi-VN') %></small>
+                                    <% } else if (item.checkin && item.checkin.status === 'checked_out') { %>
+                                        <span class="badge badge-info">⬇️ Đã xuống xe</span>
+                                    <% } else if (item.checkin && item.checkin.status === 'no_show') { %>
+                                        <span class="badge badge-danger">❌ Vắng mặt</span>
+                                    <% } else { %>
+                                        <span class="badge badge-warning" style="background: #f1f5f9; color: #64748b;">⏳ Chờ Phụ xe check</span>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
                     </table>
                 </div>
                 </div>
@@ -581,39 +569,3 @@
             <% } %>
         </main>
     </div>
-    
-    <script>
-        async function checkinPassenger(assistantId, bookingId, status) {
-            if (!confirm(status === 'checked_in' ? 'Xác nhận hành khách đã lên xe?' : 'Xác nhận hành khách không đến?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/admin/assistants/${assistantId}/checkin`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        bookingId: bookingId,
-                        status: status
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(data.message);
-                    location.reload(); // Reload để cập nhật trạng thái
-                } else {
-                    alert('Lỗi: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Có lỗi xảy ra khi check-in');
-            }
-        }
-    </script>
-</body>
-</html>
-
