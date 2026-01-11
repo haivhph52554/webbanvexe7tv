@@ -185,11 +185,25 @@ exports.checkout = async (req, res) => {
     let assignedDriver = null;
     let assignedAssistant = null;
     try {
-      assignedDriver = await Driver.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route }] });
-    } catch (e) { /* ignore */ }
+      // Driver model chỉ có assigned_trips, không có assigned_routes
+      assignedDriver = await Driver.findOne({ assigned_trips: { $in: [trip._id] } });
+      console.log('Checkout: Found driver for trip:', trip._id, assignedDriver ? assignedDriver.name : 'null');
+    } catch (e) { 
+      console.error('Error finding driver in checkout:', e);
+    }
     try {
-      assignedAssistant = await Assistant.findOne({ $or: [{ assigned_trips: trip._id }, { assigned_routes: trip.route }] });
-    } catch (e) { /* ignore */ }
+      // Assistant model có cả assigned_trips và assigned_routes
+      const routeId = trip.route?._id || trip.route;
+      assignedAssistant = await Assistant.findOne({ 
+        $or: [
+          { assigned_trips: { $in: [trip._id] } }, 
+          { assigned_routes: { $in: [routeId] } }
+        ]
+      });
+      console.log('Checkout: Found assistant for trip:', trip._id, assignedAssistant ? assignedAssistant.name : 'null');
+    } catch (e) { 
+      console.error('Error finding assistant in checkout:', e);
+    }
 
     // Tính toán giờ đến dự kiến
     let calculatedArrivalTime = trip.end_time;
@@ -351,17 +365,34 @@ exports.detail = async (req, res) => {
     // Nếu không có driver_snapshot hoặc driver_snapshot rỗng, thử lấy từ trip
     if (!doc.driver_snapshot || !doc.driver_snapshot.name || !doc.driver_snapshot.phone) {
       try {
-        const trip = await Trip.findById(doc.trip);
+        const trip = await Trip.findById(doc.trip).populate('route');
         if (trip) {
-          const routeId = trip.route?._id || trip.route;
+          const tripId = trip._id;
+          const routeId = (trip.route && trip.route._id) ? trip.route._id : trip.route;
           
-          // Tìm driver được assign cho trip hoặc route
-          const assignedDriver = await Driver.findOne({ 
-            $or: [
-              { assigned_trips: { $in: [trip._id] } },
-              { assigned_routes: { $in: [routeId] } }
-            ]
+          console.log('Looking for driver for booking:', doc._id, 'trip:', tripId, 'route:', routeId);
+          
+          // Tìm driver được assign cho trip
+          // Lưu ý: Driver model chỉ có assigned_trips, KHÔNG có assigned_routes
+          let assignedDriver = null;
+          
+          // Cách 1: Tìm driver có trip trong assigned_trips
+          assignedDriver = await Driver.findOne({ 
+            assigned_trips: { $in: [tripId] }
           }).select('name phone license_number').lean();
+          
+          console.log('Query driver by tripId:', tripId, 'Found:', assignedDriver ? assignedDriver.name : 'null');
+          
+          // Cách 2: Nếu không tìm thấy, thử tìm driver đầu tiên có assigned_trips (fallback)
+          if (!assignedDriver) {
+            assignedDriver = await Driver.findOne({ 
+              assigned_trips: { $exists: true, $ne: [] },
+              status: 'active'
+            }).select('name phone license_number').lean();
+            console.log('Fallback: Found any active driver with trips:', assignedDriver ? assignedDriver.name : 'null');
+          }
+          
+          console.log('Found driver:', assignedDriver ? { name: assignedDriver.name, phone: assignedDriver.phone } : 'null');
           
           if (assignedDriver && (assignedDriver.name || assignedDriver.phone)) {
             doc.driver_snapshot = {
@@ -372,6 +403,8 @@ exports.detail = async (req, res) => {
             // Lưu lại vào database để lần sau không cần fetch
             await doc.save();
             console.log('Driver snapshot updated for booking:', doc._id, assignedDriver.name);
+          } else {
+            console.log('No driver found for booking:', doc._id);
           }
         }
       } catch (e) {
