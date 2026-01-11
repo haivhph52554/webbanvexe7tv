@@ -117,8 +117,8 @@ const Booking = require('./models/Booking');
     });
 
     await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Thái Nguyên', order: 1, type: 'pickup' });
-    await RouteStop.create({ route: route1._id, stop_name: 'Cầu Nhật Tân', order: 2, type: 'both' });
-    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Mỹ Đình', order: 3, type: 'dropoff' });
+    // Middle stop removed for this route; keep only start and end
+    await RouteStop.create({ route: route1._id, stop_name: 'Bến xe Mỹ Đình', order: 2, type: 'dropoff' });
 
     // Route 2: Hà Nội - Sài Gòn
     const route2 = await Route.create({ 
@@ -131,8 +131,8 @@ const Booking = require('./models/Booking');
     });
 
     await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Mỹ Đình', order: 1, type: 'pickup' });
-    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Vinh', order: 2, type: 'both' });
-    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Nước Ngầm', order: 3, type: 'dropoff' });
+    // Bến xe Vinh removed — keep only start and end
+    await RouteStop.create({ route: route2._id, stop_name: 'Bến xe Nước Ngầm', order: 2, type: 'dropoff' });
 
     // Route 3: Hà Nội - Đà Nẵng
     const route3 = await Route.create({ 
