@@ -9,6 +9,13 @@ const TripSeatStatus = require('../models/TripSeatStatus');
 const RouteStop = require('../models/RouteStop');
 const { sendBookingConfirmationEmail } = require('../utils/mailer');
 
+// Cấu hình đơn giản cho mã giảm giá người dùng mới
+const NEW_USER_VOUCHER = {
+  code: (process.env.NEW_USER_VOUCHER_CODE || 'NEWUSER').toUpperCase(),
+  discountPercent: Number(process.env.NEW_USER_VOUCHER_PERCENT || 20), // giảm 20%
+  maxDiscount: Number(process.env.NEW_USER_VOUCHER_MAX || 50000)      // tối đa 50k
+};
+
 const normalizeToNumber = (v) => {
   const num = parseInt(String(v).replace(/\D/g, ''), 10);
   return Number.isNaN(num) ? null : num;
@@ -19,7 +26,7 @@ exports.checkout = async (req, res) => {
   // const session = await mongoose.startSession(); 
   
   try {
-    const { tripId, seatNumbers, passenger, paymentMethod, amount, stops } = req.body;
+    const { tripId, seatNumbers, passenger, paymentMethod, amount, stops, voucherCode } = req.body;
 
     if (!tripId || !Array.isArray(seatNumbers) || seatNumbers.length === 0) {
       return res.status(400).json({ error: 'Thiếu tripId hoặc seatNumbers' });
@@ -127,6 +134,48 @@ exports.checkout = async (req, res) => {
     }
     
     let computedTotal = pricePerSeat * requestedNums.length;
+    if (computedTotal < 0) computedTotal = 0;
+
+    // 6b) Áp dụng mã giảm giá (nếu có)
+    let appliedVoucherCode = null;
+    let appliedVoucherType = null;
+    let discountAmount = 0;
+
+    const normalizedVoucherCode = voucherCode ? String(voucherCode).trim().toUpperCase() : null;
+
+    if (normalizedVoucherCode) {
+      if (!passenger || !passenger.phone) {
+        throw new Error('Vui lòng nhập số điện thoại để áp dụng mã giảm giá');
+      }
+
+      if (normalizedVoucherCode === NEW_USER_VOUCHER.code) {
+        // Kiểm tra xem SĐT này đã từng dùng mã new user cho booking đã thanh toán chưa
+        const existed = await Booking.exists({
+          'passenger.phone': passenger.phone,
+          status: { $in: ['paid', 'completed'] },
+          voucher_type: 'new_user'
+        });
+
+        if (existed) {
+          throw new Error('Số điện thoại này đã sử dụng mã giảm giá người dùng mới.');
+        }
+
+        appliedVoucherCode = normalizedVoucherCode;
+        appliedVoucherType = 'new_user';
+
+        const rawDiscount = Math.floor(
+          (computedTotal * NEW_USER_VOUCHER.discountPercent) / 100
+        );
+        discountAmount = Math.min(rawDiscount, NEW_USER_VOUCHER.maxDiscount);
+      } else {
+        throw new Error('Mã giảm giá không hợp lệ hoặc chưa được hỗ trợ.');
+      }
+    }
+
+    if (discountAmount < 0) discountAmount = 0;
+    if (discountAmount > computedTotal) discountAmount = computedTotal;
+
+    const finalAmount = computedTotal - discountAmount;
     // ============================================================
 
     // 7) Tạo booking
@@ -161,8 +210,12 @@ exports.checkout = async (req, res) => {
         end_time: calculatedArrivalTime,
         seat_numbers: seatLabels,
         passenger: passenger || null,
-        total_amount: computedTotal,
-        total_price: computedTotal,
+        total_amount: computedTotal,          // Tổng tiền gốc (chưa giảm)
+        total_price: finalAmount,             // Tổng tiền sau khi giảm - dùng cho doanh thu
+        voucher_code: appliedVoucherCode,
+        voucher_type: appliedVoucherType,
+        discount_amount: discountAmount,
+        final_amount: finalAmount,
         status: initialStatus, 
         stops: stops, 
         
@@ -198,7 +251,7 @@ exports.checkout = async (req, res) => {
       [{
         booking: booking._id,
         method: paymentMethod || 'banking',
-        amount: computedTotal,
+        amount: finalAmount,
         transaction_code: `TX${Date.now()}`,
         status: initialStatus === 'paid' ? 'success' : 'pending',
         paid_at: initialStatus === 'paid' ? new Date() : null
@@ -242,7 +295,9 @@ exports.checkout = async (req, res) => {
       seats: requestedNums,
       passenger: booking.passenger || null,
       pricePerSeat,
-      totalAmount: computedTotal,
+      originalTotal: computedTotal,
+      discountAmount,
+      totalAmount: finalAmount,
       paymentMethod: payment.method,
       stops: stops ? {
         pickupName: stops.pickupName,
@@ -292,8 +347,69 @@ exports.detail = async (req, res) => {
   try {
     const doc = await Booking.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
+    
+    // Nếu không có driver_snapshot hoặc driver_snapshot rỗng, thử lấy từ trip
+    if (!doc.driver_snapshot || !doc.driver_snapshot.name || !doc.driver_snapshot.phone) {
+      try {
+        const trip = await Trip.findById(doc.trip);
+        if (trip) {
+          const routeId = trip.route?._id || trip.route;
+          
+          // Tìm driver được assign cho trip hoặc route
+          const assignedDriver = await Driver.findOne({ 
+            $or: [
+              { assigned_trips: { $in: [trip._id] } },
+              { assigned_routes: { $in: [routeId] } }
+            ]
+          }).select('name phone license_number').lean();
+          
+          if (assignedDriver && (assignedDriver.name || assignedDriver.phone)) {
+            doc.driver_snapshot = {
+              name: assignedDriver.name || '',
+              phone: assignedDriver.phone || '',
+              license_number: assignedDriver.license_number || ''
+            };
+            // Lưu lại vào database để lần sau không cần fetch
+            await doc.save();
+            console.log('Driver snapshot updated for booking:', doc._id, assignedDriver.name);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching driver for booking:', e);
+      }
+    }
+    
+    // Tương tự cho assistant
+    if (!doc.assistant_snapshot || !doc.assistant_snapshot.name || !doc.assistant_snapshot.phone) {
+      try {
+        const trip = await Trip.findById(doc.trip);
+        if (trip) {
+          const routeId = trip.route?._id || trip.route;
+          
+          const assignedAssistant = await Assistant.findOne({ 
+            $or: [
+              { assigned_trips: { $in: [trip._id] } },
+              { assigned_routes: { $in: [routeId] } }
+            ]
+          }).select('name phone').lean();
+          
+          if (assignedAssistant && (assignedAssistant.name || assignedAssistant.phone)) {
+            doc.assistant_snapshot = {
+              name: assignedAssistant.name || '',
+              phone: assignedAssistant.phone || ''
+            };
+            // Lưu lại vào database để lần sau không cần fetch
+            await doc.save();
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching assistant for booking:', e);
+      }
+    }
+    
     res.json(doc);
   } catch (e) {
+    console.error('Error in booking detail:', e);
     res.status(500).json({ error: e.message });
   }
 };

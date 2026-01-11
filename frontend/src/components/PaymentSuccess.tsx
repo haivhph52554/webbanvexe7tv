@@ -3,6 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, Bus, MapPin, Clock, Calendar } from 'lucide-react';
 
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+
 type SuccessPayload = {
   bookingId: string;
   paymentId: string;
@@ -14,7 +16,12 @@ type SuccessPayload = {
   seats: (number|string)[];
   passenger: { name?: string; phone?: string; email?: string; note?: string } | null;
   pricePerSeat: number;
-  totalAmount: number;
+  // totalAmount là số tiền thực tế thanh toán (sau giảm)
+   totalAmount: number;
+   // Các field mới từ backend (tùy chọn)
+   originalTotal?: number;     // Tổng tiền gốc trước giảm
+   discountAmount?: number;    // Số tiền giảm
+   voucherCode?: string | null;
   paymentMethod: 'momo'|'banking'|'cod';
 };
 
@@ -43,6 +50,19 @@ const PaymentSuccess: React.FC = () => {
   const [bookingStatus, setBookingStatus] = useState<string | null>(() => {
     if (!s) return null;
     return (s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? 'pending' : 'paid';
+  });
+  // Khởi tạo với thông tin từ payload ban đầu, nếu có
+  const [driverInfo, setDriverInfo] = useState<{ name?: string; phone?: string } | null>(() => {
+    if (s?.driver && (s.driver.name || s.driver.phone)) {
+      return { name: s.driver.name || '', phone: s.driver.phone || '' };
+    }
+    return null;
+  });
+  const [assistantInfo, setAssistantInfo] = useState<{ name?: string; phone?: string } | null>(() => {
+    if (s?.assistant && (s.assistant.name || s.assistant.phone)) {
+      return { name: s.assistant.name || '', phone: s.assistant.phone || '' };
+    }
+    return null;
   });
   const pollingRef = useRef<number | null>(null);
 
@@ -106,6 +126,64 @@ const PaymentSuccess: React.FC = () => {
     }
   }, [s]);
 
+  // Fetch booking details to get driver and assistant info when component mounts
+  useEffect(() => {
+    if (!s?.bookingId) return;
+
+    const fetchBookingDetails = async () => {
+      try {
+        // Lấy bookingId từ s.bookingId (có thể là ObjectId hoặc string)
+        const bookingIdStr = String(s.bookingId);
+        const res = await fetch(`${API_BASE}/api/bookings/${bookingIdStr}`);
+        if (!res.ok) {
+          console.warn('Failed to fetch booking details:', res.status);
+          return;
+        }
+        const data = await res.json();
+        console.log('Booking data received:', { 
+          hasDriverSnapshot: !!data?.driver_snapshot,
+          driverSnapshot: data?.driver_snapshot,
+          bookingId: data?._id
+        });
+        
+        // Cập nhật thông tin tài xế và lơ xe từ driver_snapshot và assistant_snapshot
+        if (data?.driver_snapshot) {
+          const driverName = data.driver_snapshot.name || '';
+          const driverPhone = data.driver_snapshot.phone || '';
+          console.log('Driver snapshot found:', { name: driverName, phone: driverPhone });
+          
+          // Cập nhật ngay cả khi chỉ có name hoặc phone
+          if (driverName || driverPhone) {
+            setDriverInfo({
+              name: driverName,
+              phone: driverPhone
+            });
+            console.log('Driver info state updated:', { name: driverName, phone: driverPhone });
+          } else {
+            console.warn('Driver snapshot exists but both name and phone are empty');
+          }
+        } else {
+          console.warn('No driver_snapshot in booking data');
+        }
+        if (data?.assistant_snapshot) {
+          const assistantName = data.assistant_snapshot.name || '';
+          const assistantPhone = data.assistant_snapshot.phone || '';
+          if (assistantName || assistantPhone) {
+            setAssistantInfo({
+              name: assistantName,
+              phone: assistantPhone
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching booking details:', e);
+      }
+    };
+
+    // Fetch ngay khi component mount để lấy thông tin tài xế và lơ xe
+    fetchBookingDetails();
+  }, [s?.bookingId]);
+
   // Poll backend to check booking status when payment is pending
   useEffect(() => {
     if (!s) return;
@@ -113,11 +191,26 @@ const PaymentSuccess: React.FC = () => {
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(`/api/bookings/${bookingCode}`);
+        const bookingIdStr = String(s.bookingId);
+        const res = await fetch(`${API_BASE}/api/bookings/${bookingIdStr}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data && data.status && data.status !== bookingStatus) {
           setBookingStatus(data.status);
+
+          // Cập nhật thông tin tài xế và lơ xe nếu có
+          if (data?.driver_snapshot) {
+            setDriverInfo({
+              name: data.driver_snapshot.name || '',
+              phone: data.driver_snapshot.phone || ''
+            });
+          }
+          if (data?.assistant_snapshot) {
+            setAssistantInfo({
+              name: data.assistant_snapshot.name || '',
+              phone: data.assistant_snapshot.phone || ''
+            });
+          }
 
           // update localStorage ticket if exists
           try {
@@ -264,8 +357,8 @@ const PaymentSuccess: React.FC = () => {
                   <div><span className="text-gray-600">Loại xe:</span><span className="ml-2 font-medium">{s.bus.busType}</span></div>
                   <div><span className="text-gray-600">Hành khách:</span><span className="ml-2 font-medium">{s.passenger?.name || '-'}</span></div>
                   <div><span className="text-gray-600">SĐT:</span><span className="ml-2 font-medium">{s.passenger?.phone || '-'}</span></div>
-                  <div><span className="text-gray-600">Tài xế:</span><span className="ml-2 font-medium">{s.driver?.name || '-'}</span></div>
-                  <div><span className="text-gray-600">SĐT tài xế:</span><span className="ml-2 font-medium">{s.driver?.phone || '-'}</span></div>
+                  <div><span className="text-gray-600">Tài xế:</span><span className="ml-2 font-medium">{driverInfo?.name || s.driver?.name || '-'}</span></div>
+                  <div><span className="text-gray-600">SĐT tài xế:</span><span className="ml-2 font-medium">{driverInfo?.phone || s.driver?.phone || '-'}</span></div>
                 </div>
               </div>
 
@@ -316,6 +409,18 @@ const PaymentSuccess: React.FC = () => {
                 <div className="flex justify-between"><span className="text-gray-600">Phương thức:</span><span className="font-medium">{s.paymentMethod === 'momo' ? 'Ví MoMo' : s.paymentMethod === 'cod' ? 'Thanh toán tại xe' : 'Chuyển khoản ngân hàng'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Số ghế:</span><span className="font-medium">{s.seats.length} ghế</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Giá vé/ghế:</span><span className="font-medium">{(s.pricePerSeat || 0).toLocaleString()}₫</span></div>
+                {typeof s.originalTotal === 'number' && s.originalTotal > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tổng tiền gốc:</span>
+                    <span className="font-medium line-through text-gray-400">{s.originalTotal.toLocaleString()}₫</span>
+                  </div>
+                )}
+                {typeof s.discountAmount === 'number' && s.discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-700">
+                    <span>Giảm giá{ s.voucherCode ? ` (${s.voucherCode})` : ''}:</span>
+                    <span>-{s.discountAmount.toLocaleString()}₫</span>
+                  </div>
+                )}
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Tổng thanh toán:</span>
