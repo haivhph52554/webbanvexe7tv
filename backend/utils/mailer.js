@@ -78,36 +78,245 @@ function renderBookingHtml(bookingSummary) {
     paymentMethod,
     bookingId,
     paymentId,
+    bus,
+    driver,
+    stops,
+    pricePerSeat,
+    originalTotal,
+    discountAmount,
+    voucherCode,
   } = bookingSummary || {};
 
+  const formatBookingCode = (id) => {
+    if (!id) return '-';
+    const clean = String(id).replace(/-/g, '').toUpperCase();
+    return `VXR-7TV-${clean.slice(-6)}`;
+  };
+
+  const formatPaymentCode = (id) => {
+    if (!id) return '-';
+    const clean = String(id).replace(/-/g, '').toUpperCase();
+    return `PAY-${clean.slice(-8)}`;
+  };
+
+  const bookingCode = formatBookingCode(bookingId);
+  const paymentCode = formatPaymentCode(paymentId);
+
+  const formatTime = (iso) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('vi-VN', { 
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return '-';
+    }
+  };
+
   return `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h2>Thanh toán thành công</h2>
-      <p>Cảm ơn bạn đã đặt vé. Dưới đây là thông tin chi tiết:</p>
-      <ul>
-        <li><strong>Mã đặt chỗ:</strong> ${bookingId || '-'}</li>
-        <li><strong>Mã thanh toán:</strong> ${paymentId || '-'}</li>
-        <li><strong>Tuyến:</strong> ${(route?.from || '-') + ' → ' + (route?.to || '-')}</li>
-        <li><strong>Thời gian:</strong> Khởi hành ${times?.departureTime ? new Date(times.departureTime).toLocaleString('vi-VN') : '-'}${times?.arrivalTime ? `, Đến ${new Date(times.arrivalTime).toLocaleString('vi-VN')}` : ''}</li>
-        <li><strong>Ghế:</strong> ${(seats || []).join(', ') || '-'}</li>
-        <li><strong>Hành khách:</strong> ${(passenger?.name || '-')}, ${passenger?.phone || '-'}</li>
-        <li><strong>Tổng tiền:</strong> ${(Number(totalAmount || 0)).toLocaleString('vi-VN')}₫</li>
-        <li><strong>Phương thức:</strong> ${paymentMethod || '-'}</li>
-      </ul>
-      <p>Chúc bạn có chuyến đi an toàn và thoải mái!</p>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; margin: 0; padding: 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 30px; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px;">VeXe7TV</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px;">Xác nhận đặt vé thành công</p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 30px;">
+          <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 16px; color: #1e40af;"><strong>✓ Thanh toán thành công!</strong></p>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: #1e3a8a;">Cảm ơn bạn đã sử dụng dịch vụ của VeXe7TV. Vui lòng lưu thông tin vé này.</p>
+          </div>
+
+          <!-- Booking Info -->
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; font-size: 18px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Thông tin đặt vé</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Mã đặt vé:</strong></td>
+                <td style="padding: 8px 0; color: #111827; font-weight: bold;">${bookingCode}</td>
+              </tr>
+              ${paymentCode && paymentCode !== '-' ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Mã thanh toán:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${paymentCode}</td>
+              </tr>
+              ` : ''}
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Trạng thái:</strong></td>
+                <td style="padding: 8px 0; color: #059669; font-weight: bold;">${paymentMethod === 'cod' ? 'Đã thanh toán' : paymentMethod === 'banking' || paymentMethod === 'momo' ? 'Chờ thanh toán' : 'Đã xác nhận'}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Route Info -->
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; font-size: 18px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Thông tin chuyến đi</h2>
+            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+              <div style="flex: 1;">
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">Điểm đón</p>
+                <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: #111827;">${stops?.pickupName || route?.from || '-'}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #4b5563;">${formatDateTime(times?.departureTime)}</p>
+              </div>
+              <div style="padding: 0 20px; font-size: 24px; color: #9ca3af;">→</div>
+              <div style="flex: 1;">
+                <p style="margin: 0; color: #6b7280; font-size: 14px;">Điểm trả</p>
+                <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: bold; color: #111827;">${stops?.dropoffName || route?.to || '-'}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #4b5563;">${formatDateTime(times?.arrivalTime)}</p>
+              </div>
+            </div>
+            ${route?.durationMin ? `
+            <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 14px;">
+              <strong>Thời gian di chuyển:</strong> ${Math.floor(route.durationMin / 60)}h ${route.durationMin % 60}m
+            </p>
+            ` : ''}
+          </div>
+
+          <!-- Passenger & Bus Info -->
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; font-size: 18px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Chi tiết vé</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Ghế đã đặt:</strong></td>
+                <td style="padding: 8px 0; color: #111827; font-weight: bold;">${(seats || []).join(', ') || '-'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Số ghế:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${(seats || []).length} ghế</td>
+              </tr>
+              ${bus?.busType ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Loại xe:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${bus.busType}</td>
+              </tr>
+              ` : ''}
+              ${bus?.licensePlate ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Biển số xe:</strong></td>
+                <td style="padding: 8px 0; color: #111827; font-family: monospace;">${bus.licensePlate}</td>
+              </tr>
+              ` : ''}
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Hành khách:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${passenger?.name || '-'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Số điện thoại:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${passenger?.phone || '-'}</td>
+              </tr>
+              ${driver?.name ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Tài xế:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${driver.name}</td>
+              </tr>
+              ` : ''}
+              ${driver?.phone ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>SĐT tài xế:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${driver.phone}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <!-- Payment Info -->
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; font-size: 18px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">Thông tin thanh toán</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              ${pricePerSeat ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Giá vé/ghế:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${Number(pricePerSeat).toLocaleString('vi-VN')}₫</td>
+              </tr>
+              ` : ''}
+              ${originalTotal && originalTotal > totalAmount ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Tổng tiền gốc:</strong></td>
+                <td style="padding: 8px 0; color: #6b7280; text-decoration: line-through;">${Number(originalTotal).toLocaleString('vi-VN')}₫</td>
+              </tr>
+              ` : ''}
+              ${discountAmount && discountAmount > 0 ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Giảm giá${voucherCode ? ` (${voucherCode})` : ''}:</strong></td>
+                <td style="padding: 8px 0; color: #059669;">-${Number(discountAmount).toLocaleString('vi-VN')}₫</td>
+              </tr>
+              ` : ''}
+              <tr style="border-top: 2px solid #e5e7eb;">
+                <td style="padding: 12px 0 8px 0; color: #111827; font-size: 16px;"><strong>Tổng thanh toán:</strong></td>
+                <td style="padding: 12px 0 8px 0; color: #059669; font-size: 18px; font-weight: bold;">${Number(totalAmount || 0).toLocaleString('vi-VN')}₫</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;"><strong>Phương thức thanh toán:</strong></td>
+                <td style="padding: 8px 0; color: #111827;">${paymentMethod === 'cod' ? 'Thanh toán tại xe' : paymentMethod === 'banking' ? 'Chuyển khoản ngân hàng' : paymentMethod === 'momo' ? 'Ví MoMo' : paymentMethod || '-'}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 6px; text-align: center;">
+            <p style="margin: 0 0 10px 0; color: #4b5563; font-size: 14px;">
+              <strong>Lưu ý:</strong> Vui lòng đến đúng giờ và điểm đón. Mang theo CMND/CCCD để đối chiếu khi lên xe.
+            </p>
+            <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 13px;">
+              Chúc bạn có chuyến đi an toàn và thoải mái!<br>
+              Mọi thắc mắc xin liên hệ: <strong>${process.env.SUPPORT_EMAIL || 'support@vexe7tv.com'}</strong>
+            </p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #1f2937; color: #9ca3af; padding: 20px; text-align: center; font-size: 12px;">
+          <p style="margin: 0;">© ${new Date().getFullYear()} VeXe7TV. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
   `;
 }
 
 async function sendBookingConfirmationEmail(to, bookingSummary) {
-  if (!to) return;
-  const subject = 'Xác nhận thanh toán & đặt vé thành công';
+  if (!to) {
+    console.warn('[mailer] No recipient email provided for booking confirmation');
+    return;
+  }
+  const subject = 'Xác nhận đặt vé thành công - VeXe7TV';
   const html = renderBookingHtml(bookingSummary);
-  const text = `Thanh toán thành công. Mã đặt chỗ: ${bookingSummary?.bookingId || ''}.`;
+  const bookingCode = bookingSummary?.bookingId ? `VXR-7TV-${String(bookingSummary.bookingId).replace(/-/g, '').toUpperCase().slice(-6)}` : '';
+  const text = `Xác nhận đặt vé thành công!\n\nMã đặt vé: ${bookingCode}\nTuyến: ${bookingSummary?.route?.from || '-'} → ${bookingSummary?.route?.to || '-'}\nGhế: ${(bookingSummary?.seats || []).join(', ')}\nTổng thanh toán: ${Number(bookingSummary?.totalAmount || 0).toLocaleString('vi-VN')}₫\n\nChúc bạn có chuyến đi an toàn và thoải mái!`;
   try {
-    await sendMail({ to, subject, html, text });
+    const result = await sendMail({ to, subject, html, text });
+    if (result && result.skipped) {
+      console.warn('[mailer] Email sending skipped (no SMTP configured)');
+    } else {
+      console.log('[mailer] Booking confirmation email sent successfully to:', to);
+    }
+    return result;
   } catch (e) {
-    console.error('[mailer] sendBookingConfirmationEmail error:', e);
+    console.error('[mailer] sendBookingConfirmationEmail error:', e.message || e);
+    throw e;
   }
 }
 

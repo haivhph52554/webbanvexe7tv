@@ -16,6 +16,11 @@ type PaymentState = {
   pricePerSeat?: number;
 };
 
+// Cấu hình (phải đồng bộ với backend)
+const NEW_USER_VOUCHER_CODE = 'NEWUSER';
+const NEW_USER_DISCOUNT_PERCENT = 20;
+const NEW_USER_MAX_DISCOUNT = 50000;
+
 const PaymentPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,11 +30,25 @@ const PaymentPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking'>('banking');
   const [isProcessing, setIsProcessing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [voucherCode, setVoucherCode] = useState<string>('');
 
   const totalAmount = useMemo(() => {
     const price = Number(st.pricePerSeat || 0);
     return price * (st.seats?.length || 0);
   }, [st.pricePerSeat, st.seats]);
+
+  // Ước lượng giảm giá hiển thị cho người dùng (logic giống backend)
+  const discountAmount = useMemo(() => {
+    const code = voucherCode.trim().toUpperCase();
+    if (!code || code !== NEW_USER_VOUCHER_CODE) return 0;
+    const raw = Math.floor((totalAmount * NEW_USER_DISCOUNT_PERCENT) / 100);
+    return Math.min(raw, NEW_USER_MAX_DISCOUNT);
+  }, [voucherCode, totalAmount]);
+
+  const finalAmount = useMemo(() => {
+    const val = totalAmount - discountAmount;
+    return val < 0 ? 0 : val;
+  }, [totalAmount, discountAmount]);
 
   if (!st?.tripId || !Array.isArray(st?.seats)) {
     navigate('/');
@@ -50,8 +69,9 @@ const PaymentPage: React.FC = () => {
           seatNumbers: st.seats,
           passenger: st.passenger,
           paymentMethod,
-          amount: totalAmount,
-          stops: st.stops
+          amount: finalAmount,
+          stops: st.stops,
+          voucherCode: voucherCode.trim() || undefined
         })
       });
 
@@ -250,6 +270,23 @@ const PaymentPage: React.FC = () => {
 
             </div>
 
+            {/* Mã giảm giá */}
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Mã giảm giá</h3>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value)}
+                  placeholder="Nhập mã giảm giá"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500">
+                  Mỗi số điện thoại chỉ được sử dụng <strong>mã giảm giá người dùng mới</strong> một lần.
+                </p>
+              </div>
+            </div>
+
             {/* Tóm tắt */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">Tóm tắt thanh toán</h3>
@@ -266,6 +303,12 @@ const PaymentPage: React.FC = () => {
                   <span className="text-gray-600">Giá vé/ghế:</span>
                   <span className="font-medium">{(st.pricePerSeat || 0).toLocaleString()}₫</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-700">
+                    <span>Giảm giá (mã {NEW_USER_VOUCHER_CODE}):</span>
+                    <span>-{discountAmount.toLocaleString()}₫</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600">Phí dịch vụ:</span>
                   <span className="font-medium">0₫</span>
@@ -273,7 +316,7 @@ const PaymentPage: React.FC = () => {
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Tổng cộng:</span>
-                    <span className="text-blue-600">{totalAmount.toLocaleString()}₫</span>
+                    <span className="text-blue-600">{finalAmount.toLocaleString()}₫</span>
                   </div>
                 </div>
               </div>
@@ -298,7 +341,7 @@ const PaymentPage: React.FC = () => {
                 ) : (
                   <>
                     <Lock className="h-5 w-5 mr-2" />
-                    Thanh toán {totalAmount.toLocaleString()}₫
+                    Thanh toán {finalAmount.toLocaleString()}₫
                   </>
                 )}
               </button>

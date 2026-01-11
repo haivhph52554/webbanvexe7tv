@@ -42,6 +42,12 @@ const bookingSchema = new mongoose.Schema({
   total_amount: Number,
   total_price: Number,
 
+  // Thông tin mã giảm giá (nếu có)
+  voucher_code: { type: String, default: null },          // VD: 'NEWUSER'
+  voucher_type: { type: String, default: null },          // VD: 'new_user'
+  discount_amount: { type: Number, default: 0 },          // Số tiền được giảm
+  final_amount: { type: Number, default: null },          // Số tiền thực tế phải thanh toán (sau giảm)
+
   passenger: {
     name: String,
     phone: String,

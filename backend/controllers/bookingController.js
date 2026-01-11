@@ -313,17 +313,26 @@ exports.checkout = async (req, res) => {
       discountAmount,
       totalAmount: finalAmount,
       paymentMethod: payment.method,
+      voucherCode: appliedVoucherCode || null,
       stops: stops ? {
         pickupName: stops.pickupName,
         dropoffName: stops.dropoffName
       } : null
     };
 
-    // Gửi email xác nhận
+    // Gửi email xác nhận khi thanh toán thành công
     const recipientEmail = (req.user && req.user.email) ? req.user.email : (booking?.passenger?.email);
     if (recipientEmail) {
+      console.log('Sending confirmation email to:', recipientEmail);
       sendBookingConfirmationEmail(recipientEmail, payload)
-        .catch((e) => console.error('Send email error:', e));
+        .then(() => {
+          console.log('Confirmation email sent successfully to:', recipientEmail);
+        })
+        .catch((e) => {
+          console.error('Failed to send confirmation email:', e.message || e);
+        });
+    } else {
+      console.warn('No email address found for booking confirmation. User email:', req.user?.email, 'Passenger email:', booking?.passenger?.email);
     }
 
     return res.json(payload);
