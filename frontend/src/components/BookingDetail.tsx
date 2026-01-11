@@ -96,23 +96,56 @@ const BookingDetail: React.FC = () => {
     setSelectedSeats([]);
   }, [selectedTrip?._id]);
 
-  // Validate selected stops when tripDetail/stops change
+  // Filter stops to only show first (pickup) and last (dropoff) stops - chỉ hiển thị điểm 1 và điểm 2
+  const filteredStops = useMemo(() => {
+    if (!tripDetail?.stops || tripDetail.stops.length === 0) return [];
+    
+    // Sắp xếp theo order
+    const sorted = [...tripDetail.stops].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    // Chỉ lấy điểm đầu (order nhỏ nhất) và điểm cuối (order lớn nhất) - loại bỏ tất cả điểm ở giữa
+    const firstStop = sorted[0];
+    const lastStop = sorted[sorted.length - 1];
+    
+    // Đảm bảo chỉ trả về 2 điểm: điểm đón (đầu) và điểm trả (cuối)
+    if (firstStop && lastStop) {
+      return [firstStop, lastStop];
+    }
+    
+    return sorted.slice(0, 2); // Fallback: chỉ lấy 2 điểm đầu tiên nếu không tìm thấy first/last
+  }, [tripDetail?.stops]);
+
+  // Auto-select first stop as pickup and last stop as dropoff when trip changes
   useEffect(() => {
-    if (!tripDetail?.stops) return;
-    const hasPickup = selectedPickupId ? tripDetail.stops.some(s => s._id === selectedPickupId) : true;
-    const hasDropoff = selectedDropoffId ? tripDetail.stops.some(s => s._id === selectedDropoffId) : true;
+    if (filteredStops.length >= 2) {
+      const sorted = [...filteredStops].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const firstStop = sorted[0];
+      const lastStop = sorted[sorted.length - 1];
+      if (firstStop && lastStop) {
+        setSelectedPickupId(firstStop._id);
+        setSelectedDropoffId(lastStop._id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripDetail?.trip?._id]); // Auto-select when trip changes
+
+  // Validate selected stops when filteredStops change
+  useEffect(() => {
+    if (!filteredStops || filteredStops.length === 0) return;
+    const hasPickup = selectedPickupId ? filteredStops.some(s => s._id === selectedPickupId) : true;
+    const hasDropoff = selectedDropoffId ? filteredStops.some(s => s._id === selectedDropoffId) : true;
     if (!hasPickup) setSelectedPickupId(null);
     if (!hasDropoff) setSelectedDropoffId(null);
     // if both present, ensure order validity
     if (selectedPickupId && selectedDropoffId) {
-      const pu = tripDetail.stops.find(s => s._id === selectedPickupId);
-      const dr = tripDetail.stops.find(s => s._id === selectedDropoffId);
+      const pu = filteredStops.find(s => s._id === selectedPickupId);
+      const dr = filteredStops.find(s => s._id === selectedDropoffId);
       if (pu && dr && pu.order >= dr.order) {
         // dropoff invalid after stops changed; clear dropoff
         setSelectedDropoffId(null);
       }
     }
-  }, [tripDetail?.stops]);
+  }, [filteredStops]);
 
   const [searchParams] = useSearchParams();
   const dateParam = searchParams.get('date');
@@ -507,12 +540,12 @@ const fmtDateTime = (iso?: string | null) => {
                   </div>
                 </div>
 
-                {/* Hiển thị điểm dừng */}
-                {tripDetail?.stops && tripDetail.stops.length > 0 && (
+                {/* Hiển thị điểm dừng - chỉ hiển thị 2 điểm: điểm đón (số 1) và điểm trả (số 2), xóa điểm ở giữa */}
+                {filteredStops && filteredStops.length >= 2 && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <MapPin className="h-5 w-5 text-blue-600 mr-2" />
-                      Các điểm dừng trên tuyến
+                      Điểm đón và điểm trả
                     </h3>
                     <div className="relative">
                       {/* Đường thẳng nối các điểm */}
@@ -520,7 +553,18 @@ const fmtDateTime = (iso?: string | null) => {
                       
                       <div className="space-y-4 relative">
                         {(() => {
-                          const stops = tripDetail?.stops || [];
+                          // Đảm bảo chỉ hiển thị đúng 2 điểm: điểm đón (1) và điểm trả (2), xóa điểm ở giữa
+                          // Lấy điểm đầu (order min) và điểm cuối (order max) từ filteredStops
+                          const allStops = filteredStops || [];
+                          if (allStops.length < 2) return [];
+                          
+                          // Sắp xếp lại để đảm bảo order đúng
+                          const sorted = [...allStops].sort((a, b) => (a.order || 0) - (b.order || 0));
+                          // Chỉ lấy điểm đầu và điểm cuối
+                          const firstStop = sorted[0];
+                          const lastStop = sorted[sorted.length - 1];
+                          const stops = [firstStop, lastStop].filter(Boolean);
+                          
                           return stops.map((stop, index) => {
                           const isFirst = index === 0;
                           const isLast = index === stops.length - 1;
@@ -578,7 +622,7 @@ const fmtDateTime = (iso?: string | null) => {
                                   ? 'bg-green-600 text-white border-green-600'
                                   : 'bg-white text-blue-600 border-blue-400'
                               }`}>
-                                {stop.order}
+                                {isFirst ? 1 : 2}
                               </div>
 
                               <div
@@ -856,16 +900,22 @@ const fmtDateTime = (iso?: string | null) => {
                     <span className="text-gray-600">Số ghế:</span>
                     <span className="font-medium">{selectedSeats.length} ghế</span>
                   </div>
-                  {tripDetail?.stops && (
+                  {filteredStops && filteredStops.length > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Điểm đón / trả:</span>
                       <span className="font-medium text-right">
-                        {selectedPickupId ? (tripDetail.stops.find(s => s._id === selectedPickupId)?.stop_name || '-') : '-'}
+                        {selectedPickupId ? (filteredStops.find(s => s._id === selectedPickupId)?.stop_name || '-') : '-'}
                         {' '} / {' '}
-                        {selectedDropoffId ? (tripDetail.stops.find(s => s._id === selectedDropoffId)?.stop_name || '-') : '-'}
+                        {selectedDropoffId ? (filteredStops.find(s => s._id === selectedDropoffId)?.stop_name || '-') : '-'}
                       </span>
                     </div>
                   )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Biển số xe:</span>
+                    <span className="font-medium font-mono text-blue-700">
+                      {selectedTrip?.bus?.license_plate || '-'}
+                    </span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Giá/ghế:</span>
                     <span className="font-medium">{(computedPricePerSeat || 0).toLocaleString()}₫</span>
