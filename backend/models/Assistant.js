@@ -1,15 +1,13 @@
 const mongoose = require('mongoose');
 
-// Merged assistant schema to satisfy both admin views (older fields)
-// and assistant API/controllers (userId, busId, currentTrip, checkInList, etc.)
+
 const assistantSchema = new mongoose.Schema({
-  // Optional link to User (if assistant is also a user in the system)
+ 
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
 
-  // Basic personal/contact info (used by admin views)
   name: {
     type: String
   },

@@ -388,6 +388,9 @@ const fmtDateTime = (iso?: string | null) => {
       stops: { pickupId: selectedPickupId, dropoffId: selectedDropoffId, pickupName: pickup.stop_name, dropoffName: dropoff.stop_name },
       route: { from: tripDetail.trip.route?.from_city || '', to: tripDetail.trip.route?.to_city || '', durationMin: tripDetail.trip.route?.estimated_duration_min || null },
       bus: { busType: tripDetail.trip.bus?.bus_type || '', licensePlate: tripDetail.trip.bus?.license_plate || '', seatCount: tripDetail.trip.bus?.seat_count || 0 },
+      // Include assigned driver/assistant from trip details so payment page can show them immediately
+      driver: (tripDetail as any).driver || null,
+      assistant: (tripDetail as any).assistant || null,
       times: { departureTime: tripDetail.trip.start_time, arrivalTime: tripDetail.trip.end_time || null },
       pricePerSeat: computedPricePerSeat
     } });
@@ -523,7 +526,7 @@ const fmtDateTime = (iso?: string | null) => {
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-900">Giờ đến</p>
+                    <p className="font-semibold text-gray-900">Giờ dự kiến đến</p>
                     <p className="text-gray-600">{fmtDateTime(selectedTrip.end_time || undefined)}</p>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
