@@ -3,88 +3,276 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chi tiết đặt chỗ - <%= booking._id.toString().substring(0,8) %>...</title>
+  <title>Chi tiết đặt chỗ</title>
+
   <style>
-    body{font-family:Inter,Segoe UI,Arial;background:#f3f4f6;color:#111;margin:0}
-    .container{max-width:900px;margin:40px auto;padding:24px;background:white;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.08)}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-    .badge{display:inline-block;padding:6px 10px;border-radius:8px;background:#eef2ff;color:#3730a3}
-    .row{display:flex;gap:16px;margin-bottom:12px}
-    .col{flex:1}
-    .label{color:#6b7280;font-size:13px}
-    .value{font-weight:600;font-size:15px}
-    .back{display:inline-block;margin-top:12px;padding:8px 12px;background:#e6e6e6;border-radius:8px;text-decoration:none;color:#111}
+    *{box-sizing:border-box}
+    body{
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background:#eef2ff;
+      color:#0f172a;
+      margin:0;
+    }
+
+    /* ===== CONTAINER ===== */
+    .container{
+      width:calc(100% - 48px);
+      margin:24px;
+      background:#ffffff;
+      border-radius:18px;
+      box-shadow:0 20px 40px rgba(30,41,59,.15);
+      overflow:hidden;
+    }
+
+    /* ===== HEADER ===== */
+    .header{
+      padding:28px 32px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      background:linear-gradient(135deg,#6366f1,#8b5cf6);
+      color:white;
+    }
+
+    .header h2{
+      margin:0;
+      font-size:24px;
+      font-weight:700;
+    }
+
+    .sub{
+      margin-top:6px;
+      font-size:13px;
+      opacity:.9;
+    }
+
+    .badge{
+      padding:6px 16px;
+      border-radius:999px;
+      font-size:13px;
+      font-weight:700;
+      background:#22c55e;
+      color:white;
+      text-transform:capitalize;
+    }
+
+    /* ===== CONTENT ===== */
+    .content{
+      padding:32px;
+      background:#f8fafc;
+    }
+
+    .section{
+      margin-bottom:32px;
+      background:#ffffff;
+      border-radius:16px;
+      border:1px solid #e5e7eb;
+      padding:20px 22px;
+      box-shadow:0 10px 24px rgba(15,23,42,.05);
+    }
+
+    .section-title{
+      font-size:13px;
+      font-weight:700;
+      color:#4f46e5;
+      margin-bottom:16px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+      gap:18px;
+    }
+
+    .item{
+      background:#f9fafb;
+      border-radius:12px;
+      padding:16px 18px;
+      border-left:5px solid #6366f1;
+    }
+
+    .label{
+      font-size:12px;
+      color:#64748b;
+      margin-bottom:6px;
+    }
+
+    .value{
+      font-size:15px;
+      font-weight:700;
+      color:#0f172a;
+      word-break:break-word;
+    }
+
+    .note{
+      background:#f1f5ff;
+      border:2px dashed #6366f1;
+      border-radius:12px;
+      padding:16px;
+      color:#1e293b;
+      font-weight:500;
+      min-height:60px;
+    }
+
+    /* ===== FOOTER ===== */
+    .actions{
+      padding:20px 32px;
+      background:#f1f5f9;
+      border-top:1px solid #e5e7eb;
+      display:flex;
+      justify-content:flex-end;
+      gap:12px;
+    }
+
+    .btn{
+      padding:10px 18px;
+      border-radius:12px;
+      font-size:14px;
+      font-weight:700;
+      text-decoration:none;
+      background:#e5e7eb;
+      color:#0f172a;
+      transition:.2s;
+    }
+
+    .btn:hover{opacity:.85}
+
+    .btn-primary{
+      background:linear-gradient(135deg,#6366f1,#4f46e5);
+      color:white;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media(max-width:768px){
+      .container{
+        width:100%;
+        margin:0;
+        border-radius:0;
+      }
+
+      .content{
+        padding:20px;
+      }
+
+      .header{
+        flex-direction:column;
+        align-items:flex-start;
+        gap:12px;
+      }
+
+      .actions{
+        flex-direction:column;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <div class="container">
-    <div class="header">
-      <div>
-        <h2 style="margin:0">Chi tiết đặt chỗ</h2>
-        <div style="margin-top:6px;color:#6b7280">Mã vé: <strong><%= booking._id.toString() %></strong></div>
-      </div>
-      <div>
-        <span class="badge"><%= booking.status %></span>
-      </div>
-    </div>
 
-    <div class="row">
-      <div class="col">
-        <div class="label">Hành khách</div>
-        <div class="value"><%= (booking.user && booking.user.full_name) || (booking.passenger && booking.passenger.name) || 'Không có' %></div>
-      </div>
-      <div class="col">
-        <div class="label">Số điện thoại</div>
-        <div class="value"><%= (booking.user && booking.user.phone) || (booking.passenger && booking.passenger.phone) || 'Không có' %></div>
-      </div>
-    </div>
+<div class="container">
 
-    <div class="row">
-      <div class="col">
-        <div class="label">Ghế</div>
-        <div class="value"><%= (booking.seat_numbers && booking.seat_numbers.length) ? booking.seat_numbers.join(', ') : 'Không có' %></div>
-      </div>
-      <div class="col">
-        <div class="label">Tổng tiền</div>
-        <div class="value"><%= ((booking.total_price || booking.total_amount) || 0).toLocaleString('vi-VN') %> ₫</div>
-      </div>
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <h2>Chi tiết đặt chỗ</h2>
+      <div class="sub">Mã vé: <strong><%= booking._id %></strong></div>
     </div>
-
-    <div class="row">
-      <div class="col">
-        <div class="label">Chuyến</div>
-        <div class="value"><%= booking.trip && booking.trip.route ? (booking.trip.route.name || (booking.trip.route.from + ' → ' + booking.trip.route.to)) : 'Không có' %></div>
-      </div>
-      <div class="col">
-        <div class="label">Biển số xe</div>
-        <div class="value"><%= (booking.trip && booking.trip.bus && booking.trip.bus.license_plate) || (booking.bus_snapshot && booking.bus_snapshot.license_plate) || 'Không có' %></div>
-      </div>
-      <div style="margin-top:6px">
-        <div style="color:#6b7280">Tài xế:</div>
-        <div class="value"><%= booking.driver_snapshot ? (booking.driver_snapshot.name + ' · ' + (booking.driver_snapshot.phone || '')) : 'Không có' %></div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col">
-        <div class="label">Ngày khởi hành (start_time)</div>
-        <div class="value"><%= booking.start_time ? new Date(booking.start_time).toLocaleString('vi-VN') : 'Không có' %></div>
-      </div>
-      <div class="col">
-        <div class="label">Ngày đặt</div>
-        <div class="value"><%= booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'Không có' %></div>
-      </div>
-    </div>
-
-    <div style="margin-top:18px">
-      <div class="label">Ghi chú hành khách</div>
-      <div style="margin-top:6px"><%= booking.passenger && booking.passenger.note ? booking.passenger.note : '-' %></div>
-    </div>
-
-    <div style="margin-top:18px; display:flex; gap:8px; align-items:center">
-      <a class="back" href="/admin/bookings">← Quay lại danh sách</a>
-      <a class="back" href="/admin/bookings/<%= booking._id %>/edit" style="background:#dbeafe">Chỉnh sửa</a>
-    </div>
+    <span class="badge"><%= booking.status %></span>
   </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <div class="section">
+      <div class="section-title">Thông tin hành khách</div>
+      <div class="grid">
+        <div class="item">
+          <div class="label">Hành khách</div>
+          <div class="value">
+            <%= booking.user?.full_name || booking.passenger?.name || 'Không có' %>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">Số điện thoại</div>
+          <div class="value">
+            <%= booking.user?.phone || booking.passenger?.phone || 'Không có' %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Thông tin vé</div>
+      <div class="grid">
+        <div class="item">
+          <div class="label">Ghế</div>
+          <div class="value"><%= booking.seat_numbers?.join(', ') || 'Không có' %></div>
+        </div>
+        <div class="item">
+          <div class="label">Tổng tiền</div>
+          <div class="value">
+            <%= ((booking.total_price||booking.total_amount)||0).toLocaleString('vi-VN') %> ₫
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Thông tin chuyến</div>
+      <div class="grid">
+        <div class="item">
+          <div class="label">Chuyến</div>
+          <div class="value">
+            <%= booking.trip?.route?.name || 'Không có' %>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">Biển số xe</div>
+          <div class="value">
+            <%= booking.trip?.bus?.license_plate || 'Không có' %>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">Tài xế</div>
+          <div class="value">
+            <%= booking.driver_snapshot?.name || 'Không có' %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Thời gian</div>
+      <div class="grid">
+        <div class="item">
+          <div class="label">Ngày khởi hành</div>
+          <div class="value"><%= new Date(booking.start_time).toLocaleString('vi-VN') %></div>
+        </div>
+        <div class="item">
+          <div class="label">Ngày đặt</div>
+          <div class="value"><%= new Date(booking.createdAt).toLocaleString('vi-VN') %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Ghi chú hành khách</div>
+      <div class="note">
+        <%= booking.passenger?.note || '-' %>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="actions">
+    <a href="/admin/bookings" class="btn">← Quay lại</a>
+    <a href="/admin/bookings/<%= booking._id %>/edit" class="btn btn-primary">Chỉnh sửa</a>
+  </div>
+
+</div>
+
 </body>
 </html>
