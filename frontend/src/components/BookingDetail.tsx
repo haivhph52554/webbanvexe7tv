@@ -49,7 +49,7 @@ type TripDetailResponse = {
   stops?: RouteStopDoc[];
 };
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 const BookingDetail: React.FC = () => {
   const { routeId } = useParams<{ routeId: string }>();
@@ -99,19 +99,19 @@ const BookingDetail: React.FC = () => {
   // Filter stops to only show first (pickup) and last (dropoff) stops - chỉ hiển thị điểm 1 và điểm 2
   const filteredStops = useMemo(() => {
     if (!tripDetail?.stops || tripDetail.stops.length === 0) return [];
-    
+
     // Sắp xếp theo order
     const sorted = [...tripDetail.stops].sort((a, b) => (a.order || 0) - (b.order || 0));
-    
+
     // Chỉ lấy điểm đầu (order nhỏ nhất) và điểm cuối (order lớn nhất) - loại bỏ tất cả điểm ở giữa
     const firstStop = sorted[0];
     const lastStop = sorted[sorted.length - 1];
-    
+
     // Đảm bảo chỉ trả về 2 điểm: điểm đón (đầu) và điểm trả (cuối)
     if (firstStop && lastStop) {
       return [firstStop, lastStop];
     }
-    
+
     return sorted.slice(0, 2); // Fallback: chỉ lấy 2 điểm đầu tiên nếu không tìm thấy first/last
   }, [tripDetail?.stops]);
 
@@ -160,7 +160,7 @@ const BookingDetail: React.FC = () => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: TripDoc[] = await res.json();
         if (!mounted) return;
-        
+
         // Filter and sort trips
         // [SỬA TRONG BookingDetail.tsx - Khoảng dòng 2646]
 
@@ -169,11 +169,11 @@ const BookingDetail: React.FC = () => {
           .filter(t => {
             const tid = t?.route && (t.route._id ? String(t.route._id) : String(t.route));
             const matchRoute = tid === routeId;
-            
+
             // --- [CODE MỚI SỬA] ---
             let matchDate = true;
             const d = new Date(t.start_time); // Lấy giờ chuyến đi
-            
+
             if (dateParam) {
                // 1. Fix lỗi lệch ngày: So sánh theo giờ địa phương (Local Time)
                // Tạo chuỗi YYYY-MM-DD theo giờ máy tính của khách
@@ -181,13 +181,13 @@ const BookingDetail: React.FC = () => {
                const month = String(d.getMonth() + 1).padStart(2, '0');
                const day = String(d.getDate()).padStart(2, '0');
                const tripDate = `${year}-${month}-${day}`;
-               
+
                matchDate = tripDate === dateParam;
             } else {
                // 2. Fix lỗi hiện năm 2025: Nếu không chọn ngày, chỉ hiện chuyến TƯƠNG LAI
                const now = new Date();
                now.setHours(0, 0, 0, 0); // Reset về đầu ngày hôm nay
-               matchDate = d >= now; 
+               matchDate = d >= now;
             }
             // ----------------------
 
@@ -196,7 +196,7 @@ const BookingDetail: React.FC = () => {
           .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
         // Only update state if data has actually changed
         setAllTrips(prev => {
-          if (prev.length === filtered.length && 
+          if (prev.length === filtered.length &&
               prev.every((trip, i) => trip._id === filtered[i]._id)) {
             return prev;
           }
@@ -227,8 +227,8 @@ const BookingDetail: React.FC = () => {
     if (!a && !b) return true;
     if (!a || !b) return false;
     if (a.length !== b.length) return false;
-    return a.every((seat, i) => 
-      seat.seat_number === b[i].seat_number && 
+    return a.every((seat, i) =>
+      seat.seat_number === b[i].seat_number &&
       seat.status === b[i].status
     );
   };
@@ -264,7 +264,7 @@ const BookingDetail: React.FC = () => {
 
         // Only update states if there are actual changes
         if (unavailableSelected) {
-          setSelectedSeats(prev => 
+          setSelectedSeats(prev =>
             prev.filter(sn => {
               const seat = data.seats.find(s => s.seat_number === String(sn));
               return seat && seat.status === 'available';
@@ -327,15 +327,15 @@ const fmtDateTime = (iso?: string | null) => {
   if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleString('vi-VN', { 
-    weekday: 'short', 
-    day: '2-digit', 
-    month: '2-digit', 
+  return d.toLocaleString('vi-VN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
     year: 'numeric',
-    hour: '2-digit', 
-    minute: '2-digit' 
+    hour: '2-digit',
+    minute: '2-digit'
   });
-};  
+};
 
   const fmtDuration = (mins?: number) => {
     if (typeof mins !== 'number' || Number.isNaN(mins)) return '-';
@@ -461,7 +461,7 @@ const fmtDateTime = (iso?: string | null) => {
 >
   {allTrips.map(t => {
     const d = new Date(t.start_time);
-    
+
     // --- [CODE MỚI SỬA] ---
     // Hiển thị đầy đủ Ngày/Tháng/Năm để tránh nhầm lẫn 2025/2026
     const dateStr = d.toLocaleDateString('vi-VN'); // Kết quả ví dụ: 08/01/2026
@@ -553,21 +553,21 @@ const fmtDateTime = (iso?: string | null) => {
                     <div className="relative">
                       {/* Đường thẳng nối các điểm */}
                       <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-blue-200"></div>
-                      
+
                       <div className="space-y-4 relative">
                         {(() => {
                           // Đảm bảo chỉ hiển thị đúng 2 điểm: điểm đón (1) và điểm trả (2), xóa điểm ở giữa
                           // Lấy điểm đầu (order min) và điểm cuối (order max) từ filteredStops
                           const allStops = filteredStops || [];
                           if (allStops.length < 2) return [];
-                          
+
                           // Sắp xếp lại để đảm bảo order đúng
                           const sorted = [...allStops].sort((a, b) => (a.order || 0) - (b.order || 0));
                           // Chỉ lấy điểm đầu và điểm cuối
                           const firstStop = sorted[0];
                           const lastStop = sorted[sorted.length - 1];
                           const stops = [firstStop, lastStop].filter(Boolean);
-                          
+
                           return stops.map((stop, index) => {
                           const isFirst = index === 0;
                           const isLast = index === stops.length - 1;
@@ -619,8 +619,8 @@ const fmtDateTime = (iso?: string | null) => {
                           return (
                             <div key={stop._id} className="relative flex items-start pl-10">
                               <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm border-2 ${
-                                isFirst 
-                                  ? 'bg-blue-600 text-white border-blue-600' 
+                                isFirst
+                                  ? 'bg-blue-600 text-white border-blue-600'
                                   : isLast
                                   ? 'bg-green-600 text-white border-green-600'
                                   : 'bg-white text-blue-600 border-blue-400'
@@ -697,14 +697,14 @@ const fmtDateTime = (iso?: string | null) => {
 
                     // Style kích thước: Giường (dài) - Ghế (ngắn)
                     const baseDimensions = isBed ? "h-20 w-12" : "h-14 w-12";
-                    
+
                     // Style hình dáng: Ghế ngồi bo đầu (rounded-t-2xl), Giường bo đều (rounded-lg)
                     const shapeClass = isBed ? "rounded-lg border-2" : "rounded-t-2xl rounded-b-lg border-2";
 
                     // Màu sắc theo trạng thái
                     let bgClass = "bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:shadow-md"; // Trống
                     let pillowClass = "bg-gray-200"; // Màu gối
-                    
+
                     if (status !== 'available') {
                       bgClass = "bg-red-100 border-red-200 text-gray-300 cursor-not-allowed"; // Đã bán
                     } else if (isSelected) {
@@ -718,16 +718,16 @@ const fmtDateTime = (iso?: string | null) => {
                         disabled={status !== 'available'}
                         className={`
                           ${baseDimensions} ${shapeClass} ${bgClass}
-                          relative flex flex-col items-center justify-center transition-all duration-200 
+                          relative flex flex-col items-center justify-center transition-all duration-200
                         `}
                         title={`Ghế ${seatNumber}`}
                       >
                         {/* Gối đầu */}
                         <div className={`absolute top-1.5 w-8 h-1 rounded-full ${pillowClass}`}></div>
-                        
+
                         {/* Số ghế */}
                         <span className="mt-2 text-sm font-bold">{seatNumber}</span>
-                        
+
                         {/* Họa tiết chăn (nếu là giường) */}
                         {isBed && (
                           <div className={`absolute bottom-2 w-8 h-6 rounded opacity-20 ${isSelected ? 'bg-white' : 'bg-gray-400'}`}></div>
@@ -737,7 +737,7 @@ const fmtDateTime = (iso?: string | null) => {
                   };
 
                     // --- RENDER GIAO DIỆN ---
-                    
+
                     if (isSleeper) {
                       // === XE GIƯỜNG NẰM (Chia 2 tầng song song để lấp đầy khoảng trống) ===
                       const midPoint = Math.ceil(sortedSeats.length / 2);
@@ -748,7 +748,7 @@ const fmtDateTime = (iso?: string | null) => {
                         <div className="flex flex-col gap-6 w-full">
                           {/* Khung xe */}
                           <div className="flex flex-col md:flex-row gap-8 justify-center items-start bg-gray-50 p-6 rounded-3xl border-4 border-gray-200 w-full max-w-3xl mx-auto">
-                            
+
                             {/* Tầng dưới */}
                             <div className="flex-1 w-full text-center border-r-0 md:border-r-2 border-dashed border-gray-300 md:pr-8">
                               <div className="mb-6 flex flex-col items-center opacity-50">
@@ -766,7 +766,7 @@ const fmtDateTime = (iso?: string | null) => {
                             <div className="flex-1 w-full text-center md:pl-4">
                               {/* Spacer bù cho icon tài xế để 2 bên cân bằng */}
                               <div className="mb-6 flex flex-col items-center opacity-50">
-                                <div className="w-14 h-14 mb-2 invisible"></div> 
+                                <div className="w-14 h-14 mb-2 invisible"></div>
                                 <span className="text-sm font-bold text-gray-500 uppercase tracking-widest border px-2 py-1 rounded bg-white">Tầng trên</span>
                               </div>
                               <div className="grid grid-cols-3 gap-y-4 gap-x-6 justify-items-center">
@@ -781,7 +781,7 @@ const fmtDateTime = (iso?: string | null) => {
                       // === XE GHẾ NGỒI (Layout 2-2 có lối đi) ===
                       return (
                         <div className="w-full bg-gray-50 p-8 rounded-[40px] border-4 border-gray-200 shadow-inner relative max-w-xl mx-auto">
-                          
+
                           {/* Tài xế */}
                           <div className="flex justify-center mb-10">
                             <div className="w-16 h-16 border-4 border-gray-400 rounded-full flex items-center justify-center bg-white shadow-sm relative">
@@ -796,7 +796,7 @@ const fmtDateTime = (iso?: string | null) => {
                           <div className="grid grid-cols-5 gap-y-6 gap-x-2 justify-items-center">
                             {sortedSeats.map((seat, index) => {
                               const seatComp = <RenderSeatItem key={seat._id} seat={seat} isBed={false} />;
-                              
+
                               // Logic chèn lối đi: Cứ mỗi 2 ghế thì chèn 1 khoảng trống (cột thứ 3)
                               // Index: 0 1 [Gap] 2 3 ...
                               if (index > 0 && index % 4 === 2) {

@@ -1,9 +1,9 @@
 // components/PaymentSuccess.tsx
 import React, { useEffect, useState, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Bus, MapPin, Clock, Calendar } from 'lucide-react';
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 type SuccessPayload = {
   bookingId: string;
@@ -22,7 +22,7 @@ type SuccessPayload = {
    originalTotal?: number;     // Tổng tiền gốc trước giảm
    discountAmount?: number;    // Số tiền giảm
    voucherCode?: string | null;
-  paymentMethod: 'momo'|'banking'|'cod';
+  paymentMethod: 'momo'|'banking'|'cod'|'vnpay';
 };
 
 
@@ -41,36 +41,20 @@ const formatPaymentCode = (paymentId: string) => {
 const PaymentSuccess: React.FC = () => {
   const { state } = useLocation();  
   const navigate = useNavigate();
-  const s = (state || null) as SuccessPayload | null;
-  const bookingCode = formatBookingCode(s?.bookingId || '');
-  const paymentCode = formatPaymentCode(s?.paymentId || '');
+  const [searchParams] = useSearchParams();
+  const bookingIdParam = searchParams.get('bookingId');
+  const status = searchParams.get('status') || 'success';
+  const [payload, setPayload] = useState<SuccessPayload | null>((state || null) as SuccessPayload | null);
+  const [loading, setLoading] = useState(!state && !!bookingIdParam);
+  const [error, setError] = useState<string | null>(null);
+  const bookingCode = formatBookingCode(payload?.bookingId || bookingIdParam || '');
+  const paymentCode = formatPaymentCode(payload?.paymentId || '');
 
-
-
-  const [bookingStatus, setBookingStatus] = useState<string | null>(() => {
-    if (!s) return null;
-    return (s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? 'pending' : 'paid';
-  });
+  const [bookingStatus, setBookingStatus] = useState<string | null>(null);
   // Khởi tạo với thông tin từ payload ban đầu, nếu có
-  const [driverInfo, setDriverInfo] = useState<{ name?: string; phone?: string } | null>(() => {
-    if (s?.driver && (s.driver.name || s.driver.phone)) {
-      return { name: s.driver.name || '', phone: s.driver.phone || '' };
-    }
-    return null;
-  });
-  const [assistantInfo, setAssistantInfo] = useState<{ name?: string; phone?: string } | null>(() => {
-    if (s?.assistant && (s.assistant.name || s.assistant.phone)) {
-      return { name: s.assistant.name || '', phone: s.assistant.phone || '' };
-    }
-    return null;
-  });
+  const [driverInfo, setDriverInfo] = useState<{ name?: string; phone?: string } | null>(null);
+  const [assistantInfo, setAssistantInfo] = useState<{ name?: string; phone?: string } | null>(null);
   const pollingRef = useRef<number | null>(null);
-
-  if (!s) {
-    // nếu F5 mất state thì quay về trang chủ (hoặc bạn có thể gọi GET /api/bookings/:id nếu truyền id qua query)
-    navigate('/');
-    return null;
-  }
 
   const fmtTime = (iso?: string | null) => {
     if (!iso) return '-';
@@ -79,11 +63,49 @@ const PaymentSuccess: React.FC = () => {
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
+  useEffect(() => {
+    if (!bookingIdParam || payload) return;
+    let mounted = true;
+    const fetchSummary = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch(`${API_BASE}/api/bookings/${bookingIdParam}/summary`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (mounted) setPayload(data);
+      } catch (err: any) {
+        if (mounted) setError(err?.message || 'Không thể tải thông tin thanh toán');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    fetchSummary();
+    return () => { mounted = false; };
+  }, [bookingIdParam, payload]);
+
+  useEffect(() => {
+    if (!payload) return;
+    setBookingStatus((payload.paymentMethod === 'banking' || payload.paymentMethod === 'momo') ? 'pending' : 'paid');
+    if (payload.driver && (payload.driver.name || payload.driver.phone)) {
+      setDriverInfo({ name: payload.driver.name || '', phone: payload.driver.phone || '' });
+    }
+    if (payload.assistant && (payload.assistant.name || payload.assistant.phone)) {
+      setAssistantInfo({ name: payload.assistant.name || '', phone: payload.assistant.phone || '' });
+    }
+  }, [payload]);
+
+  useEffect(() => {
+    if (!payload && !loading && !bookingIdParam) {
+      navigate('/');
+    }
+  }, [payload, loading, bookingIdParam, navigate]);
+
   
 
   // Save the ticket into localStorage so MyTicketsPage (which reads localStorage) shows it
   useEffect(() => {
-    if (!s) return;
+    if (!payload || status !== 'success') return;
 
     try {
       const key = 'vexe7tv_tickets';
@@ -91,28 +113,28 @@ const PaymentSuccess: React.FC = () => {
 
       // Build ticket shape compatible with MyTicketsPage
       const ticket = {
-        id: s.bookingId,
-        bookingId: s.bookingId,
+        id: payload.bookingId,
+        bookingId: payload.bookingId,
         route: {
-          from: s.route.from,
-          to: s.route.to,
-          price: (s.pricePerSeat || 0).toString(),
-          duration: s.route.durationMin?.toString() || '',
-          departureIso: s.times.departureTime,
-          departureTime: (new Date(s.times.departureTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-          arrivalTime: s.times.arrivalTime ? (new Date(s.times.arrivalTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '',
-          busType: s.bus.busType || ''
+          from: payload.route.from,
+          to: payload.route.to,
+          price: (payload.pricePerSeat || 0).toString(),
+          duration: payload.route.durationMin?.toString() || '',
+          departureIso: payload.times.departureTime,
+          departureTime: (new Date(payload.times.departureTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          arrivalTime: payload.times.arrivalTime ? (new Date(payload.times.arrivalTime)).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '',
+          busType: payload.bus.busType || ''
           ,
-          licensePlate: s.bus.licensePlate || ''
+          licensePlate: payload.bus.licensePlate || ''
         },
-        seats: (s.seats || []).map((x: any) => Number(x)),
-        passenger: s.passenger || { name: '', phone: '', email: '', note: '' },
-        driver: s.driver || null,
-        assistant: s.assistant || null,
-        totalAmount: s.totalAmount || 0,
-        paymentMethod: s.paymentMethod,
+        seats: (payload.seats || []).map((x: any) => Number(x)),
+        passenger: payload.passenger || { name: '', phone: '', email: '', note: '' },
+        driver: payload.driver || null,
+        assistant: payload.assistant || null,
+        totalAmount: payload.totalAmount || 0,
+        paymentMethod: payload.paymentMethod,
         bookingDate: new Date().toISOString(),
-        status: (s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? 'pending' : 'confirmed'
+        status: (payload.paymentMethod === 'banking' || payload.paymentMethod === 'momo') ? 'pending' : 'confirmed'
       };
 
       // avoid duplicates
@@ -124,16 +146,15 @@ const PaymentSuccess: React.FC = () => {
     } catch (err) {
       console.error('Failed to save ticket to localStorage', err);
     }
-  }, [s]);
+  }, [payload, status]);
 
   // Fetch booking details to get driver and assistant info when component mounts
   useEffect(() => {
-    if (!s?.bookingId) return;
+    const bookingIdStr = String(payload?.bookingId || bookingIdParam || '');
+    if (!bookingIdStr) return;
 
     const fetchBookingDetails = async () => {
       try {
-        // Lấy bookingId từ s.bookingId (có thể là ObjectId hoặc string)
-        const bookingIdStr = String(s.bookingId);
         const res = await fetch(`${API_BASE}/api/bookings/${bookingIdStr}`);
         if (!res.ok) {
           console.warn('Failed to fetch booking details:', res.status);
@@ -182,16 +203,16 @@ const PaymentSuccess: React.FC = () => {
 
     // Fetch ngay khi component mount để lấy thông tin tài xế và lơ xe
     fetchBookingDetails();
-  }, [s?.bookingId]);
+  }, [payload?.bookingId, bookingIdParam]);
 
   // Poll backend to check booking status when payment is pending
   useEffect(() => {
-    if (!s) return;
+    if (!payload) return;
     if (bookingStatus !== 'pending') return;
 
     const checkStatus = async () => {
       try {
-        const bookingIdStr = String(s.bookingId);
+        const bookingIdStr = String(payload.bookingId);
         const res = await fetch(`${API_BASE}/api/bookings/${bookingIdStr}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -216,7 +237,7 @@ const PaymentSuccess: React.FC = () => {
           try {
             const key = 'vexe7tv_tickets';
             const existing = JSON.parse(localStorage.getItem(key) || '[]');
-            const idx = existing.findIndex((t: any) => t.bookingId === s.bookingId);
+            const idx = existing.findIndex((t: any) => t.bookingId === payload.bookingId);
             if (idx !== -1) {
               existing[idx].status = data.status === 'cancelled' ? 'cancelled' : existing[idx].status;
               localStorage.setItem(key, JSON.stringify(existing));
@@ -238,7 +259,48 @@ const PaymentSuccess: React.FC = () => {
         pollingRef.current = null;
       }
     };
-  }, [s, bookingStatus]);
+  }, [payload, bookingStatus]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center text-gray-600">Đang tải thông tin thanh toán...</div>
+      </div>
+    );
+  }
+
+  if (status !== 'success') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-xl font-semibold text-gray-900 mb-2">Thanh toán chưa thành công</div>
+          <div className="text-gray-600 mb-4">{error || 'Vui lòng thử lại hoặc chọn phương thức khác.'}</div>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Về trang chủ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!payload) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-gray-600 mb-4">Không tìm thấy thông tin thanh toán.</div>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Về trang chủ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
@@ -256,7 +318,7 @@ const PaymentSuccess: React.FC = () => {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
        {/* LOGIC HIỂN THỊ: Chấp nhận cả Banking và MoMo là pending để hiện QR */}
-        {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') && s.totalAmount > 0 ? (
+        {(payload.paymentMethod === 'banking' || payload.paymentMethod === 'momo') && payload.totalAmount > 0 ? (
           <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-6 mb-8 text-center max-w-md mx-auto">
             <h3 className="text-xl font-bold text-yellow-800 mb-4 animate-pulse">
               {bookingStatus === 'cancelled' ? '❌ Đặt vé không thành công' : '⏳ Đơn hàng đang chờ thanh toán!'}
@@ -265,7 +327,7 @@ const PaymentSuccess: React.FC = () => {
             <div className="bg-white p-2 inline-block rounded-lg shadow-sm border">
               {/* QR Code VietQR tự động */}
               <img 
-                src={`https://img.vietqr.io/image/MB-0945555555-compact.jpg?amount=${s.totalAmount}&addInfo=${bookingCode}`} 
+                src={`https://img.vietqr.io/image/MB-0945555555-compact.jpg?amount=${payload.totalAmount}&addInfo=${bookingCode}`} 
                 alt="QR Code thanh toán" 
                 className="h-48 w-48 mx-auto"
               />
@@ -310,7 +372,7 @@ const PaymentSuccess: React.FC = () => {
                 <h3 className="text-xl font-bold text-gray-900">Vé điện tử</h3>
                 
                 {/* Logic kiểm tra: Nếu là Banking/Momo -> Hiện Chờ thanh toán (Vàng), Ngược lại -> Đã thanh toán (Xanh) */}
-                {(s.paymentMethod === 'banking' || s.paymentMethod === 'momo') ? (
+                {(payload.paymentMethod === 'banking' || payload.paymentMethod === 'momo') ? (
                    bookingStatus === 'cancelled' ? (
                      <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">❌ Đã hủy</span>
                    ) : (
@@ -330,8 +392,8 @@ const PaymentSuccess: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-center">
                     <MapPin className="h-6 w-6 text-blue-600 mx-auto mb-1" />
-                    <div className="font-semibold text-gray-900">{s.route.from}</div>
-                    <div className="text-sm text-gray-600">{fmtTime(s.times.departureTime)}</div>
+                    <div className="font-semibold text-gray-900">{payload.route.from}</div>
+                    <div className="text-sm text-gray-600">{fmtTime(payload.times.departureTime)}</div>
                   </div>
 
                   <div className="flex-1 mx-4">
@@ -339,26 +401,26 @@ const PaymentSuccess: React.FC = () => {
                     <div className="text-center mt-1">
                       <Clock className="h-4 w-4 inline mr-1" />
                       <span className="text-sm text-gray-600">
-                        {s.route.durationMin ? `${Math.floor((s.route.durationMin||0)/60)}h ${(s.route.durationMin||0)%60}m` : '-'}
+                        {payload.route.durationMin ? `${Math.floor((payload.route.durationMin||0)/60)}h ${(payload.route.durationMin||0)%60}m` : '-'}
                       </span>
                     </div>
                   </div>
 
                   <div className="text-center">
                     <MapPin className="h-6 w-6 text-green-600 mx-auto mb-1" />
-                    <div className="font-semibold text-gray-900">{s.route.to}</div>
-                    <div className="text-sm text-gray-600">{fmtTime(s.times.arrivalTime)}</div>
+                    <div className="font-semibold text-gray-900">{payload.route.to}</div>
+                    <div className="text-sm text-gray-600">{fmtTime(payload.times.arrivalTime)}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-gray-600">Ghế:</span><span className="ml-2 font-medium">{s.seats.join(', ')}</span></div>
-                  <div><span className="text-gray-600">Xe:</span><span className="ml-2 font-medium">{s.bus.busType} {s.bus.licensePlate ? `(${s.bus.licensePlate})` : ''}</span></div>
-                  <div><span className="text-gray-600">Loại xe:</span><span className="ml-2 font-medium">{s.bus.busType}</span></div>
-                  <div><span className="text-gray-600">Hành khách:</span><span className="ml-2 font-medium">{s.passenger?.name || '-'}</span></div>
-                  <div><span className="text-gray-600">SĐT:</span><span className="ml-2 font-medium">{s.passenger?.phone || '-'}</span></div>
-                  <div><span className="text-gray-600">Tài xế:</span><span className="ml-2 font-medium">{driverInfo?.name || s.driver?.name || '-'}</span></div>
-                  <div><span className="text-gray-600">SĐT tài xế:</span><span className="ml-2 font-medium">{driverInfo?.phone || s.driver?.phone || '-'}</span></div>
+                  <div><span className="text-gray-600">Ghế:</span><span className="ml-2 font-medium">{payload.seats.join(', ')}</span></div>
+                  <div><span className="text-gray-600">Xe:</span><span className="ml-2 font-medium">{payload.bus.busType} {payload.bus.licensePlate ? `(${payload.bus.licensePlate})` : ''}</span></div>
+                  <div><span className="text-gray-600">Loại xe:</span><span className="ml-2 font-medium">{payload.bus.busType}</span></div>
+                  <div><span className="text-gray-600">Hành khách:</span><span className="ml-2 font-medium">{payload.passenger?.name || '-'}</span></div>
+                  <div><span className="text-gray-600">SĐT:</span><span className="ml-2 font-medium">{payload.passenger?.phone || '-'}</span></div>
+                  <div><span className="text-gray-600">Tài xế:</span><span className="ml-2 font-medium">{driverInfo?.name || payload.driver?.name || '-'}</span></div>
+                  <div><span className="text-gray-600">SĐT tài xế:</span><span className="ml-2 font-medium">{driverInfo?.phone || payload.driver?.phone || '-'}</span></div>
                 </div>
               </div>
 
@@ -378,21 +440,21 @@ const PaymentSuccess: React.FC = () => {
                   <Calendar className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                     <p className="font-semibold text-gray-900">Ngày khởi hành</p>
-                    <p className="text-gray-600">{new Date(s.times.departureTime).toLocaleDateString('vi-VN')}</p>
+                    <p className="text-gray-600">{new Date(payload.times.departureTime).toLocaleDateString('vi-VN')}</p>
                   </div>
                 </div>
                 <div className="flex items-center">
                   <Clock className="h-5 w-5 text-green-600 mr-3" />
                   <div>
                     <p className="font-semibold text-gray-900">Giờ khởi hành</p>
-                    <p className="text-gray-600">{fmtTime(s.times.departureTime)}</p>
+                    <p className="text-gray-600">{fmtTime(payload.times.departureTime)}</p>
                   </div>
                 </div>
                 <div className="flex items-center">
                   <Bus className="h-5 w-5 text-purple-600 mr-3" />
                   <div>
                     <p className="font-semibold text-gray-900">Loại xe</p>
-                    <p className="text-gray-600">{s.bus.busType}</p>
+                    <p className="text-gray-600">{payload.bus.busType}</p>
                   </div>
                 </div>
               </div>
@@ -406,25 +468,25 @@ const PaymentSuccess: React.FC = () => {
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between"><span className="text-gray-600">Mã đặt vé:</span><span className="font-medium">{bookingCode}</span></div>
                 <div className="flex justify-between"><span className="text-gray-600">Mã thanh toán:</span><span className="font-medium">{paymentCode}</span></div>
-                <div className="flex justify-between"><span className="text-gray-600">Phương thức:</span><span className="font-medium">{s.paymentMethod === 'momo' ? 'Ví MoMo' : s.paymentMethod === 'cod' ? 'Thanh toán tại xe' : 'Chuyển khoản ngân hàng'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-600">Số ghế:</span><span className="font-medium">{s.seats.length} ghế</span></div>
-                <div className="flex justify-between"><span className="text-gray-600">Giá vé/ghế:</span><span className="font-medium">{(s.pricePerSeat || 0).toLocaleString()}₫</span></div>
-                {typeof s.originalTotal === 'number' && s.originalTotal > 0 && (
+                <div className="flex justify-between"><span className="text-gray-600">Phương thức:</span><span className="font-medium">{payload.paymentMethod === 'momo' ? 'Ví MoMo' : payload.paymentMethod === 'cod' ? 'Thanh toán tại xe' : payload.paymentMethod === 'vnpay' ? 'VNPay' : 'Chuyển khoản ngân hàng'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Số ghế:</span><span className="font-medium">{payload.seats.length} ghế</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">Giá vé/ghế:</span><span className="font-medium">{(payload.pricePerSeat || 0).toLocaleString()}₫</span></div>
+                {typeof payload.originalTotal === 'number' && payload.originalTotal > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Tổng tiền gốc:</span>
-                    <span className="font-medium line-through text-gray-400">{s.originalTotal.toLocaleString()}₫</span>
+                    <span className="font-medium line-through text-gray-400">{payload.originalTotal.toLocaleString()}₫</span>
                   </div>
                 )}
-                {typeof s.discountAmount === 'number' && s.discountAmount > 0 && (
+                {typeof payload.discountAmount === 'number' && payload.discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-green-700">
-                    <span>Giảm giá{ s.voucherCode ? ` (${s.voucherCode})` : ''}:</span>
-                    <span>-{s.discountAmount.toLocaleString()}₫</span>
+                    <span>Giảm giá{ payload.voucherCode ? ` (${payload.voucherCode})` : ''}:</span>
+                    <span>-{payload.discountAmount.toLocaleString()}₫</span>
                   </div>
                 )}
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Tổng thanh toán:</span>
-                    <span className="text-green-600">{(s.totalAmount || 0).toLocaleString()}₫</span>
+                    <span className="text-green-600">{(payload.totalAmount || 0).toLocaleString()}₫</span>
                   </div>
                 </div>
               </div>

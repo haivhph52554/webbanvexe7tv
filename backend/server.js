@@ -13,13 +13,25 @@ const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
+const vnpayRoutes = require('./routes/vnpayRoutes');
 
 const app = express();
 
+const allowedOrigins = (process.env.CORS_ORIGIN ||
+  'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001'],
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
 app.use(express.json());
@@ -54,6 +66,7 @@ app.use('/api/routes', routeRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/vnpay', vnpayRoutes);
 
 
 const crypto = require('crypto');

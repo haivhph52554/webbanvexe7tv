@@ -1,10 +1,10 @@
+import { ArrowLeft, Lock, Mail } from 'lucide-react';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../App';
 
-// SỬA: Đặt mặc định là http://localhost:5000 nếu không có biến môi trường
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5000';
+// SỬA: Đặt mặc định là http://localhost:5555 nếu không có biến môi trường
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ const LoginPage: React.FC = () => {
 
       // Lưu thông tin user vào context
       authLogin(data.user);
-      
+
       // Điều hướng dựa trên role (Logic bạn đã thêm)
       if (data.user.role === 'admin') {
         navigate('/admin');

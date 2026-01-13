@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bus, MapPin, Clock, CreditCard, Shield, Lock } from 'lucide-react';
-const API_BASE = 'http://localhost:5000';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 type PaymentState = {
   tripId: string;
@@ -27,7 +27,7 @@ const PaymentPage: React.FC = () => {
   const st = (location.state || {}) as PaymentState;
 
   // Mặc định chọn Banking
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking'>('banking');
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'banking' | 'vnpay'>('banking');
   const [isProcessing, setIsProcessing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [voucherCode, setVoucherCode] = useState<string>('');
@@ -80,6 +80,10 @@ const PaymentPage: React.FC = () => {
         throw new Error(e?.error || `HTTP ${res.status}`);
       }
       const payload = await res.json();
+      if (payload?.paymentUrl) {
+        window.location.href = payload.paymentUrl;
+        return;
+      }
       navigate('/payment-success', { state: payload });
     } catch (e: any) {
       setErr(e?.message || 'Có lỗi khi thanh toán');
@@ -263,6 +267,27 @@ const PaymentPage: React.FC = () => {
                     <div>
                       <p className="font-semibold text-gray-900">Chuyển khoản ngân hàng</p>
                       <p className="text-sm text-gray-600">Thanh toán qua Internet Banking</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* VNPay */}
+              <div
+                className={`border-2 rounded-lg p-4 cursor-pointer transition-colors mt-3 ${paymentMethod==='vnpay' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}
+                onClick={() => setPaymentMethod('vnpay')}
+              >
+                <div className="flex items-center">
+                  <div className="w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center">
+                    {paymentMethod === 'vnpay' && <div className="w-3 h-3 bg-red-500 rounded-full"></div>}
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-red-600 rounded mr-3 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">VN</span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">VNPay</p>
+                      <p className="text-sm text-gray-600">Thanh toán qua cổng VNPay</p>
                     </div>
                   </div>
                 </div>

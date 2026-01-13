@@ -17,7 +17,7 @@ interface Route {
   features: string[];
 }
 
-const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || '';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 const RoutesPage: React.FC = () => {
   const navigate = useNavigate();

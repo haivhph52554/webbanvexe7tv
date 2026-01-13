@@ -8,6 +8,7 @@ const Assistant = require('../models/Assistant');
 const TripSeatStatus = require('../models/TripSeatStatus');
 const RouteStop = require('../models/RouteStop');
 const { sendBookingConfirmationEmail } = require('../utils/mailer');
+const { createVnpayUrl, verifyVnpayReturn, getClientIp } = require('../utils/vnpay');
 
 // Cấu hình đơn giản cho mã giảm giá người dùng mới
 const NEW_USER_VOUCHER = {
@@ -21,12 +22,64 @@ const normalizeToNumber = (v) => {
   return Number.isNaN(num) ? null : num;
 };
 
+const buildBookingPayload = (booking, payment) => {
+  const parsedSeats = (booking.seat_numbers || [])
+    .map(normalizeToNumber)
+    .filter((n) => n != null);
+  const seats = parsedSeats.length ? parsedSeats : (booking.seat_numbers || []);
+
+  const originalTotal = typeof booking.total_amount === 'number'
+    ? booking.total_amount
+    : typeof booking.total_price === 'number'
+      ? booking.total_price
+      : 0;
+  const totalAmount = typeof booking.final_amount === 'number'
+    ? booking.final_amount
+    : typeof booking.total_price === 'number'
+      ? booking.total_price
+      : originalTotal;
+  const discountAmount = typeof booking.discount_amount === 'number' ? booking.discount_amount : 0;
+  const pricePerSeat = seats.length ? Math.round(originalTotal / seats.length) : originalTotal;
+
+  return {
+    bookingId: String(booking._id),
+    paymentId: payment ? String(payment._id) : '',
+    route: {
+      from: booking.pickup_name || booking.route_snapshot?.from || '',
+      to: booking.dropoff_name || booking.route_snapshot?.to || '',
+      durationMin: booking.route_snapshot?.estimated_duration_min ?? null
+    },
+    times: { departureTime: booking.start_time, arrivalTime: booking.end_time || null },
+    bus: {
+      busType: booking.bus_snapshot?.bus_type || '',
+      seatCount: booking.bus_snapshot?.seat_count || 0,
+      licensePlate: booking.bus_snapshot?.license_plate || ''
+    },
+    driver: booking.driver_snapshot || null,
+    assistant: booking.assistant_snapshot || null,
+    seats,
+    passenger: booking.passenger || null,
+    pricePerSeat,
+    originalTotal,
+    discountAmount,
+    totalAmount,
+    paymentMethod: payment?.method || 'banking',
+    voucherCode: booking.voucher_code || null,
+    stops: (booking.pickup_name || booking.dropoff_name) ? {
+      pickupName: booking.pickup_name || null,
+      dropoffName: booking.dropoff_name || null
+    } : null
+  };
+};
+
 exports.checkout = async (req, res) => {
   // [FIX] Bỏ qua Transaction để tránh lỗi "Transaction numbers are only allowed..."
   // const session = await mongoose.startSession(); 
   
   try {
-    const { tripId, seatNumbers, passenger, paymentMethod, amount, stops, voucherCode } = req.body;
+    const { tripId, seatNumbers, passenger, paymentMethod, amount, stops, voucherCode, bankCode, locale } = req.body;
+    const method = String(paymentMethod || 'banking').toLowerCase();
+    const isVnpay = method === 'vnpay';
 
     if (!tripId || !Array.isArray(seatNumbers) || seatNumbers.length === 0) {
       return res.status(400).json({ error: 'Thiếu tripId hoặc seatNumbers' });
@@ -180,7 +233,7 @@ exports.checkout = async (req, res) => {
 
     // 7) Tạo booking
     const seatLabels = willBookDocs.map((d) => d.seat_number);
-    const initialStatus = (paymentMethod === 'banking' || paymentMethod === 'momo') ? 'pending' : 'paid';
+    const initialStatus = (method === 'banking' || method === 'momo' || method === 'vnpay') ? 'pending' : 'paid';
 
     let assignedDriver = null;
     let assignedAssistant = null;
@@ -264,9 +317,9 @@ exports.checkout = async (req, res) => {
     const [payment] = await Payment.create(
       [{
         booking: booking._id,
-        method: paymentMethod || 'banking',
+        method,
         amount: finalAmount,
-        transaction_code: `TX${Date.now()}`,
+        transaction_code: isVnpay ? String(booking._id) : `TX${Date.now()}`,
         status: initialStatus === 'paid' ? 'success' : 'pending',
         paid_at: initialStatus === 'paid' ? new Date() : null
       }]
@@ -285,6 +338,36 @@ exports.checkout = async (req, res) => {
       { $set: { status: 'booked', booking_id: booking._id, updated_at: new Date() } }
       // [FIX] Bỏ session
     );
+
+    if (isVnpay) {
+      const tmnCode = process.env.VNP_TMN_CODE;
+      const secretKey = process.env.VNP_HASH_SECRET;
+      const vnpUrl = process.env.VNP_URL;
+      const returnUrl = process.env.VNP_RETURN_URL;
+      if (!tmnCode || !secretKey || !vnpUrl || !returnUrl) {
+        throw new Error('Thiếu cấu hình VNPay');
+      }
+
+      const paymentUrl = createVnpayUrl({
+        amount: finalAmount,
+        orderId: String(booking._id),
+        orderInfo: `VeXe7TV booking ${booking._id}`,
+        orderType: 'bus_ticket',
+        returnUrl,
+        bankCode,
+        locale,
+        ipAddr: getClientIp(req),
+        tmnCode,
+        secretKey,
+        vnpUrl
+      });
+
+      return res.json({
+        paymentUrl,
+        bookingId: String(booking._id),
+        paymentId: String(payment._id)
+      });
+    }
 
     // 10) Chuẩn bị payload trả về FE
     const payload = {
@@ -480,5 +563,84 @@ exports.cancel = async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message });
+  }
+};
+
+exports.summary = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Not found' });
+    const payment = booking.payment
+      ? await Payment.findById(booking.payment)
+      : await Payment.findOne({ booking: booking._id });
+    res.json(buildBookingPayload(booking, payment));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+exports.vnpayReturn = async (req, res) => {
+  const returnUrl = process.env.VNP_RETURN_URL_FE || 'http://localhost:3000/payment-success';
+  try {
+    const secretKey = process.env.VNP_HASH_SECRET;
+    if (!secretKey) {
+      return res.redirect(`${returnUrl}?status=error`);
+    }
+
+    const { isValid, vnp_Params } = verifyVnpayReturn(req.query, secretKey);
+    const bookingId = vnp_Params.vnp_TxnRef;
+
+    if (!isValid || !bookingId) {
+      return res.redirect(`${returnUrl}?status=invalid&bookingId=${encodeURIComponent(bookingId || '')}`);
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.redirect(`${returnUrl}?status=notfound&bookingId=${encodeURIComponent(bookingId)}`);
+    }
+
+    const payment = booking.payment
+      ? await Payment.findById(booking.payment)
+      : await Payment.findOne({ booking: booking._id });
+
+    const isSuccess = vnp_Params.vnp_ResponseCode === '00' && vnp_Params.vnp_TransactionStatus === '00';
+
+    if (payment) {
+      payment.status = isSuccess ? 'success' : 'failed';
+      if (vnp_Params.vnp_TransactionNo) {
+        payment.transaction_code = vnp_Params.vnp_TransactionNo;
+      }
+      if (isSuccess) {
+        payment.paid_at = new Date();
+      }
+      await payment.save();
+    }
+
+    if (isSuccess) {
+      booking.status = 'paid';
+      await booking.save();
+      await TripSeatStatus.updateMany(
+        { booking_id: booking._id },
+        { $set: { status: 'booked', updated_at: new Date() } }
+      );
+      const recipientEmail = booking?.passenger?.email;
+      if (recipientEmail) {
+        const payload = buildBookingPayload(booking, payment);
+        sendBookingConfirmationEmail(recipientEmail, payload)
+          .catch((e) => console.error('Send email error:', e));
+      }
+    } else {
+      booking.status = 'cancelled';
+      await booking.save();
+      await TripSeatStatus.updateMany(
+        { booking_id: booking._id },
+        { $set: { status: 'available', booking_id: null, updated_at: new Date() } }
+      );
+    }
+
+    return res.redirect(`${returnUrl}?status=${isSuccess ? 'success' : 'failed'}&bookingId=${encodeURIComponent(String(booking._id))}`);
+  } catch (e) {
+    console.error('VNPay return error:', e);
+    return res.redirect(`${returnUrl}?status=error`);
   }
 };

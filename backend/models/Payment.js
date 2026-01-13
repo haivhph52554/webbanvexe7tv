@@ -5,8 +5,8 @@ const paymentSchema = new mongoose.Schema(
     booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
-    // Ví dụ: 'momo' | 'banking' | 'cod'
-    method: { type: String, enum: ['momo', 'banking', 'cod'], required: true },
+    // Ví dụ: 'momo' | 'banking' | 'cod' | 'vnpay'
+    method: { type: String, enum: ['momo', 'banking', 'cod', 'vnpay'], required: true },
 
     amount: { type: Number, required: true },              // số tiền đã thanh toán
     transaction_code: { type: String },                    // mã giao dịch từ cổng thanh toán

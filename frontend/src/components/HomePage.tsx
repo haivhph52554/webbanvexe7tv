@@ -13,8 +13,7 @@ type RouteDoc = {
   active?: boolean;
 };
 
-const API_BASE =
-  (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_BACKEND_URL) || '';
+const API_BASE = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || 'http://localhost:5555';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();

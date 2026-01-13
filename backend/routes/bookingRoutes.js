@@ -42,6 +42,7 @@ router.post('/checkout', optionalAuth, bookingController.checkout);
 router.get('/', optionalAuth, bookingController.listOfUser);
 
 // Lấy chi tiết 1 booking theo id
+router.get('/:id/summary', bookingController.summary);
 router.get('/:id', bookingController.detail);
 
 // Huỷ booking

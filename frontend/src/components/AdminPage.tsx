@@ -28,7 +28,7 @@ const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'trips' | 'bookings'>('trips');
 
   // URL Backend
-  const API_BASE = 'http://localhost:5000';
+  const API_BASE = 'http://localhost:5555';
 
   useEffect(() => {
     fetchTrips();
@@ -82,7 +82,7 @@ const AdminPage: React.FC = () => {
   // --- HÀM DUYỆT THANH TOÁN (MỚI) ---
   const handleApprovePayment = async (bookingId: string) => {
     if (!window.confirm('Xác nhận đã nhận được tiền cho đơn này?')) return;
-    
+
     try {
       // Gọi API update status (Lưu ý: dùng /admin/bookings/... theo đúng file adminRoutes.js)
       const response = await fetch(`${API_BASE}/admin/bookings/${bookingId}/status`, {
@@ -122,9 +122,9 @@ const AdminPage: React.FC = () => {
       {/* Main Content */}
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
         {/* Tabs */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '1rem', 
+        <div style={{
+          display: 'flex',
+          gap: '1rem',
           marginBottom: '2rem',
           backgroundColor: 'white',
           padding: '0.5rem',
@@ -256,17 +256,17 @@ const AdminPage: React.FC = () => {
                         <span style={{
                           padding: '0.25rem 0.75rem',
                           borderRadius: '4px',
-                          backgroundColor: 
-                            booking.status === 'paid' || booking.status === 'confirmed' || booking.status === 'completed' 
-                              ? '#d1fae5' 
-                              : booking.status === 'pending' 
-                                ? '#fef3c7' 
-                                : '#fee2e2',
-                          color: 
+                          backgroundColor:
                             booking.status === 'paid' || booking.status === 'confirmed' || booking.status === 'completed'
-                              ? '#065f46' 
-                              : booking.status === 'pending' 
-                                ? '#d97706' 
+                              ? '#d1fae5'
+                              : booking.status === 'pending'
+                                ? '#fef3c7'
+                                : '#fee2e2',
+                          color:
+                            booking.status === 'paid' || booking.status === 'confirmed' || booking.status === 'completed'
+                              ? '#065f46'
+                              : booking.status === 'pending'
+                                ? '#d97706'
                                 : '#991b1b'
                         }}>
                           {booking.status === 'paid' ? 'Đã thanh toán' : booking.status === 'pending' ? 'Chờ thanh toán' : booking.status}
@@ -296,7 +296,7 @@ const AdminPage: React.FC = () => {
                           </button>
                         )}
 
-                        <button 
+                        <button
                           onClick={() => handleDeleteBooking(booking._id)}
                           style={{
                             padding: '0.5rem 1rem',

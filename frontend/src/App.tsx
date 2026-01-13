@@ -171,9 +171,7 @@ const App: React.FC = () => {
             <Route
               path="/payment-success"
               element={
-                <ProtectedRoute>
-                  <PaymentSuccess />
-                </ProtectedRoute>
+                <PaymentSuccess />
               }
             />
             {/* <Route

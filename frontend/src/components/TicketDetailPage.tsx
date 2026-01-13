@@ -92,6 +92,7 @@ const TicketDetailPage: React.FC = () => {
       case 'momo': return 'Ví MoMo';
       case 'banking': return 'Chuyển khoản ngân hàng';
       case 'cod': return 'Thanh toán tại xe';
+      case 'vnpay': return 'VNPay';
       default: return 'Không xác định';
     }
   };

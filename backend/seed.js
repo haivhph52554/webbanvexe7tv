@@ -22,58 +22,65 @@ const Booking = require('./models/Booking');
     console.log('👥 Tạo users...');
     // Admin
     const admin = await User.create({ 
-      full_name: 'Admin Hệ Thống', 
+      name: 'Admin Hệ Thống', 
       phone: '0901111111', 
       email: 'admin@basevex.com', 
-      password_hash: '$2b$10$example', 
+      password: 'admin123', 
       role: 'admin' 
     });
 
     // Customers
     const customer1 = await User.create({ 
-      full_name: 'Nguyễn Văn An', 
+      name: 'Nguyễn Văn An', 
       phone: '0901234567', 
       email: 'an@gmail.com', 
-      role: 'customer' 
+      password: 'user123', 
+      role: 'user' 
     });
     const customer2 = await User.create({ 
-      full_name: 'Trần Thị Bình', 
+      name: 'Trần Thị Bình', 
       phone: '0912345678', 
       email: 'binh@gmail.com', 
-      role: 'customer' 
+      password: 'user123', 
+      role: 'user' 
     });
     const customer3 = await User.create({ 
-      full_name: 'Lê Văn Cường', 
+      name: 'Lê Văn Cường', 
       phone: '0923456789', 
       email: 'cuong@gmail.com', 
-      role: 'customer' 
+      password: 'user123', 
+      role: 'user' 
     });
 
     // Drivers
     const driver1 = await User.create({ 
-      full_name: 'Phạm Văn Đức', 
+      name: 'Phạm Văn Đức', 
       phone: '0934567890', 
       email: 'duc.tx@gmail.com', 
+      password: 'driver123', 
       role: 'driver' 
     });
     const driver2 = await User.create({ 
-      full_name: 'Hoàng Văn Hùng', 
+      name: 'Hoàng Văn Hùng', 
       phone: '0945678901', 
       email: 'hung.tx@gmail.com', 
+      password: 'driver123', 
       role: 'driver' 
     });
 
     // Assistants
     const assistant1 = await User.create({ 
-      full_name: 'Nguyễn Thị Lan', 
+      name: 'Nguyễn Thị Lan', 
       phone: '0956789012', 
       email: 'lan.phuxe@gmail.com', 
+      password: 'assistant123', 
       role: 'assistant' 
     });
     const assistant2 = await User.create({ 
-      full_name: 'Trần Thị Mai', 
+      name: 'Trần Thị Mai', 
       phone: '0967890123', 
       email: 'mai.phuxe@gmail.com', 
+      password: 'assistant123', 
       role: 'assistant' 
     });
 
@@ -99,8 +106,8 @@ const Booking = require('./models/Booking');
     }));
     buses.push(await Bus.create({ 
       license_plate: '30B-22222', 
-      bus_type: 'Giường nằm 32 chỗ VIP', 
-      seat_count: 32,
+      bus_type: 'Giường nằm 32 chỗ VIP',
+seat_count: 32,
       active: true
     }));
 
@@ -189,7 +196,7 @@ const Booking = require('./models/Booking');
     // Trips for Route 2
     const trip2Start = new Date();
     trip2Start.setDate(trip2Start.getDate() + 1);
-    trip2Start.setHours(18, 0, 0, 0);
+trip2Start.setHours(18, 0, 0, 0);
     const trip2End = new Date(trip2Start);
     trip2End.setDate(trip2End.getDate() + 2);
     trip2End.setHours(18, 0, 0, 0);
