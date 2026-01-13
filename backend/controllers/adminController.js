@@ -1222,160 +1222,297 @@ exports.deleteRoute = async (req, res) => {
 // --- Trips CRUD helpers for admin UI ---
 exports.newTrip = async (req, res) => {
   try {
-    const routes = await Route.find().sort({ createdAt: -1 });
-    const buses = await Bus.find().sort({ createdAt: -1 });
-    res.render('admin/trip_form', { trip: null, routes, buses, page: 'trips', errors: null });
+    const routes = await Route.find({ active: true }).sort({ name: 1 });
+    const buses = await Bus.find({ active: true }).sort({ license_plate: 1 });
+    
+    // Lấy tài xế và phụ xe đang làm việc
+    const drivers = await Driver.find({ status: 'active' }).sort({ name: 1 });
+    const assistants = await Assistant.find({ status: 'active' }).sort({ name: 1 });
+
+    res.render('admin/trip_form', { 
+        trip: null, 
+        routes, 
+        buses, 
+        drivers, 
+        assistants, 
+        page: 'trips', 
+        errors: null 
+    });
   } catch (err) {
     console.error('Error rendering new trip form:', err);
     res.status(500).send('Lỗi khi tải form tạo chuyến: ' + err.message);
   }
 };
 
+// 2. Xử lý tạo chuyến (Lưu Trip -> Gán vào assigned_trips của Driver/Assistant)
 exports.createTrip = async (req, res) => {
   try {
-    const RouteModel = Route;
-    const BusModel = Bus;
+    // --- KHAI BÁO MODEL (Thêm đoạn này để tránh lỗi đỏ) ---
+    const Trip = require('../models/Trip');
+    const Driver = require('../models/Driver');
+    const Assistant = require('../models/Assistant');
+    const Route = require('../models/Route');
+    const Bus = require('../models/Bus');
+    const TripSeatStatus = require('../models/TripSeatStatus');
+    // -----------------------------------------------------
 
-    const routeId = req.body.route;
-    const busId = req.body.bus;
-    const startStr = req.body.start_time;
-    const endStr = req.body.end_time;
-    const basePrice = Number(req.body.base_price) || 0;
-    const direction = req.body.direction || 'go';
-    const status = req.body.status || 'scheduled';
-
-    const routes = await RouteModel.find().sort({ origin: 1 });
-    const buses = await BusModel.find().sort({ license_plate: 1 });
-
-    if (!routeId || !busId || !startStr) {
-      return res.render('admin/trip_form', { 
-        trip: null,
-        routes,
-        buses,
-        page: 'trips',
-        errors: 'Vui lòng chọn tuyến, xe và thời gian bắt đầu'
-      });
+    const { 
+        route: routeId, 
+        bus: busId, 
+        driverId, 
+        assistantId, 
+        start_time: startStr, 
+        end_time: endStr, 
+        base_price, 
+        direction, 
+        status 
+    } = req.body;
+    
+    // 1. Kiểm tra đầu vào bắt buộc
+    if (!driverId || !assistantId) {
+        // Lấy dữ liệu để render lại form nếu thiếu thông tin
+        const [routes, buses, drivers, assistants] = await Promise.all([
+            Route.find({ active: true }).sort({ name: 1 }),
+            Bus.find({ active: true }).sort({ license_plate: 1 }),
+            Driver.find({ status: 'active' }).sort({ name: 1 }),
+            Assistant.find({ status: 'active' }).sort({ name: 1 })
+        ]);
+        return res.render('admin/trip_form', { 
+            trip: req.body, routes, buses, drivers, assistants, page: 'trips', 
+            errors: '⚠️ Vui lòng chọn đầy đủ Tài xế và Phụ xe!' 
+        });
     }
 
     const start = new Date(startStr);
-    const now = new Date();
-    if (isNaN(start.getTime())) {
-      return res.render('admin/trip_form', { 
-        trip: null,
-        routes,
-        buses,
-        page: 'trips',
-        errors: 'Thời gian bắt đầu không hợp lệ'
-      });
-    }
-    if (start < now) {
-      return res.render('admin/trip_form', { 
-        trip: null,
-        routes,
-        buses,
-        page: 'trips',
-        errors: 'Không thể tạo chuyến với thời gian bắt đầu trong quá khứ'
-      });
-    }
-
+    if (isNaN(start.getTime())) throw new Error('Thời gian không hợp lệ');
+    
+    // Tự động tính giờ kết thúc nếu để trống
     let end = endStr ? new Date(endStr) : null;
-    if (endStr && isNaN(end.getTime())) end = null;
     if (!end) {
-      const routeDoc = await RouteModel.findById(routeId);
-      const durationMin = Number(routeDoc?.estimated_duration_min) || 0;
-      if (durationMin > 0) {
-        end = new Date(start.getTime() + durationMin * 60000);
-      }
+      const routeDoc = await Route.findById(routeId);
+      const durationMin = Number(routeDoc?.estimated_duration_min) || 120;
+      end = new Date(start.getTime() + durationMin * 60000);
     }
 
-    const payload = {
-      route: routeId,
+    // 2. KIỂM TRA TRÙNG LỊCH NHÂN SỰ (MỚI)
+    
+    // A. Kiểm tra Tài xế
+    const driverData = await Driver.findById(driverId);
+    if (driverData) {
+        const driverConflict = await Trip.findOne({
+          _id: { $in: driverData.assigned_trips },
+          status: { $in: ['scheduled', 'departed'] },
+          $or: [
+            { start_time: { $lt: end }, end_time: { $gt: start } }, // Giao thoa thời gian
+            { start_time: { $lt: end }, end_time: null } // Trường hợp lỗi dữ liệu end_time null
+          ]
+        }).populate('route');
+
+        if (driverConflict) {
+            const [routes, buses, drivers, assistants] = await Promise.all([
+                Route.find({ active: true }), Bus.find({ active: true }),
+                Driver.find({ status: 'active' }), Assistant.find({ status: 'active' })
+            ]);
+            return res.render('admin/trip_form', { 
+                trip: req.body, routes, buses, drivers, assistants, page: 'trips', 
+                errors: `⚠️ Tài xế ${driverData.name} đang bận chạy chuyến ${driverConflict.route?.name || 'khác'} lúc ${new Date(driverConflict.start_time).toLocaleString('vi-VN')}!` 
+            });
+        }
+    }
+
+    // B. Kiểm tra Phụ xe
+    const assistantData = await Assistant.findById(assistantId);
+    if (assistantData) {
+        const assistantConflict = await Trip.findOne({
+          _id: { $in: assistantData.assigned_trips },
+          status: { $in: ['scheduled', 'departed'] },
+          $or: [
+            { start_time: { $lt: end }, end_time: { $gt: start } },
+            { start_time: { $lt: end }, end_time: null }
+          ]
+        }).populate('route');
+
+        if (assistantConflict) {
+            const [routes, buses, drivers, assistants] = await Promise.all([
+                Route.find({ active: true }), Bus.find({ active: true }),
+                Driver.find({ status: 'active' }), Assistant.find({ status: 'active' })
+            ]);
+            return res.render('admin/trip_form', { 
+                trip: req.body, routes, buses, drivers, assistants, page: 'trips', 
+                errors: `⚠️ Phụ xe ${assistantData.name} đang bận chạy chuyến ${assistantConflict.route?.name || 'khác'} lúc ${new Date(assistantConflict.start_time).toLocaleString('vi-VN')}!` 
+            });
+        }
+    }
+
+    // 3. Kiểm tra trùng lịch Xe (Logic cũ)
+    const busOverlap = await Trip.findOne({
       bus: busId,
-      start_time: start,
-      end_time: end,
-      base_price: basePrice,
-      direction,
-      status
-    };
+      status: { $in: ['scheduled', 'departed'] },
+      $or: [
+        { start_time: { $lt: end }, end_time: { $gt: start } },
+        { start_time: { $lt: end }, end_time: null }
+      ]
+    });
 
-   
-    try {
-      const overlap = await Trip.findOne({
-        bus: busId,
-        status: { $in: ['scheduled', 'departed'] },
-        start_time: { $lt: payload.end_time },
-        $or: [
-          { end_time: { $gt: payload.start_time } },
-          { end_time: null }
-        ]
-      });
-
-      if (overlap) {
+    if (busOverlap) {
+        const [routes, buses, drivers, assistants] = await Promise.all([
+            Route.find({ active: true }), Bus.find({ active: true }),
+            Driver.find({ status: 'active' }), Assistant.find({ status: 'active' })
+        ]);
         return res.render('admin/trip_form', { 
-          trip: null,
-          routes,
-          buses,
-          page: 'trips',
-          errors: 'Xe đã có chuyến trùng/đang chạy vào khoảng thời gian này. Vui lòng chọn xe/khung giờ khác.'
+            trip: req.body, routes, buses, drivers, assistants, page: 'trips', 
+            errors: '⚠️ Xe này đã có chuyến trùng lịch trình!' 
         });
-      }
-    } catch (e) {
-      console.warn('Lỗi khi kiểm tra xung đột chuyến:', e.message);
     }
 
-    const trip = await Trip.create(payload);
+    // 4. Tạo Trip
+    const trip = await Trip.create({
+      route: routeId, 
+      bus: busId, 
+      start_time: start, 
+      end_time: end,
+      base_price: Number(base_price) || 0, 
+      direction: direction || 'go', 
+      status: status || 'scheduled'
+    });
 
-    const busDoc = await BusModel.findById(trip.bus);
-    const seatCount = busDoc?.seat_count || 0;
-    const seatDocs = [];
-    for (let i = 1; i <= seatCount; i++) {
-      seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
+    // Tạo ghế
+    const busDoc = await Bus.findById(busId);
+    if (busDoc && busDoc.seat_count) {
+        const seatDocs = [];
+        for (let i = 1; i <= busDoc.seat_count; i++) {
+            seatDocs.push({ trip: trip._id, seat_number: String(i), status: 'available' });
+        }
+        await TripSeatStatus.insertMany(seatDocs);
     }
-    if (seatDocs.length) await TripSeatStatus.insertMany(seatDocs);
+
+    // 5. Gán người vào chuyến (Cập nhật mảng assigned_trips của nhân viên)
+    await Driver.findByIdAndUpdate(driverId, { $addToSet: { assigned_trips: trip._id } });
+    await Assistant.findByIdAndUpdate(assistantId, { $addToSet: { assigned_trips: trip._id } });
 
     res.redirect('/admin/trips');
   } catch (err) {
-    console.error('Error creating trip:', err);
-    try {
-      const routes = await Route.find().sort({ origin: 1 });
-      const buses = await Bus.find().sort({ license_plate: 1 });
-      return res.render('admin/trip_form', { trip: null, routes, buses, page: 'trips', errors: 'Lỗi khi tạo chuyến: ' + err.message });
-    } catch (e2) {
-      return res.status(500).send('Lỗi khi tạo chuyến: ' + err.message);
-    }
+    console.error(err);
+    res.status(500).send('Lỗi khi tạo chuyến: ' + err.message);
   }
 };
 
+// 3. Form sửa chuyến (Tìm ngược xem ai đang giữ chuyến này để hiển thị)
 exports.editTrip = async (req, res) => {
   try {
     const trip = await Trip.findById(req.params.id);
     if (!trip) return res.status(404).send('Chuyến không tồn tại');
-    const routes = await Route.find().sort({ createdAt: -1 });
-    const buses = await Bus.find().sort({ createdAt: -1 });
-    res.render('admin/trip_form', { trip, routes, buses, page: 'trips', errors: null });
+    
+    const routes = await Route.find().sort({ name: 1 });
+    const buses = await Bus.find().sort({ license_plate: 1 });
+    const drivers = await Driver.find({ status: 'active' }).sort({ name: 1 });
+    const assistants = await Assistant.find({ status: 'active' }).sort({ name: 1 });
+
+    // Tìm xem Tài xế/Phụ xe nào đang có assigned_trips chứa trip._id này
+    const currentDriver = await Driver.findOne({ assigned_trips: trip._id });
+    const currentAssistant = await Assistant.findOne({ assigned_trips: trip._id });
+
+    // Hack: Gán tạm vào object trip để EJS đọc được
+    const tripData = trip.toObject();
+    tripData.driverId = currentDriver ? currentDriver._id.toString() : '';
+    tripData.assistantId = currentAssistant ? currentAssistant._id.toString() : '';
+
+    res.render('admin/trip_form', { 
+        trip: tripData, 
+        routes, buses, drivers, assistants, 
+        page: 'trips', errors: null 
+    });
   } catch (err) {
-    console.error('Error rendering edit trip form:', err);
-    res.status(500).send('Lỗi khi tải form sửa chuyến: ' + err.message);
+    res.status(500).send(err.message);
   }
 };
 
+// 4. Cập nhật chuyến (Xử lý gỡ người cũ, gán người mới)
 exports.updateTrip = async (req, res) => {
   try {
-    const payload = {
-      route: req.body.route,
-      bus: req.body.bus,
-      start_time: req.body.start_time ? new Date(req.body.start_time) : null,
-      end_time: req.body.end_time ? new Date(req.body.end_time) : null,
-      base_price: Number(req.body.base_price) || 0,
-      direction: req.body.direction || 'go',
-      status: req.body.status || 'scheduled'
-    };
+    const tripId = req.params.id;
+    const { driverId, assistantId, start_time, end_time, route: routeId, bus: busId } = req.body;
 
-    await Trip.findByIdAndUpdate(req.params.id, payload);
+    if (!driverId || !assistantId) {
+        const [routes, buses, drivers, assistants] = await Promise.all([
+            Route.find({ active: true }).sort({ name: 1 }),
+            Bus.find({ active: true }).sort({ license_plate: 1 }),
+            Driver.find({ status: 'active' }).sort({ name: 1 }),
+            Assistant.find({ status: 'active' }).sort({ name: 1 })
+        ]);
+        return res.render('admin/trip_form', { 
+            trip: { ...req.body, _id: tripId }, 
+            routes, buses, drivers, assistants, page: 'trips', 
+            errors: '⚠️ Không thể lưu: Tài xế và Phụ xe là bắt buộc!' 
+        });
+    }
+
+    const start = new Date(start_time);
+    let end = end_time ? new Date(end_time) : new Date(start.getTime() + 120 * 60000);
+
+    // 1. KIỂM TRA TRÙNG LỊCH NHÂN SỰ KHI CẬP NHẬT (TRỪ CHUYẾN HIỆN TẠI)
+    // Check Tài xế
+    const driverConflict = await Trip.findOne({
+      _id: { $ne: tripId }, // Không phải chuyến đang sửa
+      _id: { $in: (await Driver.findById(driverId)).assigned_trips },
+      status: { $in: ['scheduled', 'departed'] },
+      start_time: { $lt: end },
+      end_time: { $gt: start }
+    });
+
+    if (driverConflict) {
+        const [routes, buses, drivers, assistants] = await Promise.all([
+            Route.find({ active: true }), Bus.find({ active: true }),
+            Driver.find({ status: 'active' }), Assistant.find({ status: 'active' })
+        ]);
+        return res.render('admin/trip_form', { 
+            trip: { ...req.body, _id: tripId }, 
+            routes, buses, drivers, assistants, page: 'trips', 
+            errors: '⚠️ Tài xế đã được gán cho một chuyến xe khác trong khung giờ này!' 
+        });
+    }
+
+    // Check Phụ xe
+    const assistantConflict = await Trip.findOne({
+      _id: { $ne: tripId },
+      _id: { $in: (await Assistant.findById(assistantId)).assigned_trips },
+      status: { $in: ['scheduled', 'departed'] },
+      start_time: { $lt: end },
+      end_time: { $gt: start }
+    });
+
+    if (assistantConflict) {
+        const [routes, buses, drivers, assistants] = await Promise.all([
+            Route.find({ active: true }), Bus.find({ active: true }),
+            Driver.find({ status: 'active' }), Assistant.find({ status: 'active' })
+        ]);
+        return res.render('admin/trip_form', { 
+            trip: { ...req.body, _id: tripId }, 
+            routes, buses, drivers, assistants, page: 'trips', 
+            errors: '⚠️ Phụ xe đã được gán cho một chuyến xe khác trong khung giờ này!' 
+        });
+    }
+
+    // 2. Cập nhật thông tin Trip [cite: 90]
+    await Trip.findByIdAndUpdate(tripId, {
+      route: routeId, bus: busId, start_time: start, end_time: end,
+      base_price: Number(req.body.base_price),
+      direction: req.body.direction, status: req.body.status
+    });
+
+    // 3. Xử lý gỡ và gán lại nhân sự 
+    // Gỡ chuyến cũ khỏi tất cả nhân viên để dọn dẹp dữ liệu
+    await Driver.updateMany({ assigned_trips: tripId }, { $pull: { assigned_trips: tripId } });
+    await Assistant.updateMany({ assigned_trips: tripId }, { $pull: { assigned_trips: tripId } });
+
+    // Gán vào nhân viên mới đã chọn
+    await Driver.findByIdAndUpdate(driverId, { $addToSet: { assigned_trips: tripId } });
+    await Assistant.findByIdAndUpdate(assistantId, { $addToSet: { assigned_trips: tripId } });
+
     res.redirect('/admin/trips');
   } catch (err) {
     console.error('Error updating trip:', err);
-    res.status(500).send('Lỗi khi cập nhật chuyến: ' + err.message);
+    res.status(500).send('Lỗi cập nhật: ' + err.message);
   }
 };
 

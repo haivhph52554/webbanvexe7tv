@@ -18,8 +18,7 @@
 <body>
   <div class="container">
     <h2><%= trip ? 'Sửa thông tin chuyến' : 'Thêm chuyến mới' %></h2>
-    <form method="post" action="<%= trip ? ('/admin/trips/' + trip._id) : '/admin/trips' %>">
-      <label>Tuyến</label>
+    <form method="post" action="<%= (trip && trip._id) ? ('/admin/trips/' + trip._id) : '/admin/trips' %>">      <label>Tuyến</label>
       <select name="route" required>
         <% routes.forEach(function(r){ %>
           <option value="<%= r._id %>" <%= trip && trip.route && trip.route.toString()===r._id.toString() ? 'selected' : '' %>><%= r.name %> — <%= r.from_city %> → <%= r.to_city %></option>
@@ -32,6 +31,37 @@
           <option value="<%= b._id %>" <%= trip && trip.bus && trip.bus.toString()===b._id.toString() ? 'selected' : '' %>><%= b.license_plate %> — <%= b.bus_type %></option>
         <% }) %>
       </select>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;">
+  <div>
+      <label>Tài xế phụ trách <span style="color:red">*</span></label>
+      <select name="driverId" style="width:100%;padding:0.6rem;border:1px solid #e5e7eb;border-radius:6px" required>
+          <option value="">-- Chọn tài xế --</option>
+          <% if (typeof drivers !== 'undefined') { %>
+              <% drivers.forEach(function(d){ %>
+                  <option value="<%= d._id %>" 
+                      <%= (trip && trip.driverId && trip.driverId.toString() === d._id.toString()) ? 'selected' : '' %>>
+                      <%= d.name %> (<%= d.phone %>)
+                  </option>
+              <% }) %>
+          <% } %>
+      </select>
+  </div>
+  <div>
+      <label>Phụ xe (Lơ xe) <span style="color:red">*</span></label>
+      <select name="assistantId" style="width:100%;padding:0.6rem;border:1px solid #e5e7eb;border-radius:6px" required>
+          <option value="">-- Chọn phụ xe --</option>
+          <% if (typeof assistants !== 'undefined') { %>
+              <% assistants.forEach(function(a){ %>
+                  <option value="<%= a._id %>" 
+                      <%= (trip && trip.assistantId && trip.assistantId.toString() === a._id.toString()) ? 'selected' : '' %>>
+                      <%= a.name %> (<%= a.phone %>)
+                  </option>
+              <% }) %>
+          <% } %>
+      </select>
+  </div>
+</div>
 
       <label>Thời gian bắt đầu</label>
       <input type="datetime-local" name="start_time" required value="<%= trip && trip.start_time ? new Date(trip.start_time).toISOString().slice(0,16) : '' %>" />
